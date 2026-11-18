@@ -40,6 +40,7 @@ export function defaultConfig(type: FieldType): FieldConfig {
 export function answerableCount(form: Pick<FormDefinition, "questions">): number { return form.questions.filter((question) => question.type !== "instruction").length }
 export function canAddAnswerable(form: Pick<FormDefinition, "questions">): boolean { return answerableCount(form) < 150 }
 export function duplicateForm(form: FormDefinition): FormDefinition {
+  if (answerableCount(form) > 150) throw new Error("A form cannot exceed 150 answerable questions.")
   const formId = newId("form"), sectionIds = new Map(form.sections.map((s) => [s.id, newId("section")])), questionIds = new Map(form.questions.map((q) => [q.id, newId("question")]))
   const sections = structuredClone(form.sections).map((s) => ({ ...s, id: sectionIds.get(s.id)!, questionIds: s.questionIds.map((id) => questionIds.get(id) ?? id) }))
   const questions = structuredClone(form.questions).map((q) => ({ ...q, id: questionIds.get(q.id)!, sectionId: sectionIds.get(q.sectionId) ?? q.sectionId, config: remapConfig(q.config, questionIds), conditions: q.conditions.map((rule) => ({ ...rule, id: newId("rule"), sourceQuestionId: questionIds.get(rule.sourceQuestionId) ?? rule.sourceQuestionId, targetQuestionId: questionIds.get(rule.targetQuestionId) ?? rule.targetQuestionId })) }))
@@ -198,13 +199,18 @@ export function validateAnswer(question: Question, value: unknown): string | und
   if (question.validation.maxLength && String(value).length > question.validation.maxLength) return `Maximum length is ${question.validation.maxLength}.`
 }
 
-function conditionMatches(rule: Condition, answer: unknown): boolean {
+function conditionMatches(rule: Condition, answer: unknown, sourceType?: FieldType): boolean {
+  const comparable = (value: unknown): number => {
+    if (sourceType === "time") { const [hours, minutes] = String(value).split(":").map(Number); return hours * 60 + minutes }
+    if (sourceType === "date" || sourceType === "datetime") return Date.parse(String(value))
+    return Number(value)
+  }
   switch (rule.operator) {
     case "equals": return Array.isArray(answer) ? answer.includes(rule.value) : answer === rule.value
     case "not_equals": return Array.isArray(answer) ? !answer.includes(rule.value) : answer !== rule.value
     case "contains": return Array.isArray(answer) ? answer.includes(rule.value) : typeof answer === "string" && answer.includes(String(rule.value))
-    case "greater_than": return Number(answer) > Number(rule.value)
-    case "less_than": return Number(answer) < Number(rule.value)
+    case "greater_than": return comparable(answer) > comparable(rule.value)
+    case "less_than": return comparable(answer) < comparable(rule.value)
     case "is_empty": return answer == null || answer === "" || Array.isArray(answer) && answer.length === 0
     case "is_not_empty": return !(answer == null || answer === "" || Array.isArray(answer) && answer.length === 0)
     default: return false
@@ -215,7 +221,7 @@ export function getQuestionRuntimeStates(form: FormDefinition, answers: Record<s
   const states: Record<string, QuestionRuntimeState> = Object.fromEntries(form.questions.map((question) => [question.id, { visible: true, required: question.required, evidenceRequired: false }]))
   for (const target of form.questions) {
     const rules = form.questions.flatMap((owner) => owner.conditions).filter((rule) => rule.targetQuestionId === target.id)
-    const matching = rules.filter((rule) => { const source = form.questions.find((question) => question.id === rule.sourceQuestionId); return source ? conditionMatches(rule, answers[source.id]) : false })
+    const matching = rules.filter((rule) => { const source = form.questions.find((question) => question.id === rule.sourceQuestionId); return source ? conditionMatches(rule, answers[source.id], source.type) : false })
     const showRules = rules.filter((rule) => rule.effect === "show")
     states[target.id].visible = (!showRules.length || matching.some((rule) => rule.effect === "show")) && !matching.some((rule) => rule.effect === "hide")
     states[target.id].required = target.required || matching.some((rule) => rule.effect === "require")
