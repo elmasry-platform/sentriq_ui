@@ -49,6 +49,14 @@ test("safe formula parser applies precedence, parentheses, and stable numeric re
   assert.throws(() => evaluateFormula("1 / 0", {}, []), /zero/)
   assert.throws(() => evaluateFormula("1 + alert(1)", {}, []), /unsupported token/)
 })
+test("calculated values honor half-up, half-even, and truncate rounding", async () => {
+  const { roundCalculated } = await import("./domain.ts")
+  assert.equal(roundCalculated(1.235, 2, "half_up"), 1.24)
+  assert.equal(roundCalculated(1.245, 2, "half_even"), 1.24)
+  assert.equal(roundCalculated(1.249, 2, "truncate"), 1.24)
+  assert.equal(roundCalculated(-1.235, 2, "half_up"), -1.24)
+})
+
 test("form validation detects calculated field dependency cycles", () => {
   const form = emptyForm()
   const first = add(form)
@@ -120,4 +128,56 @@ test("local score derives from configured boolean pass values and weighted choic
   select.scoring.weight = 1
   assert.equal(calculateLocalScore(form, { [boolean.id]: true, [select.id]: "pass" }).score, 100)
   assert.equal(calculateLocalScore(form, { [boolean.id]: false, [select.id]: "fail" }).score, 0)
+})
+
+test("multi-select requires an array of unique configured choice IDs", () => {
+  const question = createQuestion("multi_select", "s")
+  assert.equal(validateAnswer(question, question.config.choices![0].id), "Choose one or more valid options.")
+  assert.equal(validateAnswer(question, [question.config.choices![0].id, question.config.choices![0].id]), "Choose a valid option.")
+})
+
+test("field configuration validation catches invalid dates, choice scores and calculated precision", () => {
+  const form = emptyForm()
+  const date = add(form)
+  date.type = "date"
+  date.config = { minDate: "2026-02-30", maxDate: "2026-01-01" }
+  const select = add(form)
+  select.type = "single_select"
+  select.config.choices = [{ id: "choice_a", label: { en: "A", ar: "أ" }, score: -1, finding: false }, { id: "choice_b", label: { en: "B", ar: "ب" }, score: null, finding: false }]
+  const calculated = add(form)
+  calculated.type = "calculated"
+  calculated.config = { formula: "1 + 2", precision: 12, rounding: "unknown" }
+  const errors = validateForm(form).map((error) => error.message)
+  assert.ok(errors.some((message) => message.includes("valid date")))
+  assert.ok(errors.some((message) => message.includes("Choice scores")))
+  assert.ok(errors.some((message) => message.includes("precision")))
+  assert.ok(errors.some((message) => message.includes("rounding")))
+})
+
+test("condition dependency cycles and invalid typed comparisons are rejected", () => {
+  const form = emptyForm()
+  const first = add(form)
+  const second = add(form)
+  first.conditions.push({ id: "rule-a", sourceQuestionId: second.id, operator: "equals", value: "x", targetQuestionId: first.id, effect: "show" })
+  second.conditions.push({ id: "rule-b", sourceQuestionId: first.id, operator: "equals", value: "x", targetQuestionId: second.id, effect: "show" })
+  const errors = validateForm(form)
+  assert.ok(errors.some((error) => error.message.includes("cannot form a cycle")))
+  const boolean = add(form)
+  boolean.type = "boolean"
+  boolean.conditions.push({ id: "bad-bool", sourceQuestionId: boolean.id, operator: "equals", value: "yes", targetQuestionId: first.id, effect: "hide" })
+  boolean.conditions[0].sourceQuestionId = boolean.id
+  boolean.conditions[0].targetQuestionId = boolean.id
+  assert.ok(validateForm(form).some((error) => error.message.includes("same question")))
+  boolean.conditions[0].targetQuestionId = first.id
+  assert.ok(validateForm(form).some((error) => error.message.includes("true or false")))
+})
+
+test("capacity counts hidden answerable questions and excludes instructions and repeat children", () => {
+  const form = emptyForm()
+  const hidden = add(form)
+  hidden.conditions.push({ id: "hide", sourceQuestionId: hidden.id, operator: "equals", value: "x", targetQuestionId: hidden.id, effect: "hide" })
+  add(form, "instruction")
+  const repeat = add(form, "repeat_group")
+  repeat.config.children = [{ id: "a", type: "decimal", label: { en: "Amount", ar: "المبلغ" }, required: false, config: {} }]
+  assert.equal(answerableCount(form), 2)
 })

@@ -66,11 +66,29 @@ export function validateQuestion(question: Question): string[] {
     if (!Number.isInteger(max) || max < 1 || !Number.isInteger(min) || min < 0 || min > max) errors.push("Text length limits are invalid.")
   }
   if (question.type === "decimal" && (!Number.isInteger(Number(question.config.precision)) || Number(question.config.precision) < 0 || Number(question.config.precision) > 10)) errors.push("Precision must be between 0 and 10.")
-  if (question.type === "date" && question.config.minDate && question.config.maxDate && String(question.config.minDate) > String(question.config.maxDate)) errors.push("Minimum date cannot be after maximum date.")
+  if (question.type === "date") {
+    const minDate = String(question.config.minDate ?? ""), maxDate = String(question.config.maxDate ?? "")
+    if (minDate && (!/^\\d{4}-\\d{2}-\\d{2}$/.test(minDate) || Number.isNaN(Date.parse(minDate)) || new Date(minDate).toISOString().slice(0, 10) !== minDate)) errors.push("Minimum date must be a valid date.")
+    if (maxDate && (!/^\\d{4}-\\d{2}-\\d{2}$/.test(maxDate) || Number.isNaN(Date.parse(maxDate)) || new Date(maxDate).toISOString().slice(0, 10) !== maxDate)) errors.push("Maximum date must be a valid date.")
+    if (minDate && maxDate && minDate > maxDate) errors.push("Minimum date cannot be after maximum date.")
+  }
+  if (question.type === "datetime" && !["absolute_instant", "local_datetime"].includes(String(question.config.meaning))) errors.push("Choose explicit date-time semantics.")
+  if (question.type === "time" && !["12h", "24h"].includes(String(question.config.format))) errors.push("Choose a supported time format.")
   if (question.type === "single_select" || question.type === "multi_select") {
     const choices = question.config.choices ?? []
     if (choices.length < 2 || choices.some((choice) => !choice.label.en.trim() && !choice.label.ar.trim())) errors.push("Add at least two labeled choices.")
     if (new Set(choices.map((choice) => choice.id)).size !== choices.length) errors.push("Choice IDs must be unique.")
+    if (choices.some((choice) => choice.score !== null && (!Number.isFinite(choice.score) || choice.score < 0))) errors.push("Choice scores must be non-negative finite numbers.")
+  }
+  if (question.type === "barcode_qr" && (!Number.isInteger(Number(question.config.maxLength)) || Number(question.config.maxLength) < 1)) errors.push("Barcode maximum length must be a positive whole number.")
+  if (question.type === "calculated") {
+    if (!String(question.config.formula ?? "").trim()) errors.push("Add an arithmetic formula.")
+    if (!Number.isInteger(Number(question.config.precision ?? 2)) || Number(question.config.precision ?? 2) < 0 || Number(question.config.precision ?? 2) > 10) errors.push("Calculated precision must be between 0 and 10.")
+    if (!["half_up", "half_even", "truncate"].includes(String(question.config.rounding ?? "half_up"))) errors.push("Choose a supported rounding method.")
+  }
+  if (question.type === "attestation") {
+    const statement = question.config.statement as { en?: string; ar?: string } | undefined
+    if (!statement?.en?.trim() && !statement?.ar?.trim()) errors.push("Add an acknowledgment statement in English or Arabic.")
   }
   if (question.type === "photo" || question.type === "file") {
     if (!Number.isInteger(Number(question.config.maxFiles)) || Number(question.config.maxFiles) < 1) errors.push("Maximum file count must be a positive whole number.")
@@ -98,6 +116,7 @@ export function validateForm(form: FormDefinition): { questionId?: string; messa
   const questionIds = new Set(form.questions.map((question) => question.id))
   const sectionIds = new Set(form.sections.map((section) => section.id))
   const formulaDependencies = new Map<string, string[]>()
+  const conditionDependencies = new Map<string, string[]>()
   if (new Set(form.questions.map((question) => question.id)).size !== form.questions.length) errors.push({ message: "Question IDs must be unique." })
   for (const section of form.sections) {
     if (new Set(section.questionIds).size !== section.questionIds.length) errors.push({ message: `Section “${section.title.en}” contains duplicate question references.` })
@@ -122,9 +141,16 @@ export function validateForm(form: FormDefinition): { questionId?: string; messa
       if (!source || !target) errors.push({ questionId: question.id, message: "A rule references a question that no longer exists." })
       if (rule.sourceQuestionId === rule.targetQuestionId) errors.push({ questionId: question.id, message: "A rule cannot use the same question as source and target." })
       if (!CONDITION_OPERATORS.has(rule.operator)) errors.push({ questionId: question.id, message: "A rule uses an unsupported operator." })
+      if (source && rule.sourceQuestionId !== rule.targetQuestionId) conditionDependencies.set(rule.targetQuestionId, [...(conditionDependencies.get(rule.targetQuestionId) ?? []), rule.sourceQuestionId])
       if (rule.operator === "contains" && source && source.type !== "multi_select" && source.type !== "single_select" && source.type !== "short_text" && source.type !== "long_text") errors.push({ questionId: question.id, message: "Contains is not supported for this source field." })
-      if ((rule.operator === "greater_than" || rule.operator === "less_than") && source && source.type !== "integer" && source.type !== "decimal" && source.type !== "date" && source.type !== "time" && source.type !== "datetime") errors.push({ questionId: question.id, message: "Comparison requires a numeric or date/time source field." })
+      if ((rule.operator === "greater_than" || rule.operator === "less_than") && source && !["integer", "decimal", "date", "time", "datetime"].includes(source.type)) errors.push({ questionId: question.id, message: "Comparison requires a numeric or date/time source field." })
       if (["is_empty", "is_not_empty"].includes(rule.operator) ? rule.value !== "" : rule.value === undefined || rule.value === null) errors.push({ questionId: question.id, message: "A rule needs a valid comparison value." })
+      if (source && !["is_empty", "is_not_empty"].includes(rule.operator)) {
+        if (["integer", "decimal"].includes(source.type) && !Number.isFinite(Number(rule.value))) errors.push({ questionId: question.id, message: "Numeric conditions need a finite comparison value." })
+        if (source.type === "boolean" && typeof rule.value !== "boolean") errors.push({ questionId: question.id, message: "Boolean conditions need a true or false value." })
+        if (["single_select", "multi_select"].includes(source.type) && !source.config.choices?.some((choice) => choice.id === rule.value)) errors.push({ questionId: question.id, message: "Choice conditions must reference an existing choice ID." })
+        if (source.type === "date" && (typeof rule.value !== "string" || Number.isNaN(Date.parse(rule.value)))) errors.push({ questionId: question.id, message: "Date conditions need a valid date value." })
+      }
     }
   }
   const visiting = new Set<string>(), visited = new Set<string>()
@@ -139,6 +165,18 @@ export function validateForm(form: FormDefinition): { questionId?: string; messa
     return cyclic
   }
   for (const id of formulaDependencies.keys()) visitFormula(id)
+  const visitingConditions = new Set<string>(), visitedConditions = new Set<string>()
+  const visitCondition = (id: string): boolean => {
+    if (visitingConditions.has(id)) return true
+    if (visitedConditions.has(id)) return false
+    visitingConditions.add(id)
+    const cyclic = (conditionDependencies.get(id) ?? []).some(visitCondition)
+    visitingConditions.delete(id)
+    visitedConditions.add(id)
+    if (cyclic) errors.push({ questionId: id, message: "Conditional dependencies cannot form a cycle." })
+    return cyclic
+  }
+  for (const id of conditionDependencies.keys()) visitCondition(id)
   return errors
 }
 
@@ -159,15 +197,17 @@ export function validateAnswer(question: Question, value: unknown): string | und
   }
   if (question.type === "date") {
     const text = String(value)
-    if (Number.isNaN(Date.parse(text)) || new Date(text).toISOString().slice(0, 10) !== text) return "Enter a valid date."
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(text) || Number.isNaN(Date.parse(text)) || new Date(text).toISOString().slice(0, 10) !== text) return "Enter a valid date."
     if (question.config.minDate && text < String(question.config.minDate) || question.config.maxDate && text > String(question.config.maxDate)) return "Date is outside the configured range."
   }
+  if (question.type === "datetime" && (Number.isNaN(Date.parse(String(value))) || !String(value).includes("T"))) return "Enter a valid date and time."
   if (question.type === "time" && !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(value))) return "Enter a valid time in 24-hour format."
   if (question.type === "gps") { const [lat, lon] = String(value).split(",").map(Number); if (lat < -90 || lat > 90 || lon < -180 || lon > 180 || !Number.isFinite(lat) || !Number.isFinite(lon)) return "Enter latitude (−90 to 90) and longitude (−180 to 180)." }
   if (question.type === "single_select" || question.type === "multi_select") {
     const validIds = new Set((question.config.choices ?? []).map((choice) => choice.id))
+    if (question.type === "multi_select" && !Array.isArray(value)) return "Choose one or more valid options."
     const selections = Array.isArray(value) ? value : [value]
-    if (question.type === "single_select" && selections.length !== 1 || selections.some((item) => typeof item !== "string" || !validIds.has(item))) return "Choose a valid option."
+    if (question.type === "single_select" && selections.length !== 1 || new Set(selections).size !== selections.length || selections.some((item) => typeof item !== "string" || !validIds.has(item))) return "Choose a valid option."
   }
   if (question.type === "photo" || question.type === "file") {
     const files = Array.isArray(value) ? value as File[] : []
@@ -261,6 +301,16 @@ export function calculateLocalScore(form: FormDefinition, answers: Record<string
     if (!empty) earned += weight * fraction
   }
   return { score: possible > 0 ? Math.round((earned / possible) * 10000) / 100 : null, earned, possible, answered }
+}
+
+export function roundCalculated(value: number, precision: number, method: "half_up" | "half_even" | "truncate" = "half_up"): number {
+  const factor = 10 ** precision
+  const scaled = Math.abs(value) * factor
+  const lower = Math.floor(scaled)
+  const fraction = scaled - lower
+  const epsilon = Number.EPSILON * Math.max(1, scaled) * 4
+  const rounded = method === "truncate" ? lower : fraction > 0.5 + epsilon ? lower + 1 : fraction < 0.5 - epsilon ? lower : method === "half_even" ? lower % 2 === 0 ? lower : lower + 1 : lower + 1
+  return Math.sign(value) * rounded / factor
 }
 
 export function evaluateFormula(expression: string, answers: Record<string, unknown>, questions: Question[]): number {
