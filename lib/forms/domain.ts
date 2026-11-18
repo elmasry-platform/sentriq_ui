@@ -143,7 +143,7 @@ export function validateForm(form: FormDefinition): { questionId?: string; messa
 }
 
 export function validateAnswer(question: Question, value: unknown): string | undefined {
-  const empty = value === "" || value == null || Array.isArray(value) && value.length === 0
+  const empty = value === "" || value == null || Array.isArray(value) && value.length === 0 && question.type !== "repeat_group"
   if (empty && question.required && question.type !== "instruction") return "This field is required."
   if (empty) return
   const number = Number(value)
@@ -162,7 +162,7 @@ export function validateAnswer(question: Question, value: unknown): string | und
     if (Number.isNaN(Date.parse(text)) || new Date(text).toISOString().slice(0, 10) !== text) return "Enter a valid date."
     if (question.config.minDate && text < String(question.config.minDate) || question.config.maxDate && text > String(question.config.maxDate)) return "Date is outside the configured range."
   }
-  if (question.type === "time" && !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(value))) return "Enter a valid time in 24-hour format."
+  if (question.type === "time" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value))) return "Enter a valid time in 24-hour format."
   if (question.type === "gps") { const [lat, lon] = String(value).split(",").map(Number); if (lat < -90 || lat > 90 || lon < -180 || lon > 180 || !Number.isFinite(lat) || !Number.isFinite(lon)) return "Enter latitude (−90 to 90) and longitude (−180 to 180)." }
   if (question.type === "single_select" || question.type === "multi_select") {
     const validIds = new Set((question.config.choices ?? []).map((choice) => choice.id))

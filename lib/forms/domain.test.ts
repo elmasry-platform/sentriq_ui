@@ -56,7 +56,7 @@ test("duplication rejects forms beyond the answerable-question limit", () => {
 // ─── Sections ───────────────────────────────────────────────
 test("questions belong to the correct section", () => {
   const form = emptyForm()
-  const section2 = { id: "s2", title: { en: "S2", ar: "س٢" }, description: { en: "", ar: "" }, questionIds: [] }
+  const section2: FormDefinition["sections"][number] = { id: "s2", title: { en: "S2", ar: "س٢" }, description: { en: "", ar: "" }, questionIds: [] }
   form.sections.push(section2)
   const q1 = createQuestion("short_text", form.sections[0].id)
   const q2 = createQuestion("short_text", section2.id)
@@ -69,7 +69,7 @@ test("questions belong to the correct section", () => {
 
 test("moving a question updates section references", () => {
   const form = emptyForm()
-  const section2 = { id: "s2", title: { en: "S2", ar: "س٢" }, description: { en: "", ar: "" }, questionIds: [] }
+  const section2: FormDefinition["sections"][number] = { id: "s2", title: { en: "S2", ar: "س٢" }, description: { en: "", ar: "" }, questionIds: [] }
   form.sections.push(section2)
   const q = add(form)
   const source = form.sections[0]
@@ -84,7 +84,7 @@ test("moving a question updates section references", () => {
 
 test("removing a section cannot leave orphan questions", () => {
   const form = emptyForm()
-  const section2 = { id: "s2", title: { en: "S2", ar: "س٢" }, description: { en: "", ar: "" }, questionIds: [] }
+  const section2: FormDefinition["sections"][number] = { id: "s2", title: { en: "S2", ar: "س٢" }, description: { en: "", ar: "" }, questionIds: [] }
   form.sections.push(section2)
   const q = createQuestion("short_text", section2.id)
   form.questions.push(q)
@@ -438,7 +438,7 @@ test("formula rejects unknown question references", () => {
 
 test("formula rejects non-numeric question references", () => {
   const q = createQuestion("short_text", "s")
-  assert.throws(() => evaluateFormula(`{{${q.id}}} + 1`, { [q.id]: "text" }, [q]), /Numeric answer missing/)
+  assert.throws(() => evaluateFormula(`{{${q.id}}} + 1`, { [q.id]: "text" }, [q]), /numeric questions/)
 })
 
 test("formula rejects incomplete expressions", () => {
@@ -659,7 +659,7 @@ test("repository save does not overwrite newer state on failure", async () => {
 test("repository handles corrupted storage safely", async () => {
   const { LocalFormRepository } = await import("./repository.ts")
   const previousStorage = globalThis.localStorage
-  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: { getItem: () => "{ invalid json", setItem: () => {} } as Storage })
+  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: { getItem: () => "{ invalid json", setItem: () => {} } as unknown as Storage })
   try {
     const repository = new LocalFormRepository()
     assert.throws(() => repository.list(), /could not be read/)
