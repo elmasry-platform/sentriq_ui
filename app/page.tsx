@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation"
+import { PublicHome } from "@/components/sentriq/public-home"
 
 export default function HomePage() {
-  redirect("/app/dashboard")
+  return <PublicHome />
 }
