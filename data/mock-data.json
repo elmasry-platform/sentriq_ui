@@ -1,0 +1,614 @@
+{
+  "workspaces": [
+    {
+      "id": "ws_northstar",
+      "name": "Northstar Facilities",
+      "industryLabel": "Facilities Management",
+      "sites": [
+        {
+          "id": "site_central",
+          "name": "Central Operations",
+          "code": "NS-C01",
+          "city": "Cairo"
+        },
+        {
+          "id": "site_west",
+          "name": "West Campus",
+          "code": "NS-W02",
+          "city": "6th of October"
+        },
+        {
+          "id": "site_east",
+          "name": "East Logistics Hub",
+          "code": "NS-E03",
+          "city": "New Cairo"
+        }
+      ]
+    },
+    {
+      "id": "ws_cedarline",
+      "name": "Cedarline Manufacturing",
+      "industryLabel": "Manufacturing",
+      "sites": [
+        {
+          "id": "site_plant_a",
+          "name": "Plant A",
+          "code": "CD-A01",
+          "city": "Alexandria"
+        },
+        {
+          "id": "site_warehouse",
+          "name": "Main Warehouse",
+          "code": "CD-W01",
+          "city": "Alexandria"
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "u_admin",
+      "displayName": "Mariam Hassan",
+      "email": "mariam.admin@example.test",
+      "role": "tenant_admin",
+      "workspaceId": "ws_northstar",
+      "siteIds": [
+        "site_central",
+        "site_west",
+        "site_east"
+      ]
+    },
+    {
+      "id": "u_designer",
+      "displayName": "Omar Adel",
+      "email": "omar.designer@example.test",
+      "role": "form_designer",
+      "workspaceId": "ws_northstar",
+      "siteIds": [
+        "site_central",
+        "site_west"
+      ]
+    },
+    {
+      "id": "u_inspector",
+      "displayName": "Youssef Nabil",
+      "email": "youssef.inspector@example.test",
+      "role": "inspector",
+      "workspaceId": "ws_northstar",
+      "siteIds": [
+        "site_central",
+        "site_east"
+      ]
+    },
+    {
+      "id": "u_r1",
+      "displayName": "Salma Farid",
+      "email": "salma.reviewer1@example.test",
+      "role": "reviewer_1",
+      "workspaceId": "ws_northstar",
+      "siteIds": [
+        "site_central",
+        "site_west",
+        "site_east"
+      ]
+    },
+    {
+      "id": "u_r2",
+      "displayName": "Karim Fawzy",
+      "email": "karim.reviewer2@example.test",
+      "role": "reviewer_2",
+      "workspaceId": "ws_northstar",
+      "siteIds": [
+        "site_central",
+        "site_west",
+        "site_east"
+      ]
+    },
+    {
+      "id": "u_final",
+      "displayName": "Nour Sameh",
+      "email": "nour.final@example.test",
+      "role": "final_reviewer",
+      "workspaceId": "ws_northstar",
+      "siteIds": [
+        "site_central",
+        "site_west",
+        "site_east"
+      ]
+    },
+    {
+      "id": "u_owner",
+      "displayName": "Hany Mostafa",
+      "email": "hany.owner@example.test",
+      "role": "action_owner",
+      "workspaceId": "ws_northstar",
+      "siteIds": [
+        "site_central",
+        "site_west"
+      ]
+    },
+    {
+      "id": "u_closure",
+      "displayName": "Dina Wael",
+      "email": "dina.closure@example.test",
+      "role": "closure_reviewer",
+      "workspaceId": "ws_northstar",
+      "siteIds": [
+        "site_central",
+        "site_west",
+        "site_east"
+      ]
+    },
+    {
+      "id": "u_auditor",
+      "displayName": "Farah Tarek",
+      "email": "farah.audit@example.test",
+      "role": "auditor",
+      "workspaceId": "ws_northstar",
+      "siteIds": [
+        "site_central",
+        "site_west",
+        "site_east"
+      ]
+    },
+    {
+      "id": "u_cedar_admin",
+      "displayName": "Laila Emad",
+      "email": "laila.admin@example.test",
+      "role": "tenant_admin",
+      "workspaceId": "ws_cedarline",
+      "siteIds": [
+        "site_plant_a",
+        "site_warehouse"
+      ]
+    }
+  ],
+  "forms": [
+    {
+      "id": "form_safety_walk",
+      "title": {
+        "en": "Site Safety Walkthrough",
+        "ar": "جولة تفتيش السلامة بالموقع"
+      },
+      "category": "Health & Safety",
+      "status": "published",
+      "currentVersion": 3,
+      "updatedAt": "2026-11-15T09:30:00+02:00",
+      "ownerId": "u_designer",
+      "sections": [
+        {
+          "id": "sec_general",
+          "title": {
+            "en": "General Information",
+            "ar": "البيانات العامة"
+          },
+          "order": 1,
+          "questions": [
+            {
+              "id": "q_location",
+              "type": "single_select",
+              "title": {
+                "en": "Inspection area",
+                "ar": "منطقة التفتيش"
+              },
+              "required": true,
+              "order": 1,
+              "options": [
+                {
+                  "value": "production",
+                  "label": {
+                    "en": "Production floor",
+                    "ar": "منطقة الإنتاج"
+                  }
+                },
+                {
+                  "value": "storage",
+                  "label": {
+                    "en": "Storage area",
+                    "ar": "منطقة التخزين"
+                  }
+                },
+                {
+                  "value": "office",
+                  "label": {
+                    "en": "Office area",
+                    "ar": "المكاتب"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "q_shift",
+              "type": "single_select",
+              "title": {
+                "en": "Shift",
+                "ar": "الوردية"
+              },
+              "required": true,
+              "order": 2,
+              "options": [
+                {
+                  "value": "morning",
+                  "label": {
+                    "en": "Morning",
+                    "ar": "صباحية"
+                  }
+                },
+                {
+                  "value": "evening",
+                  "label": {
+                    "en": "Evening",
+                    "ar": "مسائية"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "sec_walk",
+          "title": {
+            "en": "Safety Checks",
+            "ar": "فحوصات السلامة"
+          },
+          "order": 2,
+          "questions": [
+            {
+              "id": "q_access",
+              "type": "yes_no",
+              "title": {
+                "en": "Are emergency exits clear?",
+                "ar": "هل مخارج الطوارئ خالية من العوائق؟"
+              },
+              "required": true,
+              "order": 1
+            },
+            {
+              "id": "q_signage",
+              "type": "yes_no",
+              "title": {
+                "en": "Is safety signage visible and in good condition?",
+                "ar": "هل لافتات السلامة واضحة وفي حالة جيدة؟"
+              },
+              "required": true,
+              "order": 2
+            },
+            {
+              "id": "q_notes",
+              "type": "long_text",
+              "title": {
+                "en": "Observations",
+                "ar": "الملاحظات"
+              },
+              "required": false,
+              "order": 3
+            },
+            {
+              "id": "q_evidence",
+              "type": "evidence",
+              "title": {
+                "en": "Attach supporting evidence",
+                "ar": "إرفاق دليل داعم"
+              },
+              "required": false,
+              "order": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "form_fire",
+      "title": {
+        "en": "Fire Prevention Checklist",
+        "ar": "قائمة فحص الوقاية من الحريق"
+      },
+      "category": "Fire Safety",
+      "status": "published",
+      "currentVersion": 2,
+      "updatedAt": "2026-11-12T13:10:00+02:00",
+      "ownerId": "u_designer",
+      "sections": []
+    },
+    {
+      "id": "form_environment",
+      "title": {
+        "en": "Environmental Controls Review",
+        "ar": "مراجعة الضوابط البيئية"
+      },
+      "category": "Environment",
+      "status": "draft",
+      "currentVersion": 1,
+      "updatedAt": "2026-11-16T11:05:00+02:00",
+      "ownerId": "u_designer",
+      "sections": []
+    },
+    {
+      "id": "form_equipment",
+      "title": {
+        "en": "Equipment Condition Check",
+        "ar": "فحص حالة المعدات"
+      },
+      "category": "Asset Safety",
+      "status": "archived",
+      "currentVersion": 4,
+      "updatedAt": "2026-10-30T15:45:00+02:00",
+      "ownerId": "u_admin",
+      "sections": []
+    }
+  ],
+  "inspections": [
+    {
+      "id": "INS-2026-0148",
+      "workspaceId": "ws_northstar",
+      "siteId": "site_central",
+      "templateId": "form_safety_walk",
+      "templateVersion": 3,
+      "title": "Site Safety Walkthrough",
+      "inspectorId": "u_inspector",
+      "status": "in_review",
+      "currentStage": "reviewer_1",
+      "answers": [
+        {
+          "questionId": "q_location",
+          "value": "production"
+        },
+        {
+          "questionId": "q_shift",
+          "value": "morning"
+        },
+        {
+          "questionId": "q_access",
+          "value": true
+        },
+        {
+          "questionId": "q_signage",
+          "value": false
+        },
+        {
+          "questionId": "q_notes",
+          "value": "Damaged sign near the east access corridor."
+        }
+      ],
+      "revision": 2,
+      "createdAt": "2026-11-16T08:20:00+02:00",
+      "submittedAt": "2026-11-16T10:12:00+02:00",
+      "updatedAt": "2026-11-16T10:12:00+02:00",
+      "reviewHistory": []
+    },
+    {
+      "id": "INS-2026-0147",
+      "workspaceId": "ws_northstar",
+      "siteId": "site_west",
+      "templateId": "form_fire",
+      "templateVersion": 2,
+      "title": "Fire Prevention Checklist",
+      "inspectorId": "u_inspector",
+      "status": "returned",
+      "currentStage": "reviewer_1",
+      "answers": [],
+      "revision": 3,
+      "createdAt": "2026-11-15T09:00:00+02:00",
+      "submittedAt": "2026-11-15T11:30:00+02:00",
+      "updatedAt": "2026-11-16T14:40:00+02:00",
+      "reviewHistory": [
+        {
+          "id": "rev_1",
+          "stage": "reviewer_1",
+          "decision": "returned",
+          "actorId": "u_r1",
+          "at": "2026-11-16T14:40:00+02:00",
+          "reason": "Please clarify the inspection of the secondary extinguisher point.",
+          "revision": 2
+        }
+      ]
+    },
+    {
+      "id": "INS-2026-0146",
+      "workspaceId": "ws_northstar",
+      "siteId": "site_east",
+      "templateId": "form_safety_walk",
+      "templateVersion": 3,
+      "title": "Site Safety Walkthrough",
+      "inspectorId": "u_inspector",
+      "status": "approved",
+      "currentStage": "final_reviewer",
+      "answers": [],
+      "revision": 4,
+      "createdAt": "2026-11-13T08:00:00+02:00",
+      "submittedAt": "2026-11-13T10:20:00+02:00",
+      "updatedAt": "2026-11-14T16:10:00+02:00",
+      "reviewHistory": []
+    },
+    {
+      "id": "INS-2026-0145",
+      "workspaceId": "ws_northstar",
+      "siteId": "site_central",
+      "templateId": "form_environment",
+      "templateVersion": 1,
+      "title": "Environmental Controls Review",
+      "inspectorId": "u_inspector",
+      "status": "draft",
+      "currentStage": null,
+      "answers": [],
+      "revision": 1,
+      "createdAt": "2026-11-17T09:10:00+02:00",
+      "updatedAt": "2026-11-17T09:10:00+02:00",
+      "reviewHistory": []
+    },
+    {
+      "id": "INS-2026-0144",
+      "workspaceId": "ws_cedarline",
+      "siteId": "site_plant_a",
+      "templateId": "form_safety_walk",
+      "templateVersion": 3,
+      "title": "Site Safety Walkthrough",
+      "inspectorId": "u_cedar_admin",
+      "status": "submitted",
+      "currentStage": "reviewer_1",
+      "answers": [],
+      "revision": 1,
+      "createdAt": "2026-11-16T07:45:00+02:00",
+      "submittedAt": "2026-11-16T09:00:00+02:00",
+      "updatedAt": "2026-11-16T09:00:00+02:00",
+      "reviewHistory": []
+    }
+  ],
+  "findings": [
+    {
+      "id": "FND-2026-0038",
+      "workspaceId": "ws_northstar",
+      "inspectionId": "INS-2026-0148",
+      "questionId": "q_signage",
+      "title": "Damaged safety signage",
+      "description": "Safety sign is not clearly visible near the east access corridor.",
+      "priority": "high",
+      "status": "action_created"
+    },
+    {
+      "id": "FND-2026-0037",
+      "workspaceId": "ws_northstar",
+      "inspectionId": "INS-2026-0147",
+      "title": "Fire point inspection requires clarification",
+      "description": "Additional details are required for the secondary extinguisher point.",
+      "priority": "medium",
+      "status": "open"
+    },
+    {
+      "id": "FND-2026-0036",
+      "workspaceId": "ws_cedarline",
+      "inspectionId": "INS-2026-0144",
+      "title": "Storage aisle obstruction",
+      "description": "A storage aisle requires a follow-up review.",
+      "priority": "medium",
+      "status": "open"
+    }
+  ],
+  "actions": [
+    {
+      "id": "ACT-2026-0081",
+      "workspaceId": "ws_northstar",
+      "siteId": "site_central",
+      "findingId": "FND-2026-0038",
+      "inspectionId": "INS-2026-0148",
+      "title": "Replace damaged safety signage",
+      "description": "Replace the damaged sign and verify visibility from the east access corridor.",
+      "ownerId": "u_owner",
+      "priority": "high",
+      "status": "in_progress",
+      "responseDueAt": "2026-11-18T17:00:00+02:00",
+      "planDueAt": "2026-11-20T17:00:00+02:00",
+      "closureDueAt": "2026-11-25T17:00:00+02:00",
+      "updates": [],
+      "followUps": [],
+      "evidenceIds": [],
+      "revision": 2
+    },
+    {
+      "id": "ACT-2026-0080",
+      "workspaceId": "ws_northstar",
+      "siteId": "site_west",
+      "findingId": "FND-2026-0037",
+      "inspectionId": "INS-2026-0147",
+      "title": "Verify secondary fire extinguisher point",
+      "description": "Confirm access and inspection status, then record the result.",
+      "ownerId": "u_owner",
+      "priority": "medium",
+      "status": "closure_requested",
+      "responseDueAt": "2026-11-15T17:00:00+02:00",
+      "planDueAt": "2026-11-19T17:00:00+02:00",
+      "closureDueAt": "2026-11-23T17:00:00+02:00",
+      "updates": [],
+      "followUps": [],
+      "evidenceIds": [
+        "EVD-0008"
+      ],
+      "revision": 3
+    },
+    {
+      "id": "ACT-2026-0079",
+      "workspaceId": "ws_cedarline",
+      "siteId": "site_plant_a",
+      "findingId": "FND-2026-0036",
+      "inspectionId": "INS-2026-0144",
+      "title": "Clear and mark the storage aisle",
+      "description": "Remove the obstruction and confirm the aisle marking is visible.",
+      "ownerId": "u_cedar_admin",
+      "priority": "low",
+      "status": "closed",
+      "responseDueAt": "2026-11-10T17:00:00+02:00",
+      "planDueAt": "2026-11-12T17:00:00+02:00",
+      "closureDueAt": "2026-11-16T17:00:00+02:00",
+      "updates": [],
+      "followUps": [],
+      "evidenceIds": [],
+      "revision": 4
+    }
+  ],
+  "followUps": [
+    {
+      "id": "FUP-00031",
+      "actionId": "ACT-2026-0081",
+      "title": "Confirm replacement sign delivery",
+      "ownerId": "u_owner",
+      "dueAt": "2026-11-19T17:00:00+02:00",
+      "status": "open",
+      "outcome": null
+    },
+    {
+      "id": "FUP-00030",
+      "actionId": "ACT-2026-0080",
+      "title": "Verify extinguisher accessibility",
+      "ownerId": "u_owner",
+      "dueAt": "2026-11-18T17:00:00+02:00",
+      "status": "in_progress",
+      "outcome": null
+    }
+  ],
+  "evidence": [
+    {
+      "id": "EVD-0008",
+      "workspaceId": "ws_northstar",
+      "fileName": "extinguisher-point-photo.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 384200,
+      "status": "confirmed",
+      "linkedRecordType": "action",
+      "linkedRecordId": "ACT-2026-0080",
+      "uploadedBy": "u_owner",
+      "createdAt": "2026-11-16T13:20:00+02:00"
+    }
+  ],
+  "auditEvents": [
+    {
+      "id": "AUD-00051",
+      "workspaceId": "ws_northstar",
+      "actorId": "u_inspector",
+      "action": "inspection.submitted",
+      "recordType": "inspection",
+      "recordId": "INS-2026-0148",
+      "summary": "Submitted Site Safety Walkthrough for review.",
+      "at": "2026-11-16T10:12:00+02:00"
+    },
+    {
+      "id": "AUD-00050",
+      "workspaceId": "ws_northstar",
+      "actorId": "u_designer",
+      "action": "form.version_published",
+      "recordType": "form",
+      "recordId": "form_safety_walk",
+      "summary": "Published version 3 of Site Safety Walkthrough.",
+      "at": "2026-11-15T09:30:00+02:00"
+    },
+    {
+      "id": "AUD-00049",
+      "workspaceId": "ws_northstar",
+      "actorId": "u_r1",
+      "action": "inspection.returned",
+      "recordType": "inspection",
+      "recordId": "INS-2026-0147",
+      "summary": "Returned an inspection with a correction request.",
+      "at": "2026-11-16T14:40:00+02:00"
+    }
+  ]
+}
