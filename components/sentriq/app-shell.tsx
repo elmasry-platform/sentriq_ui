@@ -102,7 +102,7 @@ export function AppShell({ route }: { route: string }) {
           </div>
         </header>
         <main className="main-content">
-          {dashboard ? <OverviewDashboard data={data} language={language} search={search} /> : route === "/app/forms" ? <FormsLibrary /> : <ComingSoon language={language} route={route} title={rtl ? current?.ar : current?.label} />}
+          {dashboard ? <OverviewDashboard data={data} language={language} search={search} /> : route === "/app/forms" ? <FormsLibrary language={language} /> : <ComingSoon language={language} route={route} title={rtl ? current?.ar : current?.label} />}
         </main>
       </div>
     </div>
