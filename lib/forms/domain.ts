@@ -46,17 +46,249 @@ export function duplicateForm(form: FormDefinition): FormDefinition {
   return { ...structuredClone(form), id: formId, draftId: newId("draft"), title: { en: `${form.title.en} (copy)`, ar: `${form.title.ar} (نسخة)` }, status: "Draft", sections, questions, revision: 0, modifiedAt: new Date().toISOString(), publishedVersions: [] }
 }
 function remapConfig(config: FieldConfig, ids: Map<string, string>): FieldConfig { const copy = structuredClone(config); if (copy.dependencies) copy.dependencies = copy.dependencies.map((id) => ids.get(id) ?? id); if (typeof copy.formula === "string") for (const [oldId, newId] of ids) copy.formula = copy.formula.replaceAll(`{{${oldId}}}`, `{{${newId}}}`); if (Array.isArray(copy.children)) copy.children = copy.children.map((child) => ({ ...child, id: newId("child") })); if (Array.isArray(copy.choices)) copy.choices = copy.choices.map((choice) => ({ ...choice, id: newId("choice") })); return copy }
+const SUPPORTED_CHILD_TYPES = new Set<ChildField["type"]>(["short_text", "long_text", "integer", "decimal", "date", "boolean"])
+const CONDITION_OPERATORS = new Set(["equals", "not_equals", "contains", "greater_than", "less_than", "is_empty", "is_not_empty"])
+
 export function validateQuestion(question: Question): string[] {
   const errors: string[] = []
   if (!question.title.en.trim() && !question.title.ar.trim()) errors.push("Question needs an English or Arabic title.")
-  if (question.type === "single_select" || question.type === "multi_select") { const choices = question.config.choices ?? []; if (choices.length < 2 || choices.some((choice) => !choice.label.en.trim() && !choice.label.ar.trim())) errors.push("Add at least two labeled choices.") }
-  if (question.type === "integer" && question.config.min != null && question.config.max != null && Number(question.config.min) > Number(question.config.max)) errors.push("Minimum cannot exceed maximum.")
+  const numericTypes = new Set(["integer", "decimal"])
+  if (numericTypes.has(question.type)) {
+    const min = question.config.min == null ? undefined : Number(question.config.min)
+    const max = question.config.max == null ? undefined : Number(question.config.max)
+    if (min !== undefined && !Number.isFinite(min) || max !== undefined && !Number.isFinite(max)) errors.push("Numeric bounds must be finite numbers.")
+    if (min !== undefined && max !== undefined && min > max) errors.push("Minimum cannot exceed maximum.")
+  }
+  if (question.type === "short_text" || question.type === "long_text") {
+    const max = Number(question.config.maxLength)
+    const min = Number(question.config.minLength ?? 0)
+    if (!Number.isInteger(max) || max < 1 || !Number.isInteger(min) || min < 0 || min > max) errors.push("Text length limits are invalid.")
+  }
   if (question.type === "decimal" && (!Number.isInteger(Number(question.config.precision)) || Number(question.config.precision) < 0 || Number(question.config.precision) > 10)) errors.push("Precision must be between 0 and 10.")
+  if (question.type === "date" && question.config.minDate && question.config.maxDate && String(question.config.minDate) > String(question.config.maxDate)) errors.push("Minimum date cannot be after maximum date.")
+  if (question.type === "single_select" || question.type === "multi_select") {
+    const choices = question.config.choices ?? []
+    if (choices.length < 2 || choices.some((choice) => !choice.label.en.trim() && !choice.label.ar.trim())) errors.push("Add at least two labeled choices.")
+    if (new Set(choices.map((choice) => choice.id)).size !== choices.length) errors.push("Choice IDs must be unique.")
+  }
+  if (question.type === "photo" || question.type === "file") {
+    if (!Number.isInteger(Number(question.config.maxFiles)) || Number(question.config.maxFiles) < 1) errors.push("Maximum file count must be a positive whole number.")
+    if (!Number.isFinite(Number(question.config.maxBytes)) || Number(question.config.maxBytes) <= 0) errors.push("Maximum file size must be greater than zero.")
+    if (!Array.isArray(question.config.mimeTypes) || question.config.mimeTypes.length === 0) errors.push("Select at least one accepted file type.")
+  }
   if (question.type === "gps" && question.config.manualEntry !== true) errors.push("GPS coordinates must be entered manually in this preview.")
-  if (question.type === "repeat_group") { const children = question.config.children ?? []; if (children.length === 0) errors.push("Repeat groups need at least one child field."); if (children.some((child) => !["short_text", "long_text", "integer", "decimal", "date", "boolean"].includes(child.type))) errors.push("Repeat group contains an unsupported child type."); if (Number(question.config.minRows) > Number(question.config.maxRows)) errors.push("Minimum rows cannot exceed maximum rows.") }
+  if (question.type === "repeat_group") {
+    const children = question.config.children ?? []
+    const minRows = Number(question.config.minRows), maxRows = Number(question.config.maxRows)
+    if (children.length === 0) errors.push("Repeat groups need at least one child field.")
+    if (children.some((child) => !SUPPORTED_CHILD_TYPES.has(child.type) || (!child.label.en.trim() && !child.label.ar.trim()))) errors.push("Repeat group contains an unsupported or unlabeled child field.")
+    if (!Number.isInteger(minRows) || !Number.isInteger(maxRows) || minRows < 0 || maxRows < 1 || minRows > maxRows) errors.push("Repeat group row limits are invalid.")
+  }
   if (question.type === "barcode_qr" && question.config.pattern) { try { new RegExp(String(question.config.pattern)) } catch { errors.push("Barcode validation pattern is not a valid regular expression.") } }
+  if (!Number.isFinite(question.scoring.weight) || question.scoring.weight < 0) errors.push("Question scoring weight must be a non-negative number.")
   return errors
 }
-export function validateForm(form: FormDefinition): { questionId?: string; message: string }[] { const errors: { questionId?: string; message: string }[] = []; if (!form.title.en.trim() && !form.title.ar.trim()) errors.push({ message: "Add a form title." }); if (!answerableCount(form)) errors.push({ message: "Add at least one answerable question." }); if (answerableCount(form) > 150) errors.push({ message: "A form cannot exceed 150 answerable questions." }); for (const q of form.questions) for (const message of validateQuestion(q)) errors.push({ questionId: q.id, message }); for (const q of form.questions) for (const rule of q.conditions) { if (rule.sourceQuestionId === q.id || rule.targetQuestionId === q.id) errors.push({ questionId: q.id, message: "A rule cannot reference itself." }); if (!form.questions.some((item) => item.id === rule.sourceQuestionId || item.id === rule.targetQuestionId)) errors.push({ questionId: q.id, message: "A rule references a question that no longer exists." }) } return errors }
-export function validateAnswer(question: Question, value: unknown): string | undefined { if ((value === "" || value == null) && question.required && question.type !== "instruction") return "This field is required."; if (value === "" || value == null) return; if (question.type === "integer" && (!Number.isInteger(Number(value)) || !Number.isFinite(Number(value)))) return "Enter a whole number."; if (question.type === "decimal" && (!Number.isFinite(Number(value)) || Number(value) < Number(question.config.min ?? -Infinity) || Number(value) > Number(question.config.max ?? Infinity) || Number(String(value).split(".")[1]?.length ?? 0) > Number(question.config.precision ?? 2))) return "Enter a number within the configured bounds and precision."; if (question.type === "date" && (Number.isNaN(Date.parse(String(value))) || new Date(String(value)).toISOString().slice(0, 10) !== value)) return "Enter a valid date."; if (question.type === "gps") { const [lat, lon] = String(value).split(",").map(Number); if (lat < -90 || lat > 90 || lon < -180 || lon > 180 || !Number.isFinite(lat) || !Number.isFinite(lon)) return "Enter latitude (−90 to 90) and longitude (−180 to 180)." } if (question.type === "barcode_qr" && question.config.pattern) { try { if (!new RegExp(String(question.config.pattern)).test(String(value))) return "Code does not match the configured pattern." } catch { return "Configured pattern is invalid." } } if (question.validation.maxLength && String(value).length > question.validation.maxLength) return `Maximum length is ${question.validation.maxLength}.`; return }
-export function evaluateConditions(form: FormDefinition, answers: Record<string, unknown>): Set<string> { const visible = new Set(form.questions.map((q) => q.id)); for (const target of form.questions) for (const rule of target.conditions) { const source = form.questions.find((q) => q.id === rule.sourceQuestionId); if (!source) continue; const answer = answers[source.id]; const match = rule.operator === "equals" ? answer === rule.value : rule.operator === "not_equals" ? answer !== rule.value : rule.operator === "contains" ? Array.isArray(answer) && answer.includes(rule.value) : false; if (match && rule.effect === "hide") visible.delete(target.id) } return visible }
+
+export function validateForm(form: FormDefinition): { questionId?: string; message: string }[] {
+  const errors: { questionId?: string; message: string }[] = []
+  if (!form.title.en.trim() && !form.title.ar.trim()) errors.push({ message: "Add a form title." })
+  if (!answerableCount(form)) errors.push({ message: "Add at least one answerable question." })
+  if (answerableCount(form) > 150) errors.push({ message: "A form cannot exceed 150 answerable questions." })
+  const questionIds = new Set(form.questions.map((question) => question.id))
+  const sectionIds = new Set(form.sections.map((section) => section.id))
+  const formulaDependencies = new Map<string, string[]>()
+  if (new Set(form.questions.map((question) => question.id)).size !== form.questions.length) errors.push({ message: "Question IDs must be unique." })
+  for (const section of form.sections) {
+    if (new Set(section.questionIds).size !== section.questionIds.length) errors.push({ message: `Section “${section.title.en}” contains duplicate question references.` })
+    for (const id of section.questionIds) if (!questionIds.has(id) || form.questions.find((question) => question.id === id)?.sectionId !== section.id) errors.push({ message: `Section “${section.title.en}” has an inconsistent question reference.` })
+  }
+  for (const question of form.questions) {
+    if (!sectionIds.has(question.sectionId)) errors.push({ questionId: question.id, message: "Question must belong to an existing section." })
+    if (!form.sections.find((section) => section.id === question.sectionId)?.questionIds.includes(question.id)) errors.push({ questionId: question.id, message: "Question is missing from its section structure." })
+    for (const message of validateQuestion(question)) errors.push({ questionId: question.id, message })
+    if (question.type === "calculated") {
+      const references = [...String(question.config.formula ?? "").matchAll(/\{\{([^{}]+)\}\}/g)].map((match) => match[1])
+      formulaDependencies.set(question.id, references)
+      for (const dependencyId of references) {
+        const dependency = form.questions.find((item) => item.id === dependencyId)
+        if (!dependency) errors.push({ questionId: question.id, message: `Formula references unknown question ${dependencyId}.` })
+        else if (!["integer", "decimal", "calculated"].includes(dependency.type)) errors.push({ questionId: question.id, message: `Formula dependency ${dependencyId} is not numeric.` })
+      }
+    }
+    for (const rule of question.conditions) {
+      const source = form.questions.find((item) => item.id === rule.sourceQuestionId)
+      const target = form.questions.find((item) => item.id === rule.targetQuestionId)
+      if (!source || !target) errors.push({ questionId: question.id, message: "A rule references a question that no longer exists." })
+      if (rule.sourceQuestionId === rule.targetQuestionId) errors.push({ questionId: question.id, message: "A rule cannot use the same question as source and target." })
+      if (!CONDITION_OPERATORS.has(rule.operator)) errors.push({ questionId: question.id, message: "A rule uses an unsupported operator." })
+      if (rule.operator === "contains" && source && source.type !== "multi_select" && source.type !== "single_select" && source.type !== "short_text" && source.type !== "long_text") errors.push({ questionId: question.id, message: "Contains is not supported for this source field." })
+      if ((rule.operator === "greater_than" || rule.operator === "less_than") && source && source.type !== "integer" && source.type !== "decimal" && source.type !== "date" && source.type !== "time" && source.type !== "datetime") errors.push({ questionId: question.id, message: "Comparison requires a numeric or date/time source field." })
+      if (["is_empty", "is_not_empty"].includes(rule.operator) ? rule.value !== "" : rule.value === undefined || rule.value === null) errors.push({ questionId: question.id, message: "A rule needs a valid comparison value." })
+    }
+  }
+  const visiting = new Set<string>(), visited = new Set<string>()
+  const visitFormula = (id: string): boolean => {
+    if (visiting.has(id)) return true
+    if (visited.has(id)) return false
+    visiting.add(id)
+    const cyclic = (formulaDependencies.get(id) ?? []).some((dependency) => formulaDependencies.has(dependency) && visitFormula(dependency))
+    visiting.delete(id)
+    visited.add(id)
+    if (cyclic) errors.push({ questionId: id, message: "Calculated fields cannot contain circular dependencies." })
+    return cyclic
+  }
+  for (const id of formulaDependencies.keys()) visitFormula(id)
+  return errors
+}
+
+export function validateAnswer(question: Question, value: unknown): string | undefined {
+  const empty = value === "" || value == null || Array.isArray(value) && value.length === 0
+  if (empty && question.required && question.type !== "instruction") return "This field is required."
+  if (empty) return
+  const number = Number(value)
+  if (question.type === "integer" && (!Number.isInteger(number) || !Number.isFinite(number))) return "Enter a whole number."
+  if (question.type === "integer" || question.type === "decimal") {
+    if (!Number.isFinite(number) || number < Number(question.config.min ?? -Infinity) || number > Number(question.config.max ?? Infinity)) return "Enter a number within the configured bounds."
+    if (question.type === "decimal" && Number(String(value).split(".")[1]?.length ?? 0) > Number(question.config.precision ?? 2)) return "Number exceeds the configured decimal precision."
+  }
+  if (question.type === "short_text" || question.type === "long_text") {
+    const text = String(value)
+    if (text.length < Number(question.config.minLength ?? 0)) return `Minimum length is ${question.config.minLength}.`
+    if (text.length > Number(question.config.maxLength ?? question.validation.maxLength ?? Infinity)) return `Maximum length is ${question.config.maxLength ?? question.validation.maxLength}.`
+  }
+  if (question.type === "date") {
+    const text = String(value)
+    if (Number.isNaN(Date.parse(text)) || new Date(text).toISOString().slice(0, 10) !== text) return "Enter a valid date."
+    if (question.config.minDate && text < String(question.config.minDate) || question.config.maxDate && text > String(question.config.maxDate)) return "Date is outside the configured range."
+  }
+  if (question.type === "time" && !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(value))) return "Enter a valid time in 24-hour format."
+  if (question.type === "gps") { const [lat, lon] = String(value).split(",").map(Number); if (lat < -90 || lat > 90 || lon < -180 || lon > 180 || !Number.isFinite(lat) || !Number.isFinite(lon)) return "Enter latitude (−90 to 90) and longitude (−180 to 180)." }
+  if (question.type === "single_select" || question.type === "multi_select") {
+    const validIds = new Set((question.config.choices ?? []).map((choice) => choice.id))
+    const selections = Array.isArray(value) ? value : [value]
+    if (question.type === "single_select" && selections.length !== 1 || selections.some((item) => typeof item !== "string" || !validIds.has(item))) return "Choose a valid option."
+  }
+  if (question.type === "photo" || question.type === "file") {
+    const files = Array.isArray(value) ? value as File[] : []
+    if (!Array.isArray(value)) return "Choose one or more files."
+    if (files.length > Number(question.config.maxFiles ?? 1)) return `Choose no more than ${question.config.maxFiles} files.`
+    const accepted = question.config.mimeTypes as string[] | undefined
+    if (files.some((file) => file.size > Number(question.config.maxBytes ?? Infinity))) return "A selected file exceeds the configured size limit."
+    if (accepted?.length && files.some((file) => !accepted.some((type) => type.endsWith("/*") ? file.type.startsWith(type.slice(0, -1)) : type === file.type))) return "A selected file has an unsupported type."
+  }
+  if (question.type === "barcode_qr") {
+    if (String(value).length > Number(question.config.maxLength ?? 128)) return "Code is longer than the configured maximum."
+    if (question.config.pattern) { try { if (!new RegExp(String(question.config.pattern)).test(String(value))) return "Code does not match the configured pattern." } catch { return "Configured pattern is invalid." } }
+  }
+  if (question.type === "repeat_group") {
+    if (!Array.isArray(value)) return "Enter repeating rows."
+    if (value.length < Number(question.config.minRows ?? 0) || value.length > Number(question.config.maxRows ?? 10)) return "Row count is outside the configured range."
+    const children = question.config.children ?? []
+    for (const [rowIndex, row] of value.entries()) {
+      for (const child of children) {
+        const childValue = row && typeof row === "object" ? (row as Record<string, unknown>)[child.id] : undefined
+        if (child.required && (childValue == null || childValue === "")) return `Row ${rowIndex + 1}: ${child.label.en || child.label.ar} is required.`
+        if (child.type === "integer" && childValue !== "" && childValue != null && !Number.isInteger(Number(childValue))) return `Row ${rowIndex + 1}: enter a whole number for ${child.label.en || child.label.ar}.`
+        if (child.type === "decimal" && childValue !== "" && childValue != null && !Number.isFinite(Number(childValue))) return `Row ${rowIndex + 1}: enter a number for ${child.label.en || child.label.ar}.`
+      }
+    }
+  }
+  if (question.type === "attestation" && value !== true) return "Acknowledgment is required."
+  if (question.type === "boolean" && typeof value !== "boolean") return "Choose yes or no."
+  if (question.validation.maxLength && String(value).length > question.validation.maxLength) return `Maximum length is ${question.validation.maxLength}.`
+}
+
+function conditionMatches(rule: Condition, answer: unknown): boolean {
+  switch (rule.operator) {
+    case "equals": return Array.isArray(answer) ? answer.includes(rule.value) : answer === rule.value
+    case "not_equals": return Array.isArray(answer) ? !answer.includes(rule.value) : answer !== rule.value
+    case "contains": return Array.isArray(answer) ? answer.includes(rule.value) : typeof answer === "string" && answer.includes(String(rule.value))
+    case "greater_than": return Number(answer) > Number(rule.value)
+    case "less_than": return Number(answer) < Number(rule.value)
+    case "is_empty": return answer == null || answer === "" || Array.isArray(answer) && answer.length === 0
+    case "is_not_empty": return !(answer == null || answer === "" || Array.isArray(answer) && answer.length === 0)
+    default: return false
+  }
+}
+export type QuestionRuntimeState = { visible: boolean; required: boolean; evidenceRequired: boolean }
+export function getQuestionRuntimeStates(form: FormDefinition, answers: Record<string, unknown>): Record<string, QuestionRuntimeState> {
+  const states: Record<string, QuestionRuntimeState> = Object.fromEntries(form.questions.map((question) => [question.id, { visible: true, required: question.required, evidenceRequired: false }]))
+  for (const target of form.questions) {
+    const rules = form.questions.flatMap((owner) => owner.conditions).filter((rule) => rule.targetQuestionId === target.id)
+    const matching = rules.filter((rule) => { const source = form.questions.find((question) => question.id === rule.sourceQuestionId); return source ? conditionMatches(rule, answers[source.id]) : false })
+    const showRules = rules.filter((rule) => rule.effect === "show")
+    states[target.id].visible = (!showRules.length || matching.some((rule) => rule.effect === "show")) && !matching.some((rule) => rule.effect === "hide")
+    states[target.id].required = target.required || matching.some((rule) => rule.effect === "require")
+    states[target.id].evidenceRequired = matching.some((rule) => rule.effect === "require_evidence")
+  }
+  return states
+}
+export function evaluateConditions(form: FormDefinition, answers: Record<string, unknown>): Set<string> {
+  return new Set(Object.entries(getQuestionRuntimeStates(form, answers)).filter(([, state]) => state.visible).map(([id]) => id))
+}
+
+export function calculateLocalScore(form: FormDefinition, answers: Record<string, unknown>): { score: number | null; earned: number; possible: number; answered: number } {
+  let earned = 0, possible = 0, answered = 0
+  for (const question of form.questions) {
+    if (!question.scoring.included || question.type === "instruction" || question.type === "repeat_group" || question.type === "calculated") continue
+    const answer = answers[question.id]
+    const empty = answer == null || answer === "" || Array.isArray(answer) && answer.length === 0
+    if (empty && question.scoring.denominator === "answered") continue
+    if (!empty) answered++
+    const weight = question.scoring.weight
+    let fraction = 0
+    let supported = false
+    if (question.type === "boolean") { supported = true; fraction = answer === (question.scoring.passValue ?? question.config.passValue ?? true) ? 1 : 0 }
+    if (question.type === "single_select" || question.type === "multi_select") {
+      const choices = question.config.choices ?? []
+      const scores = choices.map((choice) => choice.score).filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+      if (scores.length) {
+        supported = true
+        const selected = new Set(Array.isArray(answer) ? answer : [answer])
+        const selectedScore = choices.filter((choice) => selected.has(choice.id)).reduce((sum, choice) => sum + (choice.score ?? 0), 0)
+        fraction = Math.max(0, Math.min(1, selectedScore / Math.max(...scores) / (question.type === "multi_select" ? Math.max(1, selected.size) : 1)))
+      }
+    }
+    if (!supported && question.scoring.passValue !== undefined) { supported = true; fraction = answer === question.scoring.passValue ? 1 : 0 }
+    if (!supported) continue
+    possible += weight
+    if (!empty) earned += weight * fraction
+  }
+  return { score: possible > 0 ? Math.round((earned / possible) * 10000) / 100 : null, earned, possible, answered }
+}
+
+export function evaluateFormula(expression: string, answers: Record<string, unknown>, questions: Question[]): number {
+  const tokens: (number | string)[] = []
+  const pattern = /\{\{([^{}]+)\}\}|(?:\d+(?:\.\d*)?|\.\d+)|[()+*/-]/gy
+  let cursor = 0
+  while (cursor < expression.length) {
+    if (/\s/.test(expression[cursor])) { cursor++; continue }
+    pattern.lastIndex = cursor
+    const match = pattern.exec(expression)
+    if (!match) throw new Error("Formula contains an unsupported token.")
+    cursor = pattern.lastIndex
+    if (match[1]) {
+      const question = questions.find((item) => item.id === match[1])
+      if (!question) throw new Error(`Unknown question reference: ${match[1]}.`)
+      if (question.type !== "integer" && question.type !== "decimal" && question.type !== "calculated") throw new Error("Formula references must be numeric questions.")
+      const answer = Number(answers[question.id])
+      if (!Number.isFinite(answer)) throw new Error(`Numeric answer missing for ${question.id}.`)
+      tokens.push(answer)
+    } else if (/^(?:\d|\.)/.test(match[0])) tokens.push(Number(match[0]))
+    else tokens.push(match[0])
+  }
+  let index = 0
+  const primary = (): number => {
+    const token = tokens[index++]
+    if (token === "+") return primary()
+    if (token === "-") return -primary()
+    if (token === "(") { const result = sum(); if (tokens[index++] !== ")") throw new Error("Formula parentheses do not match."); return result }
+    if (typeof token === "number") return token
+    throw new Error("Formula is incomplete or invalid.")
+  }
+  const product = (): number => { let value = primary(); while (tokens[index] === "*" || tokens[index] === "/") { const op = tokens[index++]; const next = primary(); if (op === "/" && next === 0) throw new Error("Formula divides by zero."); value = op === "*" ? value * next : value / next }; return value }
+  const sum = (): number => { let value = product(); while (tokens[index] === "+" || tokens[index] === "-") { const op = tokens[index++]; const next = product(); value = op === "+" ? value + next : value - next }; return value }
+  const result = sum()
+  if (index !== tokens.length || !Number.isFinite(result)) throw new Error("Formula is invalid or produced a non-finite result.")
+  return result
+}
