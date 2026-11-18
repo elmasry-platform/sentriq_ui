@@ -1,4 +1,4 @@
-import { answerableCount, duplicateForm, emptyForm, type FormDefinition } from "./domain"
+import { answerableCount, duplicateForm, emptyForm, type FormDefinition } from "./domain.ts"
 
 const STORAGE_KEY = "sentriq.forms.repository.v2"
 const LEGACY_KEY = "sentriq-forms-library-demo-v1"
@@ -21,7 +21,25 @@ export class LocalFormRepository implements FormRepository {
   private write(data: StoredData) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)) } catch { throw new Error("Your changes could not be saved in this browser. Check available storage and try again.") } }
   list() { return structuredClone(this.read().forms) }
   get(id: string) { return structuredClone(this.read().forms.find((form) => form.id === id)) }
-  save(form: FormDefinition) { const data = this.read(); const saved = { ...structuredClone(form), revision: form.revision + 1, modifiedAt: new Date().toISOString() }; const index = data.forms.findIndex((item) => item.id === saved.id); if (index < 0) data.forms.unshift(saved); else data.forms[index] = saved; this.write(data); return structuredClone(saved) }
+  save(form: FormDefinition) {
+    const data = this.read()
+    const index = data.forms.findIndex((item) => item.id === form.id)
+    const existing = index < 0 ? undefined : data.forms[index]
+    const savedForm = structuredClone(form)
+    if (answerableCount(savedForm) > 150) throw new Error("A form cannot exceed 150 answerable questions.")
+    if (existing) {
+      const history = existing.publishedVersions ?? []
+      const requestedHistory = savedForm.publishedVersions ?? []
+      const preservesHistory = history.every((version, versionIndex) => JSON.stringify(requestedHistory[versionIndex]) === JSON.stringify(version))
+      savedForm.publishedVersions = [...structuredClone(history), ...(preservesHistory ? structuredClone(requestedHistory.slice(history.length)) : [])]
+      const normalized = (value: FormDefinition) => JSON.stringify({ ...value, status: "", revision: 0, modifiedAt: "", publishedVersions: [] })
+      if (existing.status === "Published" && normalized(existing) !== normalized(savedForm) && savedForm.publishedVersions.length === history.length) savedForm.status = "Draft"
+    }
+    const saved = { ...savedForm, revision: form.revision + 1, modifiedAt: new Date().toISOString() }
+    if (index < 0) data.forms.unshift(saved); else data.forms[index] = saved
+    this.write(data)
+    return structuredClone(saved)
+  }
   duplicate(id: string) { const source = this.get(id); if (!source) return; const copy = duplicateForm(source); const data = this.read(); data.forms.unshift(copy); this.write(data); return copy }
   setStatus(id: string, status: FormDefinition["status"]) { const data = this.read(); const form = data.forms.find((item) => item.id === id); if (!form) return; form.status = status; form.modifiedAt = new Date().toISOString(); this.write(data) }
 }
