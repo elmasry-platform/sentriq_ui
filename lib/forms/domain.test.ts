@@ -1,0 +1,10 @@
+import test from "node:test"
+import assert from "node:assert/strict"
+import { answerableCount, canAddAnswerable, createQuestion, duplicateForm, emptyForm, validateAnswer, validateForm } from "./domain.ts"
+
+const add = (form: ReturnType<typeof emptyForm>, type: "short_text" | "instruction" | "repeat_group" = "short_text") => { const question = createQuestion(type, form.sections[0].id); if (type === "repeat_group") question.config.children = [{ id: "child_a", type: "integer", label: { en: "Child", ar: "فرعي" }, required: false, config: {} }]; form.questions.push(question); form.sections[0].questionIds.push(question.id); return question }
+test("instruction is zero capacity; normal and repeat fields count once", () => { const form = emptyForm(); add(form); add(form, "instruction"); add(form, "repeat_group"); assert.equal(answerableCount(form), 2) })
+test("capacity allows 150 and rejects the next answerable field", () => { const form = emptyForm(); for (let i = 0; i < 150; i++) add(form); assert.equal(answerableCount(form), 150); assert.equal(canAddAnswerable(form), false) })
+test("duplication remaps stable ids, creates draft, and excludes published snapshots", () => { const form = emptyForm(); const source = add(form); const target = add(form); target.conditions.push({ id: "r1", sourceQuestionId: source.id, operator: "equals", value: "yes", targetQuestionId: target.id, effect: "show" }); const copy = duplicateForm(form); assert.notEqual(copy.id, form.id); assert.notEqual(copy.questions[0].id, source.id); assert.equal(copy.questions[1].conditions[0].sourceQuestionId, copy.questions[0].id); assert.equal(copy.questions[1].conditions[0].targetQuestionId, copy.questions[1].id); assert.equal(copy.status, "Draft"); assert.equal(copy.publishedVersions.length, 0) })
+test("integer accepts zero and rejects fractional values", () => { const question = createQuestion("integer", "s"); assert.equal(validateAnswer(question, 0), undefined); assert.equal(validateAnswer(question, 1.5), "Enter a whole number.") })
+test("publish validation blocks empty form", () => { assert.ok(validateForm(emptyForm()).some((item) => item.message.includes("at least one"))) })
