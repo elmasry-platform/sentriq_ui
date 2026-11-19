@@ -14,6 +14,7 @@ import { demoRoles, mockSentriqDashboardService, type DemoRole } from "@/lib/sen
 import { OverviewDashboard } from "@/components/sentriq/overview-dashboard"
 import { FormsLibrary } from "@/components/sentriq/forms-library"
 import { MyWork } from "@/components/sentriq/my-work"
+import { AdminCenter } from "@/components/sentriq/admin-center"
 
 export type Language = "en" | "ar"
 
@@ -59,7 +60,7 @@ const copy = {
 export function AppShell({ route }: { route: string }) {
   const [language, setLanguage] = useState<Language>("en")
   const [workspaceId, setWorkspaceId] = useState("ws_northstar")
-  const [role, setRole] = useState<DemoRole>("tenant_admin")
+  const [role, setRole] = useState<DemoRole>("company_superadmin")
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [search, setSearch] = useState("")
@@ -80,6 +81,17 @@ export function AppShell({ route }: { route: string }) {
     { label: "Intelligence & governance", routes: ["/app/reports", "/app/audit"] },
   ].find((group) => group.routes.includes(route) || group.routes.some((href) => route.startsWith(`${href}/`)))
   const contextualItems = contextualGroups?.routes.map((href) => modules.find((module) => module.href === href)).filter((module): module is (typeof modules)[number] => Boolean(module)) ?? []
+
+  useEffect(() => {
+    const savedRole = window.sessionStorage.getItem("sentriq-demo-role")
+    if (savedRole && demoRoles.some((item) => item.value === savedRole)) setRole(savedRole as DemoRole)
+    const savedLanguage = window.sessionStorage.getItem("sentriq-demo-language")
+    if (savedLanguage === "en" || savedLanguage === "ar") {
+      setLanguage(savedLanguage)
+      document.documentElement.lang = savedLanguage
+      document.documentElement.dir = savedLanguage === "ar" ? "rtl" : "ltr"
+    }
+  }, [])
 
   useEffect(() => {
     if (!switcherOpen) return
@@ -142,18 +154,18 @@ export function AppShell({ route }: { route: string }) {
             </div>
             <div className="top-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t.search} aria-label={t.searchLabel} /><kbd>⌘ K</kbd></div>
             <div className="topbar-divider" />
-            <button className="language-button" onClick={() => { const nextLanguage = rtl ? "en" : "ar"; setLanguage(nextLanguage); document.documentElement.lang = nextLanguage; document.documentElement.dir = nextLanguage === "ar" ? "rtl" : "ltr" }} aria-label={rtl ? "Switch to English" : "التغيير إلى العربية"}><Languages size={16} /><span>{rtl ? "العربية" : "EN"}</span></button>
+            <button className="language-button" onClick={() => { const nextLanguage = rtl ? "en" : "ar"; setLanguage(nextLanguage); window.sessionStorage.setItem("sentriq-demo-language", nextLanguage); document.documentElement.lang = nextLanguage; document.documentElement.dir = nextLanguage === "ar" ? "rtl" : "ltr" }} aria-label={rtl ? "Switch to English" : "التغيير إلى العربية"}><Languages size={16} /><span>{rtl ? "العربية" : "EN"}</span></button>
             <button className="icon-button notification-button" aria-label={rtl ? "الإشعارات، 3 غير مقروءة" : "Notifications, 3 unread"}><Bell size={18} /><i /></button>
             <div className="topbar-divider profile-divider" />
-            <div className="role-picker"><span className="role-caption">{t.role}</span><select aria-label={t.role} value={role} onChange={(event) => setRole(event.target.value as DemoRole)}>{demoRoles.map((item) => <option key={item.value} value={item.value}>{rtl ? item.ar : item.en}</option>)}</select><ChevronDown size={13} /></div>
+            <div className="role-picker"><span className="role-caption">{t.role}</span><select aria-label={t.role} value={role} onChange={(event) => { const nextRole = event.target.value as DemoRole; setRole(nextRole); window.sessionStorage.setItem("sentriq-demo-role", nextRole) }}>{demoRoles.map((item) => <option key={item.value} value={item.value}>{rtl ? item.ar : item.en}</option>)}</select><ChevronDown size={13} /></div>
             <div className="avatar" aria-label="Mariam Hassan">MH</div>
           </div>
         </header>
         {contextualGroups ? <nav className="contextual-nav" aria-label={rtl ? "التنقل داخل الوحدة" : `${contextualGroups.label} navigation`}>
           <span>{rtl ? ({ Inspections: "التفتيشات", "Findings & actions": "الملاحظات والإجراءات", "Risk & compliance": "المخاطر والامتثال", Organization: "المؤسسة", "Documents & resources": "المستندات والموارد", "Intelligence & governance": "الذكاء والحوكمة" } as Record<string, string>)[contextualGroups.label] : contextualGroups.label}</span>{contextualItems.map((module) => <Link key={module.href} href={module.href} className={route === module.href || (module.href === "/app/inspections" && route.startsWith("/app/inspections/")) ? "is-active" : ""} aria-current={route === module.href ? "page" : undefined}>{rtl ? moduleArabic[module.name] : module.name}</Link>)}
-        </nav> : route.startsWith("/app/admin") ? <nav className="contextual-nav" aria-label={rtl ? "إدارة المؤسسة" : "Administration navigation"}><span>{rtl ? "الإدارة" : "Administration"}</span><Link href="/app/admin/workspace" className={route === "/app/admin/workspace" ? "is-active" : ""}>{rtl ? "إعدادات المؤسسة" : "Organization settings"}</Link><Link href="/app/admin/users" className={route === "/app/admin/users" ? "is-active" : ""}>{rtl ? "المستخدمون والأدوار" : "Users & roles"}</Link></nav> : null}
+        </nav> : null}
         <main className="main-content">
-          {dashboard ? <OverviewDashboard data={data} language={language} search={search} /> : route === "/app/my-work" ? <MyWork data={data} role={role} language={language} /> : route === "/app/forms" ? <FormsLibrary language={language} /> : route === "/app/modules" ? <ModuleDirectory language={language} /> : selectedModule ? <ModuleLanding module={selectedModule} /> : <ComingSoon language={language} route={route} title={rtl ? current.ar : current.label} />}
+          {dashboard ? <OverviewDashboard data={data} language={language} search={search} /> : route.startsWith("/app/admin") ? <AdminCenter route={route} role={role} language={language} /> : route === "/app/my-work" ? <MyWork data={data} role={role} language={language} /> : route === "/app/forms" ? <FormsLibrary language={language} /> : route === "/app/modules" ? <ModuleDirectory language={language} /> : selectedModule ? <ModuleLanding module={selectedModule} /> : <ComingSoon language={language} route={route} title={rtl ? current.ar : current.label} />}
         </main>
       </div>
     </div>

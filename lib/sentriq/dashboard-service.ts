@@ -2,6 +2,11 @@ import seed from "@/data/mock-data.json"
 
 export type DemoRole =
   | "platform_admin"
+  | "platform_owner"
+  | "platform_subowner"
+  | "company_superadmin"
+  | "company_admin"
+  | "employee"
   | "tenant_admin"
   | "form_designer"
   | "inspector"
@@ -27,7 +32,12 @@ type SeedData = { workspaces: Workspace[]; users: User[]; inspections: Inspectio
 
 const data = seed as SeedData
 export const demoRoles: { value: DemoRole; en: string; ar: string }[] = [
-  { value: "platform_admin", en: "Platform Admin", ar: "مدير المنصة" },
+  { value: "platform_owner", en: "Platform Owner", ar: "مالك المنصة" },
+  { value: "platform_subowner", en: "Platform Subowner", ar: "مسؤول فرعي للمنصة" },
+  { value: "company_superadmin", en: "Company Superadmin", ar: "مدير الشركة الأعلى" },
+  { value: "company_admin", en: "Company Admin", ar: "مدير الشركة" },
+  { value: "employee", en: "Employee", ar: "موظف" },
+  { value: "platform_admin", en: "Platform Admin (legacy demo)", ar: "مدير المنصة" },
   { value: "tenant_admin", en: "Tenant Admin", ar: "مدير المؤسسة" },
   { value: "form_designer", en: "Form Designer", ar: "مصمم النماذج" },
   { value: "inspector", en: "Inspector", ar: "مفتش" },
