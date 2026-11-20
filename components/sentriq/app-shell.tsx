@@ -15,6 +15,7 @@ import { OverviewDashboard } from "@/components/sentriq/overview-dashboard"
 import { FormsLibrary } from "@/components/sentriq/forms-library"
 import { MyWork } from "@/components/sentriq/my-work"
 import { AdminCenter } from "@/components/sentriq/admin-center"
+import { Inspections } from "@/components/sentriq/inspections"
 
 export type Language = "en" | "ar"
 
@@ -165,7 +166,7 @@ export function AppShell({ route }: { route: string }) {
           <span>{rtl ? ({ Inspections: "التفتيشات", "Findings & actions": "الملاحظات والإجراءات", "Risk & compliance": "المخاطر والامتثال", Organization: "المؤسسة", "Documents & resources": "المستندات والموارد", "Intelligence & governance": "الذكاء والحوكمة" } as Record<string, string>)[contextualGroups.label] : contextualGroups.label}</span>{contextualItems.map((module) => <Link key={module.href} href={module.href} className={route === module.href || (module.href === "/app/inspections" && route.startsWith("/app/inspections/")) ? "is-active" : ""} aria-current={route === module.href ? "page" : undefined}>{rtl ? moduleArabic[module.name] : module.name}</Link>)}
         </nav> : null}
         <main className="main-content">
-          {dashboard ? <OverviewDashboard data={data} language={language} search={search} /> : route.startsWith("/app/admin") ? <AdminCenter route={route} role={role} language={language} /> : route === "/app/my-work" ? <MyWork data={data} role={role} language={language} /> : route === "/app/forms" ? <FormsLibrary language={language} /> : route === "/app/modules" ? <ModuleDirectory language={language} /> : selectedModule ? <ModuleLanding module={selectedModule} /> : <ComingSoon language={language} route={route} title={rtl ? current.ar : current.label} />}
+          {dashboard ? <OverviewDashboard data={data} language={language} search={search} /> : route.startsWith("/app/admin") ? <AdminCenter route={route} role={role} language={language} /> : route === "/app/my-work" ? <MyWork data={data} role={role} language={language} /> : route === "/app/forms" ? <FormsLibrary language={language} /> : route === "/app/inspections" || route.startsWith("/app/inspections/") || route === "/app/reviews" ? <Inspections route={route} language={language} workspaceId={workspaceId} role={role} /> : route === "/app/modules" ? <ModuleDirectory language={language} /> : selectedModule ? <ModuleLanding module={selectedModule} /> : <ComingSoon language={language} route={route} title={rtl ? current.ar : current.label} />}
         </main>
       </div>
     </div>

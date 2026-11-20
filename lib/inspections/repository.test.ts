@@ -1,0 +1,17 @@
+import test from "node:test"
+import assert from "node:assert/strict"
+import { LocalInspectionRepository, RevisionConflictError, isOverdue } from "./repository.ts"
+
+function withStorage(run: (repository: LocalInspectionRepository) => void) {
+  const stored = new Map<string, string>()
+  const previous = globalThis.localStorage
+  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: { getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => { stored.set(key, value) } } as Storage })
+  try { run(new LocalInspectionRepository()) } finally { Object.defineProperty(globalThis, "localStorage", { configurable: true, value: previous }) }
+}
+
+test("inspection repository seeds mock records and scopes by workspace", () => withStorage((repository) => { assert.equal(repository.list().length, 5); assert.equal(repository.list("ws_northstar").length, 4) }))
+test("create and draft save increment revisions and retain answers", () => withStorage((repository) => { const record = repository.create({ workspaceId: "ws_northstar", siteId: "site_central", templateId: "form_safety_walk", templateVersion: 3, title: "Safety Walk", inspectorId: "u_inspector" }); assert.equal(record.revision, 1); const saved = repository.saveDraft(record.id, [{ questionId: "q1", value: true }], record.revision); assert.equal(saved.revision, 2); assert.equal(saved.status, "in_progress"); assert.deepEqual(saved.answers[0].value, true) }))
+test("stale writes are rejected without overwriting the latest revision", () => withStorage((repository) => { const record = repository.get("INS-2026-0145")!; repository.saveDraft(record.id, [{ questionId: "q", value: "new" }], record.revision); assert.throws(() => repository.saveDraft(record.id, [], record.revision), RevisionConflictError); assert.equal(repository.get(record.id)?.answers[0].value, "new") }))
+test("submit and review transitions record history and require a return reason", () => withStorage((repository) => { const record = repository.get("INS-2026-0145")!; const submitted = repository.submit(record.id, [{ questionId: "q", value: "yes" }], record.revision); assert.equal(submitted.status, "submitted"); assert.throws(() => repository.review(record.id, { decision: "returned", actorId: "u_r1", expectedRevision: submitted.revision }), /reason is required/); const returned = repository.review(record.id, { decision: "returned", actorId: "u_r1", reason: "Add evidence", expectedRevision: submitted.revision }); assert.equal(returned.status, "returned"); assert.equal(returned.reviewHistory[0].reason, "Add evidence") }))
+test("approval completes the review and increments revision", () => withStorage((repository) => { const record = repository.get("INS-2026-0148")!; const approved = repository.review(record.id, { decision: "approved", actorId: "u_r1", expectedRevision: record.revision }); assert.equal(approved.status, "approved"); assert.equal(approved.revision, record.revision + 1); assert.equal(approved.reviewHistory[0].decision, "approved") }))
+test("overdue is derived and resolved inspections are not overdue", () => { const now = new Date("2026-11-20T12:00:00Z"); assert.equal(isOverdue({ status: "draft", dueAt: "2026-11-19T12:00:00Z" }, now), true); assert.equal(isOverdue({ status: "draft", dueAt: "2026-11-21T12:00:00Z" }, now), false); assert.equal(isOverdue({ status: "submitted", dueAt: "2026-11-19T12:00:00Z" }, now), false) })
