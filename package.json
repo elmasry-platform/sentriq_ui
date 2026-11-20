@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --experimental-strip-types --test lib/forms/domain.test.ts",
+    "test": "node --experimental-strip-types --test lib/forms/domain.test.ts lib/inspections/repository.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
