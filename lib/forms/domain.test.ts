@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { answerableCount, canAddAnswerable, createQuestion, duplicateForm, emptyForm, validateAnswer, validateForm } from "./domain.ts"
+import { answerableCount, canAddAnswerable, createQuestion, duplicateForm, emptyForm, validateAnswer, validateForm, validateQuestion } from "./domain.ts"
 
 const add = (form: ReturnType<typeof emptyForm>, type: "short_text" | "instruction" | "repeat_group" = "short_text") => { const question = createQuestion(type, form.sections[0].id); if (type === "repeat_group") question.config.children = [{ id: "child_a", type: "integer", label: { en: "Child", ar: "فرعي" }, required: false, config: {} }]; form.questions.push(question); form.sections[0].questionIds.push(question.id); return question }
 test("instruction is zero capacity; normal and repeat fields count once", () => { const form = emptyForm(); add(form); add(form, "instruction"); add(form, "repeat_group"); assert.equal(answerableCount(form), 2) })
@@ -134,6 +134,36 @@ test("multi-select requires an array of unique configured choice IDs", () => {
   const question = createQuestion("multi_select", "s")
   assert.equal(validateAnswer(question, question.config.choices![0].id), "Choose one or more valid options.")
   assert.equal(validateAnswer(question, [question.config.choices![0].id, question.config.choices![0].id]), "Choose a valid option.")
+})
+
+test("date, time, and datetime answers validate valid formats and reject invalid values", () => {
+  const date = createQuestion("date", "s")
+  assert.equal(validateAnswer(date, "2026-11-19"), undefined)
+  for (const value of ["2026-13-45", "19/11/2026", "2026-2-3"]) assert.equal(validateAnswer(date, value), "Enter a valid date.")
+
+  const time = createQuestion("time", "s")
+  assert.equal(validateAnswer(time, "14:30"), undefined)
+  assert.equal(validateAnswer(time, "00:00"), undefined)
+  for (const value of ["25:00", "2:30pm", "14:60"]) assert.equal(validateAnswer(time, value), "Enter a valid time in 24-hour format.")
+
+  const datetime = createQuestion("datetime", "s")
+  assert.equal(validateAnswer(datetime, "2026-11-19T14:30"), undefined)
+  assert.equal(validateAnswer(datetime, "2026-11-19"), "Enter a valid date and time.")
+})
+
+test("date configuration validates ISO dates and enforces answer bounds", () => {
+  const question = createQuestion("date", "s")
+  question.config.minDate = "2026-01-01"
+  question.config.maxDate = "2026-12-31"
+  assert.deepEqual(validateQuestion(question), [])
+  question.config.minDate = "not-a-date"
+  assert.ok(validateQuestion(question).some((error) => error.includes("Minimum date must be a valid date.")))
+  question.config.minDate = "2026-01-01"
+  question.config.maxDate = "not-a-date"
+  assert.ok(validateQuestion(question).some((error) => error.includes("Maximum date must be a valid date.")))
+  question.config.maxDate = "2026-12-31"
+  assert.equal(validateAnswer(question, "2025-12-31"), "Date is outside the configured range.")
+  assert.equal(validateAnswer(question, "2027-01-01"), "Date is outside the configured range.")
 })
 
 test("field configuration validation catches invalid dates, choice scores and calculated precision", () => {

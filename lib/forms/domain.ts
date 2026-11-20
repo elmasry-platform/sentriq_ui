@@ -68,8 +68,8 @@ export function validateQuestion(question: Question): string[] {
   if (question.type === "decimal" && (!Number.isInteger(Number(question.config.precision)) || Number(question.config.precision) < 0 || Number(question.config.precision) > 10)) errors.push("Precision must be between 0 and 10.")
   if (question.type === "date") {
     const minDate = String(question.config.minDate ?? ""), maxDate = String(question.config.maxDate ?? "")
-    if (minDate && (!/^\\d{4}-\\d{2}-\\d{2}$/.test(minDate) || Number.isNaN(Date.parse(minDate)) || new Date(minDate).toISOString().slice(0, 10) !== minDate)) errors.push("Minimum date must be a valid date.")
-    if (maxDate && (!/^\\d{4}-\\d{2}-\\d{2}$/.test(maxDate) || Number.isNaN(Date.parse(maxDate)) || new Date(maxDate).toISOString().slice(0, 10) !== maxDate)) errors.push("Maximum date must be a valid date.")
+    if (minDate && (!/^\d{4}-\d{2}-\d{2}$/.test(minDate) || Number.isNaN(Date.parse(minDate)) || new Date(minDate).toISOString().slice(0, 10) !== minDate)) errors.push("Minimum date must be a valid date.")
+    if (maxDate && (!/^\d{4}-\d{2}-\d{2}$/.test(maxDate) || Number.isNaN(Date.parse(maxDate)) || new Date(maxDate).toISOString().slice(0, 10) !== maxDate)) errors.push("Maximum date must be a valid date.")
     if (minDate && maxDate && minDate > maxDate) errors.push("Minimum date cannot be after maximum date.")
   }
   if (question.type === "datetime" && !["absolute_instant", "local_datetime"].includes(String(question.config.meaning))) errors.push("Choose explicit date-time semantics.")
@@ -197,11 +197,11 @@ export function validateAnswer(question: Question, value: unknown): string | und
   }
   if (question.type === "date") {
     const text = String(value)
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(text) || Number.isNaN(Date.parse(text)) || new Date(text).toISOString().slice(0, 10) !== text) return "Enter a valid date."
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text) || Number.isNaN(Date.parse(text)) || new Date(text).toISOString().slice(0, 10) !== text) return "Enter a valid date."
     if (question.config.minDate && text < String(question.config.minDate) || question.config.maxDate && text > String(question.config.maxDate)) return "Date is outside the configured range."
   }
   if (question.type === "datetime" && (Number.isNaN(Date.parse(String(value))) || !String(value).includes("T"))) return "Enter a valid date and time."
-  if (question.type === "time" && !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(value))) return "Enter a valid time in 24-hour format."
+  if (question.type === "time" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value))) return "Enter a valid time in 24-hour format."
   if (question.type === "gps") { const [lat, lon] = String(value).split(",").map(Number); if (lat < -90 || lat > 90 || lon < -180 || lon > 180 || !Number.isFinite(lat) || !Number.isFinite(lon)) return "Enter latitude (−90 to 90) and longitude (−180 to 180)." }
   if (question.type === "single_select" || question.type === "multi_select") {
     const validIds = new Set((question.config.choices ?? []).map((choice) => choice.id))
