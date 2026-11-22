@@ -175,8 +175,9 @@ export function AppShell({ route }: { route: string }) {
         </label>
         <nav className="side-nav" aria-label={rtl ? "التنقل الرئيسي" : "Main navigation"}>
           {navigation.map(({ label, ar, href, icon: Icon }) => {
-            const active = route === href || (href !== "/app/dashboard" && route.startsWith(`${href}/`))
-            return <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-link${active ? " nav-link-active" : ""}`} aria-current={active ? "page" : undefined} title={collapsed ? (rtl ? ar : label) : undefined}>
+            const active = route === href || (href !== "/app/dashboard" && route.startsWith(`${href}/`)) || (href === "/app/modules" && Boolean(selectedModule))
+            const currentState = route === href ? "page" : href === "/app/modules" && selectedModule ? "location" : undefined
+            return <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-link${active ? " nav-link-active" : ""}`} aria-current={currentState} title={collapsed ? (rtl ? ar : label) : undefined}>
               <Icon size={18} strokeWidth={1.8} /><span className="nav-link-text">{rtl ? ar : label}</span>
             </Link>
           })}
@@ -222,7 +223,7 @@ export function AppShell({ route }: { route: string }) {
           </div>
         </header>
         {contextualGroups ? <nav className="contextual-nav" aria-label={rtl ? "التنقل داخل الوحدة" : `${contextualGroups.label} navigation`}>
-          <span>{rtl ? ({ Inspections: "التفتيشات", "Findings & actions": "الملاحظات والإجراءات", "Risk & compliance": "المخاطر والامتثال", Organization: "المؤسسة", "Documents & resources": "المستندات والموارد", "Intelligence & governance": "الذكاء والحوكمة" } as Record<string, string>)[contextualGroups.label] : contextualGroups.label}</span>{contextualItems.map((module) => <Link key={module.href} href={module.href} className={route === module.href || (module.href === "/app/inspections" && route.startsWith("/app/inspections/")) ? "is-active" : ""} aria-current={route === module.href ? "page" : undefined}>{rtl ? moduleArabic[module.name] : module.name}</Link>)}
+          <span>{rtl ? ({ Inspections: "التفتيشات", "Findings & actions": "الملاحظات والإجراءات", "Risk & compliance": "المخاطر والامتثال", Organization: "المؤسسة", "Documents & resources": "المستندات والموارد", "Intelligence & governance": "الذكاء والحوكمة" } as Record<string, string>)[contextualGroups.label] : contextualGroups.label}</span>{contextualItems.map((module) => { const active = route === module.href || route.startsWith(`${module.href}/`); return <Link key={module.href} href={module.href} className={active ? "is-active" : ""} aria-current={route === module.href ? "page" : undefined}>{rtl ? moduleArabic[module.name] : module.name}</Link>})}
         </nav> : null}
         <main className="main-content" id="main-content" tabIndex={-1}>
           {dashboard ? <OverviewDashboard data={data} language={language} search={search} role={role} workspaceId={workspaceId} /> : route.startsWith("/app/admin") ? <AdminCenter route={route} role={role} language={language} /> : route === "/app/my-work" ? <MyWork data={data} role={role} language={language} /> : route === "/app/forms" ? <FormsLibrary language={language} /> : route === "/app/inspections" || route.startsWith("/app/inspections/") || route === "/app/reviews" || route.startsWith("/app/reviews/") ? <Inspections route={route} language={language} workspaceId={workspaceId} role={role} /> : route === "/app/actions" || route.startsWith("/app/actions/") ? <Actions route={route} language={language} workspaceId={workspaceId} role={role} /> : route === "/app/modules" ? <ModuleDirectory language={language} /> : selectedModule ? <ModuleLanding module={selectedModule} /> : <ComingSoon language={language} route={route} title={rtl ? current.ar : current.label} />}
