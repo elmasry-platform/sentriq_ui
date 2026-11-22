@@ -1,21 +1,5 @@
 :root {
   color-scheme: light;
-  --navy: #111c2e;
-  --navy-soft: #1b2a41;
-  --blue: #315fea;
-  --blue-hover: #244bc2;
-  --teal: #0f9d92;
-  --page: #f4f6fa;
-  --surface: #ffffff;
-  --surface-muted: #f8fafc;
-  --border: #e4e9f0;
-  --text: #172033;
-  --muted: #64748b;
-  --success: #17845b;
-  --warning: #b7791f;
-  --danger: #c2414b;
-  --info: #2563a6;
-  --font-ui: Arial, "Noto Sans Arabic", Tahoma, system-ui, sans-serif;
   font-family: var(--font-ui);
   color: var(--text);
   background: var(--page);
