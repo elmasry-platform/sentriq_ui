@@ -1,150 +1,330 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, FilePlus2, MapPin, Search, ShieldCheck, Upload, X } from "lucide-react"
-import { createQuestion, emptyForm, getQuestionRuntimeStates, validateAnswer, type FormDefinition, type Question } from "@/lib/forms/domain"
-import { formRepository } from "@/lib/forms/repository"
-import { inspectionRepository, isOverdue, RevisionConflictError, type InspectionAnswer, type InspectionFinding, type InspectionRecord, type InspectionStatus } from "@/lib/inspections/repository"
-import mockData from "@/data/mock-data.json"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { ArrowLeft, Check, ClipboardCheck, Clock3, FilePlus2, MapPin, Plus, Search, ShieldCheck, UserRound } from "lucide-react"
+import { actionRepository, type ActionRecord } from "@/lib/actions/repository"
+import { inspectionRepository, isOverdue, reviewStagesOf, type InspectionFinding, type InspectionRecord, type InspectionStatus } from "@/lib/inspections/repository"
+import { can, demoActor, reviewStagesFor } from "@/lib/sentriq/demo-permissions"
+import { completedLabel, errorMessage, formatDate, formatDateTime, formatNumber, plural, stageLabel, type Language } from "@/lib/sentriq/format"
+import { words } from "@/lib/sentriq/inspections-i18n"
+import { Dialog } from "@/components/sentriq/dialog"
+import { InspectionRunner } from "@/components/sentriq/inspection-runner"
+import { accessFor, getTemplates, isAnswered, mayExecute, people, personName, questionLabel, siteName, siteRows, type Template } from "@/components/sentriq/inspection-shared"
+import { EmptyState, ErrorState, LoadingState, PermissionDenied, PriorityBadge, StatusBadge, Stepper } from "@/components/sentriq/states"
 
-type Language = "en" | "ar"
-type Labels = typeof words.en | typeof words.ar
-type Template = { id: string; title: { en: string; ar: string }; version: number; snapshot: FormDefinition }
-const words = {
-  en: { inspections: "Inspections", reviews: "Review inbox", subtitle: "Field checks, review decisions, and a clear record of what changed.", new: "New inspection", search: "Search inspections", all: "All", assigned: "Assigned to me", inReview: "In review", returned: "Returned", overdue: "Overdue", id: "Record", form: "Form", site: "Site", inspector: "Inspector", updated: "Updated", stage: "Stage", status: "Status", empty: "No inspections yet", emptyHint: "Start a field check from a published form.", create: "Create inspection", cancel: "Cancel", due: "Due date (optional)", chooseForm: "Published form", chooseSite: "Site", details: "Overview", answers: "Answers", findings: "Findings & actions", history: "Review history", audit: "Audit trail", continue: "Continue inspection", run: "Start inspection", save: "Save draft", next: "Next section", back: "Back", reviewSubmit: "Review & submit", submit: "Submit inspection", answered: "answered", requiredMissing: "Required questions still need an answer.", findingsRaised: "findings raised", raise: "Raise finding", title: "Finding title", description: "Description", priority: "Priority", photo: "Optional photo", remove: "Remove", saveFinding: "Add finding", reviewReason: "Reason for return", approve: "Approve", return: "Return for changes", noHistory: "No review decisions yet.", submitted: "Inspection submitted", submittedHint: "Your inspection is now in the review inbox.", backWork: "Back to inspections", offline: "Offline — changes saved on this device", syncing: "Will sync when online", savedAt: "Saved at", conflict: "This inspection was changed by someone else.", reload: "Reload latest", copyChanges: "Keep my changes (copy)", draft: "Draft", in_progress: "In progress", submittedStatus: "Submitted", in_review: "In review", approved: "Approved", returnedStatus: "Returned", scheduled: "Scheduled", cancelled: "Cancelled", required: "Required", optional: "Optional", select: "Choose an option", yes: "Yes", no: "No", noQuestions: "This form has no questions yet.", returnReasonRequired: "Enter a reason before returning this inspection.", allDone: "Review complete", demo: "Demo data only — role simulation is not authorization.", start: "Section", of: "of", q: "questions", siteAccess: "You do not have access to this site. Contact your Company Superadmin.", unavailable: "Inspections could not be loaded.", retry: "Try again", searchFilter: "Search by form, site, or record ID" },
-  ar: { inspections: "التفتيشات", reviews: "صندوق المراجعة", subtitle: "الفحوصات الميدانية وقرارات المراجعة وسجل واضح للتغييرات.", new: "تفتيش جديد", search: "البحث في التفتيشات", all: "الكل", assigned: "مسند إليّ", inReview: "قيد المراجعة", returned: "مُعاد", overdue: "متأخر", id: "السجل", form: "النموذج", site: "الموقع", inspector: "المفتش", updated: "آخر تحديث", stage: "المرحلة", status: "الحالة", empty: "لا توجد تفتيشات بعد", emptyHint: "ابدأ فحصاً ميدانياً باستخدام نموذج منشور.", create: "إنشاء تفتيش", cancel: "إلغاء", due: "تاريخ الاستحقاق (اختياري)", chooseForm: "نموذج منشور", chooseSite: "الموقع", details: "نظرة عامة", answers: "الإجابات", findings: "الملاحظات والإجراءات", history: "سجل المراجعة", audit: "سجل التدقيق", continue: "متابعة التفتيش", run: "بدء التفتيش", save: "حفظ المسودة", next: "القسم التالي", back: "السابق", reviewSubmit: "مراجعة وإرسال", submit: "إرسال التفتيش", answered: "تمت الإجابة", requiredMissing: "لا تزال هناك أسئلة مطلوبة بلا إجابة.", findingsRaised: "ملاحظات مسجلة", raise: "تسجيل ملاحظة", title: "عنوان الملاحظة", description: "الوصف", priority: "الأولوية", photo: "صورة اختيارية", remove: "إزالة", saveFinding: "إضافة الملاحظة", reviewReason: "سبب الإعادة", approve: "اعتماد", return: "إعادة للتعديل", noHistory: "لا توجد قرارات مراجعة بعد.", submitted: "تم إرسال التفتيش", submittedHint: "أُضيف التفتيش إلى صندوق المراجعة.", backWork: "العودة إلى التفتيشات", offline: "غير متصل — تم حفظ التغييرات على هذا الجهاز", syncing: "ستتم المزامنة عند الاتصال", savedAt: "تم الحفظ في", conflict: "تم تغيير هذا التفتيش بواسطة شخص آخر.", reload: "إعادة تحميل الأحدث", copyChanges: "الاحتفاظ بتغييراتي (نسخة)", draft: "مسودة", in_progress: "قيد التنفيذ", submittedStatus: "مرسل", in_review: "قيد المراجعة", approved: "معتمد", returnedStatus: "مُعاد", scheduled: "مجدول", cancelled: "ملغى", required: "مطلوب", optional: "اختياري", select: "اختر خياراً", yes: "نعم", no: "لا", noQuestions: "لا يحتوي هذا النموذج على أسئلة بعد.", returnReasonRequired: "أدخل سبباً قبل إعادة التفتيش.", allDone: "اكتملت المراجعة", demo: "بيانات تجريبية فقط — محاكاة الأدوار لا تمثل صلاحيات فعلية.", start: "القسم", of: "من", q: "أسئلة", siteAccess: "ليس لديك حق الوصول إلى هذا الموقع. تواصل مع مسؤول الشركة.", unavailable: "تعذر تحميل التفتيشات.", retry: "إعادة المحاولة", searchFilter: "ابحث باسم النموذج أو الموقع أو رقم السجل" },
-} as const
-const localizedTemplate = (form: FormDefinition): Template => ({ id: form.id, title: form.title, version: Math.max(1, ...form.publishedVersions.map((item) => item.version)), snapshot: (form.publishedVersions.at(-1)?.snapshot ?? form) as FormDefinition })
-function getTemplates(): Template[] {
-  const local = formRepository.list().filter((form) => form.status === "Published" && form.publishedVersions.length && form.questions.some((question) => question.type !== "instruction")).map(localizedTemplate)
-  const mockForms = mockData.forms.filter((form) => form.status === "published" && form.sections.some((section) => section.questions.length > 0)).map((source) => {
-    const form = emptyForm(); form.id = source.id; form.title = source.title; form.status = "Published"; form.category = source.category
-    form.sections = source.sections.map((sourceSection) => ({ id: sourceSection.id, title: sourceSection.title, description: { en: "", ar: "" }, questionIds: [] }))
-    for (const sourceSection of source.sections) for (const sourceQuestion of sourceSection.questions) {
-      const kind = sourceQuestion.type === "yes_no" ? "boolean" : sourceQuestion.type === "evidence" ? "photo" : sourceQuestion.type === "single_select" ? "single_select" : sourceQuestion.type === "long_text" ? "long_text" : "short_text"
-      const question = createQuestion(kind, sourceSection.id); question.id = sourceQuestion.id; question.title = sourceQuestion.title; question.required = sourceQuestion.required
-      if (kind === "single_select" && "options" in sourceQuestion) question.config.choices = sourceQuestion.options.map((option: { value: string; label: { en: string; ar: string } }) => ({ id: option.value, label: option.label, score: null, finding: false }))
-      form.questions.push(question); form.sections.find((section) => section.id === sourceSection.id)?.questionIds.push(question.id)
-    }
-    form.publishedVersions = [{ id: `${form.id}-v${source.currentVersion}`, version: source.currentVersion, publishedAt: source.updatedAt, snapshot: { ...form, status: "Published" } }]
-    return localizedTemplate(form)
-  })
-  return [...local, ...mockForms.filter((item) => !local.some((form) => form.id === item.id))]
+type Props = { route: string; language?: Language; workspaceId?: string; role?: string }
+type Filter = "all" | "assigned" | "inReview" | "returned" | "overdue"
+
+const statusKey = (item: Pick<InspectionRecord, "status" | "dueAt">): string => (isOverdue(item) ? "overdue" : item.status)
+function statusText(status: string, language: Language) {
+  const t = words[language]
+  const map: Record<string, string> = { draft: t.draft, in_progress: t.in_progress, submitted: t.submittedStatus, in_review: t.in_review, approved: t.approved, returned: t.returnedStatus, scheduled: t.scheduled, cancelled: t.cancelled, overdue: t.overdue }
+  return map[status] ?? status
 }
-const siteRows = mockData.workspaces.flatMap((workspace) => workspace.sites.map((site) => ({ ...site, workspaceId: workspace.id })))
-const people = mockData.users
-const label = (question: Question, language: Language) => question.title[language] || question.title.en
-const statusCopy = (status: InspectionStatus, t: Labels) => status === "submitted" ? t.submittedStatus : status === "returned" ? t.returnedStatus : status === "in_progress" ? t.in_progress : status === "in_review" ? t.in_review : status === "approved" ? t.approved : status === "scheduled" ? t.scheduled : status === "cancelled" ? t.cancelled : t.draft
-const formatDate = (date: string | undefined, language: Language) => date ? new Intl.DateTimeFormat(language === "ar" ? "ar" : "en", { dateStyle: "medium" }).format(new Date(date)) : "—"
-const answersToRows = (answers: Record<string, unknown>): InspectionAnswer[] => Object.entries(answers).map(([questionId, value]) => ({ questionId, value: Array.isArray(value) && value.every((item) => typeof File !== "undefined" && item instanceof File) ? value.map((file: File) => file.name) : value }))
+const priorityText = (priority: string, language: Language) => (language === "ar" ? ({ low: "منخفضة", medium: "متوسطة", high: "عالية", critical: "حرجة" } as Record<string, string>)[priority] : priority.charAt(0).toUpperCase() + priority.slice(1)) ?? priority
 
-export function Inspections({ route, language = "en", workspaceId = "ws_northstar", role = "inspector" }: { route: string; language?: Language; workspaceId?: string; role?: string }) {
-  const rtl = language === "ar", t = words[language]
+export function Inspections({ route, language = "en", workspaceId = "ws_northstar", role = "inspector" }: Props) {
+  const t = words[language]
+  const rtl = language === "ar"
+  const access = accessFor(role)
+  const segments = route.split("/").filter(Boolean)
+  const inReviews = segments[1] === "reviews"
+  const inspectionId = segments[2]
+  const isRunner = !inReviews && segments.at(-1) === "run" && Boolean(inspectionId)
+  const isDetail = Boolean(inspectionId) && !isRunner
+  const isReviewList = inReviews && !inspectionId
+
   const [records, setRecords] = useState<InspectionRecord[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
-  const [loading, setLoading] = useState(true), [failed, setFailed] = useState(false)
-  const [query, setQuery] = useState(""), [filter, setFilter] = useState("all"), [newOpen, setNewOpen] = useState(false)
-  const [selectedForm, setSelectedForm] = useState(""), [selectedSite, setSelectedSite] = useState(""), [dueAt, setDueAt] = useState("")
-  const [notice, setNotice] = useState(""), [detailTab, setDetailTab] = useState("overview")
+  const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
   const [record, setRecord] = useState<InspectionRecord | undefined>()
-  const refresh = () => { setRecords(inspectionRepository.list(workspaceId)); setLoading(false); setFailed(false) }
-  useEffect(() => { try { setTemplates(getTemplates()); refresh() } catch { setFailed(true); setLoading(false) } }, [workspaceId])
-  const segments = route.split("/").filter(Boolean), isReviewList = segments[1] === "reviews", isDetail = segments.length >= 3 && segments[1] === "inspections" && !["run"].includes(segments.at(-1) ?? ""), isRunner = segments[1] === "inspections" && segments.at(-1) === "run"
-  const inspectionId = isReviewList ? undefined : segments[2]
-  useEffect(() => { if (inspectionId) { try { setRecord(inspectionRepository.get(inspectionId)) } catch { setFailed(true) } } else setRecord(undefined) }, [inspectionId, records])
-  const currentTemplate = useMemo(() => templates.find((template) => template.id === record?.templateId), [templates, record?.templateId])
-  const accessProfile: Record<string, string> = { inspector: "u_inspector", employee: "u_inspector", reviewer_1: "u_r1", reviewer_2: "u_r2", final_reviewer: "u_final", action_owner: "u_owner", closure_reviewer: "u_closure", auditor: "u_auditor", form_designer: "u_designer" }
-  const activeSiteIds = people.find((person) => person.id === (accessProfile[role] ?? "u_admin"))?.siteIds ?? []
-  const visibleRecords = records.filter((item) => item.workspaceId === workspaceId && activeSiteIds.includes(item.siteId) && (filter === "all" || filter === "assigned" && item.inspectorId === (role === "inspector" ? "u_inspector" : "u_admin") || filter === "inReview" && ["submitted", "in_review"].includes(item.status) || filter === "returned" && item.status === "returned" || filter === "overdue" && isOverdue(item)) && `${item.id} ${item.title} ${siteRows.find((site) => site.id === item.siteId)?.name ?? ""}`.toLowerCase().includes(query.toLowerCase()))
-  const displayRecords = isReviewList ? visibleRecords.filter((item) => ["submitted", "in_review"].includes(item.status)) : visibleRecords
-  const makeRecord = () => {
-    const template = templates.find((item) => item.id === selectedForm); if (!template || !selectedSite) return
-    try { const created = inspectionRepository.create({ workspaceId, siteId: selectedSite, templateId: template.id, templateVersion: template.version, title: template.title[language], inspectorId: role === "inspector" ? "u_inspector" : "u_admin", dueAt: dueAt || undefined }); refresh(); setNewOpen(false); window.location.href = `/app/inspections/${created.id}/run` } catch (error) { setNotice(error instanceof Error ? error.message : t.unavailable) }
-  }
-  const onRecordChange = (next: InspectionRecord) => { setRecord(next); refresh() }
-  const pageTitle = isReviewList ? t.reviews : t.inspections
-  const navTabs = [{ key: "overview", text: t.details }, { key: "answers", text: t.answers }, { key: "findings", text: t.findings }, { key: "history", text: t.history }, { key: "audit", text: t.audit }]
+  const [ready, setReady] = useState(false)
+  // Keeps the runner mounted after a successful submit so the confirmation screen can show.
+  const [runnerLock, setRunnerLock] = useState<string | null>(null)
 
-  if (loading) return <section className="inspection-page" aria-busy="true" dir={rtl ? "rtl" : "ltr"}><p className="eyebrow">SENTRIQ · {t.inspections}</p><h1>{pageTitle}</h1><div className="inspection-skeleton" /></section>
-  if (failed) return <section className="inspection-page" role="alert" dir={rtl ? "rtl" : "ltr"}><AlertTriangle /><h1>{t.unavailable}</h1><button className="button-primary" onClick={refresh}>{t.retry}</button></section>
-  if ((isRunner || isDetail) && record && !activeSiteIds.includes(record.siteId)) return <section className="inspection-page" role="alert" dir={rtl ? "rtl" : "ltr"}><AlertTriangle /><h1>{t.siteAccess}</h1><Link className="inspection-back" href="/app/inspections">{t.backWork}</Link></section>
-  if (isRunner && record) return <InspectionRunner record={record} template={currentTemplate} language={language} onChange={onRecordChange} onExit={() => { window.location.href = `/app/inspections/${record.id}` }} />
-  if (isDetail && record) return <section className="inspection-page" dir={rtl ? "rtl" : "ltr"}>
-    <Link href={isReviewList ? "/app/reviews" : "/app/inspections"} className="inspection-back"><ArrowLeft size={16} />{isReviewList ? t.reviews : t.inspections}</Link>
-    <div className="inspection-detail-heading"><div><p className="eyebrow">SENTRIQ · {record.id}</p><h1>{record.title}</h1><p>{siteRows.find((site) => site.id === record.siteId)?.name} · {currentTemplate?.title[language] ?? record.templateId} · v{record.templateVersion}</p></div><StatusBadge status={isOverdue(record) ? "overdue" : record.status} language={language} /></div>
-    <div className="inspection-meta-grid"><Meta icon={<MapPin />} label={t.site} value={siteRows.find((site) => site.id === record.siteId)?.name ?? "—"} /><Meta icon={<ShieldCheck />} label={t.inspector} value={people.find((person) => person.id === record.inspectorId)?.displayName ?? "—"} /><Meta icon={<Clock3 />} label={t.updated} value={formatDate(record.updatedAt, language)} /><Meta icon={<ClipboardCheck />} label={t.stage} value={record.currentStage?.replaceAll("_", " ") ?? statusCopy(record.status, t)} /></div>
-    <nav className="inspection-tabs" role="tablist" aria-label={t.details}>{navTabs.map((tab) => <button key={tab.key} role="tab" aria-selected={detailTab === tab.key} onClick={() => setDetailTab(tab.key)}>{tab.text}</button>)}</nav>
-    {detailTab === "overview" && <div className="inspection-panel"><h2>{t.details}</h2><p>{t.start} {record.currentStage?.replaceAll("_", " ") ?? statusCopy(record.status, t)} · {t.updated} {formatDate(record.updatedAt, language)}</p><ol className="inspection-stepper">{["reviewer_1", "reviewer_2", "final_reviewer"].map((stage, index) => <li key={stage} className={record.reviewHistory.length >= index + 1 || record.currentStage === stage ? "is-current" : ""}><span>{index + 1}</span>{stage.replaceAll("_", " ")}</li>)}</ol>{record.status === "draft" || record.status === "in_progress" || record.status === "returned" ? <Link className="button-primary" href={`/app/inspections/${record.id}/run`}>{t.continue}</Link> : null}{["submitted", "in_review"].includes(record.status) && ["reviewer_1", "reviewer_2", "final_reviewer", "company_superadmin", "company_admin"].includes(role) && <ReviewActions record={record} language={language} onChange={onRecordChange} />}</div>}
-    {detailTab === "answers" && <div className="inspection-panel"><h2>{t.answers}</h2>{(currentTemplate?.snapshot.questions ?? []).map((question) => <AnswerReadout key={question.id} question={question} record={record} language={language} />)}</div>}
-    {detailTab === "findings" && <div className="inspection-panel"><h2>{t.findings}</h2>{record.findings?.length ? record.findings.map((finding) => <FindingCard key={finding.id} finding={finding} language={language} />) : <p>{t.emptyHint}</p>}</div>}
-    {detailTab === "history" && <div className="inspection-panel"><h2>{t.history}</h2>{record.reviewHistory.length ? <ol className="inspection-history">{record.reviewHistory.map((entry) => <li key={entry.id}><strong>{entry.decision === "approved" ? t.approve : t.return}</strong><span>{entry.reason}</span><time>{formatDate(entry.at, language)}</time></li>)}</ol> : <p>{t.noHistory}</p>}</div>}
-    {detailTab === "audit" && <div className="inspection-panel"><h2>{t.audit}</h2><p>{t.demo}</p><p>{t.updated}: {formatDate(record.updatedAt, language)} · Revision {record.revision}</p></div>}
+  const refresh = useCallback(() => {
+    try { setTemplates(getTemplates()); setRecords(inspectionRepository.list(workspaceId)); setFailed(false) } catch { setFailed(true) } finally { setLoading(false) }
+  }, [workspaceId])
+  useEffect(() => { refresh() }, [refresh])
+  useEffect(() => {
+    if (!inspectionId) { setRecord(undefined); setReady(true); return }
+    try { setRecord(inspectionRepository.get(inspectionId)) } catch { setFailed(true) }
+    setReady(true)
+  }, [inspectionId, records])
+
+  const onRecordChange = (next: InspectionRecord) => { if (isRunner) setRunnerLock(next.id); setRecord(next); refresh() }
+  const wrapperProps = { dir: rtl ? "rtl" : "ltr" } as const
+  const pageTitle = inReviews ? t.reviews : t.inspections
+
+  if (!access.canRead) return <section className="inspection-page" {...wrapperProps}><PermissionDenied title={t.noInspectionAccess} reason={t.noInspectionAccessHint} backHref="/app/dashboard" backLabel={language === "ar" ? "العودة إلى النظرة العامة" : "Back to overview"} /></section>
+  if (inReviews && reviewStagesFor(role).length === 0) return <section className="inspection-page" {...wrapperProps}><PermissionDenied title={t.noReviewerRole} reason={t.noReviewerRoleHint} backHref="/app/inspections" backLabel={t.inspections} /></section>
+  if (loading || !ready) return <section className="inspection-page" aria-busy="true" {...wrapperProps}><p className="eyebrow">SENTRIQ · {t.inspections}</p><h1>{pageTitle}</h1><LoadingState label={t.inspections} /></section>
+  if (failed) return <section className="inspection-page" {...wrapperProps}><ErrorState title={t.unavailable} onRetry={() => { setLoading(true); refresh() }} retryLabel={t.retry} /></section>
+
+  if ((isRunner || isDetail) && !record) return <section className="inspection-page" {...wrapperProps}><EmptyState title={t.unavailable} action={<Link className="button-outline" href="/app/inspections">{t.backWork}</Link>} /></section>
+  if (record && (isRunner || isDetail) && !access.siteIds.includes(record.siteId)) return <section className="inspection-page" {...wrapperProps}><PermissionDenied title={t.siteAccess} reason={t.siteAccess} backHref="/app/inspections" backLabel={t.backWork} /></section>
+  const currentTemplate = templates.find((template) => template.id === record?.templateId)
+
+  if (isRunner && record) {
+    if (!mayExecute(role, record) && runnerLock !== record.id) return <section className="inspection-page" {...wrapperProps}><PermissionDenied title={language === "ar" ? "لا يمكنك تنفيذ هذا التفتيش" : "You cannot carry out this inspection"} reason={language === "ar" ? "يمكن للمفتش المسند إليه التفتيش فقط تنفيذه وهو مسودة أو مُعاد." : "Only the assigned inspector can fill in this inspection while it is a draft or returned."} backHref={`/app/inspections/${record.id}`} backLabel={t.viewInspection} /></section>
+    return <InspectionRunner record={record} template={currentTemplate} language={language} onChange={onRecordChange} onExit={() => { window.location.href = `/app/inspections/${record.id}` }} />
+  }
+  if (isDetail && record) return <InspectionDetail record={record} template={currentTemplate} language={language} role={role} fromReviews={inReviews} onChange={onRecordChange} />
+  return <InspectionList records={records} templates={templates} language={language} role={role} workspaceId={workspaceId} reviewList={isReviewList} />
+}
+
+/* ------------------------------------------------------------------ list */
+
+function InspectionList({ records, templates, language, role, workspaceId, reviewList }: { records: InspectionRecord[]; templates: Template[]; language: Language; role: string; workspaceId: string; reviewList: boolean }) {
+  const t = words[language]
+  const access = accessFor(role)
+  const stagesForRole = reviewStagesFor(role)
+  const [query, setQuery] = useState("")
+  const [filter, setFilter] = useState<Filter>("all")
+  const [newOpen, setNewOpen] = useState(false)
+
+  const scoped = useMemo(() => records.filter((item) => item.workspaceId === workspaceId && access.siteIds.includes(item.siteId)), [records, workspaceId, access.siteIds])
+  const base = reviewList ? scoped.filter((item) => ["submitted", "in_review"].includes(item.status) && item.currentStage && stagesForRole.includes(item.currentStage)) : scoped
+  const matchers: Record<Filter, (item: InspectionRecord) => boolean> = {
+    all: () => true,
+    assigned: (item) => item.inspectorId === access.actor.userId,
+    inReview: (item) => ["submitted", "in_review"].includes(item.status),
+    returned: (item) => item.status === "returned",
+    overdue: (item) => isOverdue(item),
+  }
+  const counts = Object.fromEntries((Object.keys(matchers) as Filter[]).map((key) => [key, base.filter(matchers[key]).length])) as Record<Filter, number>
+  const visible = base.filter((item) => matchers[filter](item) && `${item.id} ${item.title} ${siteName(item.siteId)}`.toLowerCase().includes(query.trim().toLowerCase()))
+  const filterItems: { id: Filter; text: string }[] = reviewList ? [{ id: "all", text: t.all }, { id: "overdue", text: t.overdue }] : [{ id: "all", text: t.all }, { id: "assigned", text: t.assigned }, { id: "inReview", text: t.inReview }, { id: "returned", text: t.returned }, { id: "overdue", text: t.overdue }]
+  const summary = [
+    { id: "inReview" as Filter, label: t.awaitingReview, value: counts.inReview, tone: "review" },
+    { id: "returned" as Filter, label: t.returned, value: counts.returned, tone: "returned" },
+    { id: "overdue" as Filter, label: t.overdue, value: counts.overdue, tone: "overdue" },
+    { id: "assigned" as Filter, label: t.yourInspections, value: counts.assigned, tone: "mine" },
+  ]
+
+  return <section className="inspection-page" dir={language === "ar" ? "rtl" : "ltr"}>
+    <div className="inspection-heading"><div><p className="eyebrow">SENTRIQ · QHSE</p><h1>{reviewList ? t.reviews : t.inspections}</h1><p>{reviewList ? t.reviewInboxHint : t.subtitle}</p></div>
+      {!reviewList && access.canCreate && <button type="button" className="button-primary" onClick={() => setNewOpen(true)}><FilePlus2 size={16} aria-hidden="true" />{t.new}</button>}</div>
+
+    {!reviewList && <div className="ux-summary" role="group" aria-label={t.summary}>{summary.map((item) => <button type="button" key={item.id} className={`ux-summary-card ux-summary-${item.tone}${filter === item.id ? " is-active" : ""}`} aria-pressed={filter === item.id} onClick={() => setFilter(filter === item.id ? "all" : item.id)}><strong>{formatNumber(item.value, language)}</strong><span>{item.label}</span></button>)}</div>}
+
+    <div className="inspection-toolbar"><label className="inspection-search"><Search size={16} aria-hidden="true" /><input aria-label={t.search} placeholder={t.searchFilter} value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+      <div className="inspection-filter-tabs" role="group" aria-label={t.status}>{filterItems.map((item) => <button type="button" key={item.id} className={filter === item.id ? "active" : ""} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.text}<span className="ux-count">{formatNumber(counts[item.id], language)}</span></button>)}</div></div>
+
+    <div className="inspection-table-scroll" tabIndex={0} role="region" aria-label={reviewList ? t.reviews : t.inspections}>
+      <table className="inspection-table"><caption className="sr-only">{reviewList ? t.reviews : t.inspections}</caption>
+        <thead><tr><th scope="col">{t.id}</th><th scope="col">{t.form}</th><th scope="col">{t.inspector}</th><th scope="col">{t.stage}</th><th scope="col">{t.dueDate}</th><th scope="col">{t.updated}</th><th scope="col">{t.status}</th></tr></thead>
+        <tbody>{visible.map((item) => <tr key={item.id}>
+          <td className="ux-c-id" data-label={t.id}><Link href={reviewList ? `/app/reviews/${item.id}` : `/app/inspections/${item.id}`} className="inspection-record-id">{item.id}</Link></td>
+          <td className="ux-c-title" data-label={t.form}><Link href={reviewList ? `/app/reviews/${item.id}` : `/app/inspections/${item.id}`} className="inspection-record-title">{item.title}</Link><span className="ux-cell-sub"><MapPin size={12} aria-hidden="true" />{siteName(item.siteId)}</span></td>
+          <td data-label={t.inspector}>{personName(item.inspectorId)}</td>
+          <td data-label={t.stage}><StageCell record={item} language={language} /></td>
+          <td data-label={t.dueDate}>{item.dueAt ? <span className={isOverdue(item) ? "ux-due is-overdue" : "ux-due"}>{formatDate(item.dueAt, language)}</span> : <span className="ux-muted">—</span>}</td>
+          <td data-label={t.updated}>{formatDate(item.updatedAt, language)}</td>
+          <td className="ux-c-status" data-label={t.status}><StatusBadge status={statusKey(item)} label={statusText(statusKey(item), language)} /></td></tr>)}</tbody></table>
+      {!visible.length && <EmptyState title={query || filter !== "all" ? (language === "ar" ? "لا توجد نتائج مطابقة" : "No matching inspections") : t.empty} hint={query || filter !== "all" ? undefined : t.emptyHint} action={query || filter !== "all" ? <button type="button" className="button-outline" onClick={() => { setQuery(""); setFilter("all") }}>{t.clear}</button> : !reviewList && access.canCreate ? <button type="button" className="button-primary" onClick={() => setNewOpen(true)}>{t.new}</button> : undefined} />}
+    </div>
+    <p className="inspection-demo-note">{t.demo}</p>
+    {newOpen && <NewInspectionDialog templates={templates} language={language} role={role} workspaceId={workspaceId} onClose={() => setNewOpen(false)} />}
+  </section>
+}
+
+function StageCell({ record, language }: { record: InspectionRecord; language: Language }) {
+  const stages = reviewStagesOf(record)
+  if (record.status === "approved") return <span className="ux-stage-done">{completedLabel(language)}</span>
+  if (!record.currentStage) return <span className="ux-muted">—</span>
+  const index = stages.indexOf(record.currentStage)
+  return <span className="ux-stage" aria-label={`${stageLabel(language, record.currentStage)} (${index + 1}/${stages.length})`}><span className="ux-stage-dots" aria-hidden="true">{stages.map((stage, i) => <i key={stage} className={i < index ? "done" : i === index ? "current" : ""} />)}</span>{stageLabel(language, record.currentStage)}</span>
+}
+
+function NewInspectionDialog({ templates, language, role, workspaceId, onClose }: { templates: Template[]; language: Language; role: string; workspaceId: string; onClose: () => void }) {
+  const t = words[language]
+  const access = accessFor(role)
+  const sites = siteRows.filter((site) => site.workspaceId === workspaceId && access.siteIds.includes(site.id))
+  const [formId, setFormId] = useState(templates[0]?.id ?? "")
+  const [siteId, setSiteId] = useState(sites[0]?.id ?? "")
+  const [dueAt, setDueAt] = useState("")
+  const [error, setError] = useState("")
+  const create = () => {
+    const template = templates.find((item) => item.id === formId)
+    if (!template || !siteId) return
+    try {
+      const created = inspectionRepository.create({ workspaceId, siteId, templateId: template.id, templateVersion: template.version, title: template.title[language], inspectorId: access.actor.userId, dueAt: dueAt || undefined })
+      window.location.href = `/app/inspections/${created.id}/run`
+    } catch (caught) { setError(errorMessage(language, caught)) }
+  }
+  return <Dialog title={t.create} closeLabel={t.cancel} onClose={onClose}>
+    <p className="ux-dialog-hint">{t.newHint}</p>
+    <label>{t.chooseForm}<select data-autofocus value={formId} onChange={(event) => setFormId(event.target.value)}>{templates.map((template) => <option key={template.id} value={template.id}>{template.title[language]} · v{template.version}</option>)}</select></label>
+    <label>{t.chooseSite}<select value={siteId} onChange={(event) => setSiteId(event.target.value)}>{sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select></label>
+    <label>{t.due}<input type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} /></label>
+    {error && <p role="alert" className="inspection-alert">{error}</p>}
+    <div className="inspection-modal-actions"><button type="button" className="button-outline" onClick={onClose}>{t.cancel}</button><button type="button" className="button-primary" disabled={!formId || !siteId} onClick={create}>{t.create}</button></div>
+  </Dialog>
+}
+
+/* ---------------------------------------------------------------- detail */
+
+type Tab = "overview" | "answers" | "findings" | "history" | "audit"
+
+function InspectionDetail({ record, template, language, role, fromReviews, onChange }: { record: InspectionRecord; template?: Template; language: Language; role: string; fromReviews: boolean; onChange: (record: InspectionRecord) => void }) {
+  const t = words[language]
+  const rtl = language === "ar"
+  const access = accessFor(role)
+  const [tab, setTab] = useState<Tab>("overview")
+  useEffect(() => {
+    const sync = () => { if (window.location.hash === "#findings") setTab("findings") }
+    sync()
+    window.addEventListener("hashchange", sync)
+    return () => window.removeEventListener("hashchange", sync)
+  }, [])
+  const [actions, setActions] = useState<ActionRecord[]>([])
+  const loadActions = useCallback(() => { try { setActions(actionRepository.listForInspection(record.id)) } catch { setActions([]) } }, [record.id])
+  useEffect(() => { loadActions() }, [loadActions])
+
+  const stages = reviewStagesOf(record)
+  const cycle = record.cycle ?? 0
+  const doneStages = record.status === "approved" ? stages : record.reviewHistory.filter((entry) => entry.decision === "approved" && (entry.cycle ?? 0) === cycle).map((entry) => entry.stage)
+  const questions = template?.snapshot.questions.filter((question) => question.type !== "instruction") ?? []
+  const answered = questions.filter((question) => isAnswered(record.answers.find((answer) => answer.questionId === question.id)?.value)).length
+  const tabs: { key: Tab; text: string }[] = [{ key: "overview", text: t.details }, { key: "answers", text: t.answers }, { key: "findings", text: t.findings }, { key: "history", text: t.history }, { key: "audit", text: t.audit }]
+
+  return <section className="inspection-page" dir={rtl ? "rtl" : "ltr"}>
+    <Link href={fromReviews ? "/app/reviews" : "/app/inspections"} className="inspection-back"><ArrowLeft size={16} aria-hidden="true" />{fromReviews ? t.reviews : t.inspections}</Link>
+    <div className="inspection-detail-heading"><div><p className="eyebrow">{record.id} · v{record.templateVersion}</p><h1>{record.title}</h1><p>{siteName(record.siteId)} · {template?.title[language] ?? record.templateId}</p></div><StatusBadge status={statusKey(record)} label={statusText(statusKey(record), language)} /></div>
+    <div className="inspection-meta-grid">
+      <Meta icon={<MapPin size={15} />} label={t.site} value={siteName(record.siteId)} />
+      <Meta icon={<UserRound size={15} />} label={t.inspector} value={personName(record.inspectorId)} />
+      <Meta icon={<Clock3 size={15} />} label={t.dueDate} value={record.dueAt ? formatDate(record.dueAt, language) : t.noDue} tone={isOverdue(record) ? "danger" : undefined} />
+      <Meta icon={<ClipboardCheck size={15} />} label={t.stage} value={record.status === "approved" ? completedLabel(language) : record.currentStage ? stageLabel(language, record.currentStage) : statusText(record.status, language)} />
+    </div>
+    <div className="inspection-tabs" role="tablist" aria-label={t.details}>{tabs.map((item) => <button type="button" key={item.key} id={`tab-${item.key}`} role="tab" aria-selected={tab === item.key} aria-controls="inspection-tabpanel" tabIndex={tab === item.key ? 0 : -1} onClick={() => setTab(item.key)} onKeyDown={(event) => { const order = tabs.map((entry) => entry.key); const at = order.indexOf(tab); const step = event.key === "ArrowRight" ? (rtl ? -1 : 1) : event.key === "ArrowLeft" ? (rtl ? 1 : -1) : 0; if (step) { event.preventDefault(); const next = order[(at + step + order.length) % order.length]; setTab(next); document.getElementById(`tab-${next}`)?.focus() } }}>{item.text}{item.key === "findings" && (record.findings?.length ?? 0) > 0 && <span className="ux-count">{formatNumber(record.findings?.length ?? 0, language)}</span>}</button>)}</div>
+
+    <div className="inspection-panel" id="inspection-tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
+      {tab === "overview" && <>
+        <h2>{t.details}</h2>
+        <Stepper steps={stages.map((stage) => ({ id: stage, label: stageLabel(language, stage) }))} current={record.currentStage} done={doneStages} />
+        <dl className="ux-overview-stats"><div><dt>{t.answered}</dt><dd>{formatNumber(answered, language)}/{formatNumber(questions.length, language)}</dd></div><div><dt>{t.findingsTab}</dt><dd>{plural(language, "finding", record.findings?.length ?? 0)}</dd></div><div><dt>{t.actionsLinked}</dt><dd>{plural(language, "action", actions.length)}</dd></div></dl>
+        {mayExecute(role, record) && <Link className="button-primary" href={`/app/inspections/${record.id}/run`}>{record.status === "draft" && record.answers.length === 0 ? t.run : t.continue}</Link>}
+        <ReviewPanel record={record} language={language} role={role} onChange={onChange} />
+      </>}
+      {tab === "answers" && <><h2>{t.answers}</h2>{questions.length ? questions.map((question) => <div className="inspection-answer-row" key={question.id}><strong>{questionLabel(question, language)}</strong><span>{formatAnswer(question, record.answers.find((answer) => answer.questionId === question.id)?.value, language)}</span></div>) : <p>{t.noQuestions}</p>}</>}
+      {tab === "findings" && <FindingsTab record={record} actions={actions} language={language} role={role} canCreate={can(role, "actions.create") && access.siteIds.includes(record.siteId)} onCreated={loadActions} />}
+      {tab === "history" && <><h2>{t.history}</h2>{record.reviewHistory.length ? <ol className="inspection-history">{[...record.reviewHistory].reverse().map((entry) => <li key={entry.id}><strong>{entry.decision === "approved" ? t.approve : t.return} · {stageLabel(language, entry.stage)}</strong><span>{personName(entry.actorId) !== "—" ? personName(entry.actorId) : demoActorLabel(entry.actorId)}{entry.reason ? ` — ${entry.reason}` : ""}</span><time dateTime={entry.at}>{formatDateTime(entry.at, language)}</time></li>)}</ol> : <p>{t.noHistory}</p>}</>}
+      {tab === "audit" && <AuditTab record={record} language={language} />}
+    </div>
     <p className="inspection-demo-note">{t.demo}</p>
   </section>
-
-  if (!isReviewList && isDetail && !record) return <section className="inspection-page" dir={rtl ? "rtl" : "ltr"}><h1>{t.unavailable}</h1><Link href="/app/inspections">{t.backWork}</Link></section>
-  return <section className="inspection-page" dir={rtl ? "rtl" : "ltr"}>
-    <div className="inspection-heading"><div><p className="eyebrow">SENTRIQ · QHSE OPERATIONS</p><h1>{pageTitle}</h1><p>{t.subtitle}</p></div>{!isReviewList && <button className="button-primary" onClick={() => { setSelectedSite(siteRows.find((site) => site.workspaceId === workspaceId && activeSiteIds.includes(site.id))?.id ?? ""); setSelectedForm(templates[0]?.id ?? ""); setNewOpen(true) }}><FilePlus2 size={16} />{t.new}</button>}</div>
-    <div className="inspection-toolbar"><label className="inspection-search"><Search size={16} /><input aria-label={t.search} placeholder={t.searchFilter} value={query} onChange={(event) => setQuery(event.target.value)} /></label><div className="inspection-filter-tabs" role="group" aria-label={t.status}>{[{ id: "all", text: t.all }, { id: "assigned", text: t.assigned }, { id: "inReview", text: t.inReview }, { id: "returned", text: t.returned }, { id: "overdue", text: t.overdue }].map((item) => <button key={item.id} className={filter === item.id ? "active" : ""} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.text}</button>)}</div></div>
-    <div className="inspection-table-scroll"><table className="inspection-table"><caption className="sr-only">{pageTitle}</caption><thead><tr><th scope="col">{t.id}</th><th scope="col">{t.form}</th><th scope="col">{t.site}</th><th scope="col">{t.inspector}</th><th scope="col">{t.stage}</th><th scope="col">{t.updated}</th><th scope="col">{t.status}</th></tr></thead><tbody>{displayRecords.map((item) => <tr key={item.id}><td data-label={t.id}><Link href={`/app/inspections/${item.id}`} className="inspection-record-id">{item.id}</Link></td><td data-label={t.form}><Link href={`/app/inspections/${item.id}`} className="inspection-record-title">{item.title}</Link></td><td data-label={t.site}>{siteRows.find((site) => site.id === item.siteId)?.name ?? "—"}</td><td data-label={t.inspector}>{people.find((person) => person.id === item.inspectorId)?.displayName ?? "—"}</td><td data-label={t.stage}>{item.currentStage?.replaceAll("_", " ") ?? "—"}</td><td data-label={t.updated}>{formatDate(item.updatedAt, language)}</td><td data-label={t.status}><StatusBadge status={isOverdue(item) ? "overdue" : item.status} language={language} /></td></tr>)}</tbody></table>
-      {!displayRecords.length && <div className="inspection-empty"><ClipboardCheck size={25} /><h2>{t.empty}</h2><p>{t.emptyHint}</p>{!isReviewList && <button className="button-primary" onClick={() => setNewOpen(true)}>{t.new}</button>}</div>}</div>
-    <p className="inspection-demo-note">{t.demo}</p>{notice && <p role="alert" className="inspection-alert">{notice}</p>}
-    {newOpen && <div className="inspection-modal-backdrop"><section className="inspection-modal" role="dialog" aria-modal="true" aria-labelledby="new-inspection-title"><div className="inspection-modal-heading"><h2 id="new-inspection-title">{t.create}</h2><button aria-label={t.cancel} onClick={() => setNewOpen(false)}><X /></button></div><label>{t.chooseForm}<select value={selectedForm} onChange={(event) => setSelectedForm(event.target.value)}>{templates.map((template) => <option key={template.id} value={template.id}>{template.title[language]} · v{template.version}</option>)}</select></label><label>{t.chooseSite}<select value={selectedSite} onChange={(event) => setSelectedSite(event.target.value)}>{siteRows.filter((site) => site.workspaceId === workspaceId && activeSiteIds.includes(site.id)).map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select></label><label>{t.due}<input type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} /></label><div className="inspection-modal-actions"><button className="button-outline" onClick={() => setNewOpen(false)}>{t.cancel}</button><button className="button-primary" disabled={!templates.length || !selectedSite} onClick={makeRecord}>{t.create}</button></div></section></div>}
-  </section>
 }
 
-function StatusBadge({ status, language }: { status: InspectionStatus | "overdue"; language: Language }) { const t = words[language]; const key = status === "overdue" ? t.overdue : statusCopy(status, t); const Icon = status === "approved" ? CheckCircle2 : status === "returned" || status === "overdue" ? AlertTriangle : status === "in_review" || status === "submitted" ? Clock3 : ClipboardCheck; return <span className={`inspection-status status-${status.replaceAll("_", "-")}`}><Icon size={14} />{key}</span> }
-function Meta({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) { return <div className="inspection-meta"><span>{icon}{label}</span><strong>{value}</strong></div> }
-function FindingCard({ finding, language }: { finding: InspectionFinding; language: Language }) { return <article className="inspection-finding"><div><strong>{finding.title}</strong><span>{finding.description}</span></div><span className={`finding-priority priority-${finding.priority}`}>{language === "ar" ? ({ high: "عالية", medium: "متوسطة", low: "منخفضة" } as const)[finding.priority] : finding.priority}</span></article> }
-function formatAnswer(question: Question, value: unknown, language: Language) { if (value == null || value === "") return "—"; if (typeof value === "boolean") return value ? words[language].yes : words[language].no; if (question.type === "single_select" || question.type === "multi_select") { const selected = Array.isArray(value) ? value : [value]; return selected.map((id) => question.config.choices?.find((choice) => choice.id === id)?.label[language] ?? String(id)).join(", ") }; if (Array.isArray(value)) return value.map((file) => typeof file === "string" ? file : (file as File).name ?? "Evidence").join(", "); return String(value) }
-function AnswerReadout({ question, record, language }: { question: Question; record: InspectionRecord; language: Language }) { const value = record.answers.find((answer) => answer.questionId === question.id)?.value; return <div className="inspection-answer-row"><strong>{label(question, language)}</strong><span>{formatAnswer(question, value, language)}</span></div> }
+const demoActorLabel = (userId: string) => ["inspector", "reviewer_1", "reviewer_2", "final_reviewer", "company_admin"].map((role) => demoActor(role)).find((actor) => actor.userId === userId)?.label ?? userId
 
-function ReviewActions({ record, language, onChange }: { record: InspectionRecord; language: Language; onChange: (record: InspectionRecord) => void }) {
-  const t = words[language], [reason, setReason] = useState(""), [message, setMessage] = useState("")
-  const act = (decision: "approved" | "returned") => { if (decision === "returned" && !reason.trim()) { setMessage(t.returnReasonRequired); return }; try { onChange(inspectionRepository.review(record.id, { decision, actorId: "u_r1", reason, expectedRevision: record.revision })); setMessage("") } catch (error) { setMessage(error instanceof Error ? error.message : t.unavailable) } }
-  return <div className="inspection-review-actions"><label>{t.reviewReason}<textarea value={reason} onChange={(event) => setReason(event.target.value)} /></label><div><button className="button-outline" onClick={() => act("returned")}>{t.return}</button><button className="button-primary" onClick={() => act("approved")}><Check size={15} />{t.approve}</button></div>{message && <p role="alert">{message}</p>}</div>
+function Meta({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone?: "danger" }) {
+  return <div className={`inspection-meta${tone ? ` is-${tone}` : ""}`}><span>{icon}{label}</span><strong>{value}</strong></div>
 }
 
-function InspectionRunner({ record: initial, template, language, onChange, onExit }: { record: InspectionRecord; template?: Template; language: Language; onChange: (record: InspectionRecord) => void; onExit: () => void }) {
-  const rtl = language === "ar", t = words[language], form = template?.snapshot
-  const [record, setRecord] = useState(initial), [sectionIndex, setSectionIndex] = useState(0), [answers, setAnswers] = useState<Record<string, unknown>>(() => Object.fromEntries(initial.answers.map((item) => [item.questionId, item.value])))
-  const [evidenceUrls, setEvidenceUrls] = useState<Record<string, string[]>>({})
-  const [findings, setFindings] = useState<InspectionFinding[]>(initial.findings ?? []), [findingFor, setFindingFor] = useState<Question | null>(null), [findingTitle, setFindingTitle] = useState(""), [findingDescription, setFindingDescription] = useState(""), [findingPriority, setFindingPriority] = useState<InspectionFinding["priority"]>("medium"), [findingPhoto, setFindingPhoto] = useState("")
-  const [showReview, setShowReview] = useState(false), [done, setDone] = useState(initial.status === "submitted"), [conflict, setConflict] = useState(false), [message, setMessage] = useState(""), [savedTime, setSavedTime] = useState(""), [queuedOffline, setQueuedOffline] = useState(false)
-  useEffect(() => { setRecord(initial) }, [initial])
-  const sections = form?.sections ?? [], currentSection = sections[sectionIndex]
-  const runtime = useMemo(() => form ? getQuestionRuntimeStates(form, answers) : {}, [form, answers])
-  const visibleQuestionList = currentSection?.questionIds.map((id) => form?.questions.find((item) => item.id === id)).filter((question): question is Question => Boolean(question && runtime[question.id]?.visible && question.type !== "instruction")) ?? []
-  const errors = form?.questions.filter((question) => question.type !== "instruction" && runtime[question.id]?.visible).map((question) => ({ question, message: validateAnswer({ ...question, required: runtime[question.id]?.required ?? question.required }, answers[question.id]) })).filter((item) => item.message) ?? []
-  const answeredCount = form?.questions.filter((question) => question.type !== "instruction" && answers[question.id] !== undefined && answers[question.id] !== "").length ?? 0
-  const totalCount = form?.questions.filter((question) => question.type !== "instruction").length ?? 0
-  const progress = totalCount ? Math.round(answeredCount / totalCount * 100) : 0
-  const persist = (submit = false) => {
-    try { const safeAnswers = answersToRows(answers); const next = submit ? inspectionRepository.submit(record.id, safeAnswers, record.revision, findings) : inspectionRepository.saveDraft(record.id, safeAnswers, record.revision, findings); setRecord(next); onChange(next); setSavedTime(new Intl.DateTimeFormat(language === "ar" ? "ar" : "en", { hour: "2-digit", minute: "2-digit" }).format(new Date())); setMessage(""); setConflict(false); if (submit) { setQueuedOffline(!navigator.onLine); setDone(true) }; return next } catch (error) { if (error instanceof RevisionConflictError) setConflict(true); else setMessage(error instanceof Error ? error.message : t.unavailable); return undefined }
+function formatAnswer(question: { type: string; config: { choices?: { id: string; label: { en: string; ar: string } }[] } }, value: unknown, language: Language) {
+  const t = words[language]
+  if (!isAnswered(value)) return "—"
+  if (typeof value === "boolean") return value ? t.yes : t.no
+  if (question.type === "single_select" || question.type === "multi_select") return (Array.isArray(value) ? value : [value]).map((id) => question.config.choices?.find((choice) => choice.id === id)?.label[language] ?? String(id)).join(", ")
+  if (Array.isArray(value)) return value.map((file) => (typeof file === "string" ? file : (file as File).name ?? "Evidence")).join(", ")
+  return String(value)
+}
+
+function AuditTab({ record, language }: { record: InspectionRecord; language: Language }) {
+  const t = words[language]
+  const events = [
+    { id: "created", at: record.createdAt, text: t.timelineCreated, actor: personName(record.inspectorId) },
+    ...(record.submittedAt ? [{ id: "submitted", at: record.submittedAt, text: t.timelineSubmitted, actor: personName(record.inspectorId) }] : []),
+    ...record.reviewHistory.map((entry) => ({ id: entry.id, at: entry.at, text: `${entry.decision === "approved" ? t.timelineApproved : t.timelineReturned} · ${stageLabel(language, entry.stage)}`, actor: personName(entry.actorId) !== "—" ? personName(entry.actorId) : demoActorLabel(entry.actorId) })),
+  ].sort((a, b) => a.at.localeCompare(b.at))
+  return <><h2>{t.audit}</h2><p className="ux-muted">{t.auditHint}</p><ol className="inspection-history">{events.map((event) => <li key={event.id}><strong>{event.text}</strong><span>{event.actor}</span><time dateTime={event.at}>{formatDateTime(event.at, language)}</time></li>)}<li><strong>Revision {record.revision}</strong><span>{t.updated}</span><time dateTime={record.updatedAt}>{formatDateTime(record.updatedAt, language)}</time></li></ol></>
+}
+
+/* ----------------------------------------------------------------- review */
+
+function ReviewPanel({ record, language, role, onChange }: { record: InspectionRecord; language: Language; role: string; onChange: (record: InspectionRecord) => void }) {
+  const t = words[language]
+  const [returning, setReturning] = useState(false)
+  const [reason, setReason] = useState("")
+  const [message, setMessage] = useState("")
+  const [conflict, setConflict] = useState(false)
+  const actor = demoActor(role)
+  const stage = record.currentStage
+  const waiting = ["submitted", "in_review"].includes(record.status) && stage
+  if (!waiting) return null
+  const mayAct = reviewStagesFor(role).includes(stage)
+  if (!mayAct) return <p className="ux-waiting" role="status"><Clock3 size={15} aria-hidden="true" />{t.waitingFor} {stageLabel(language, stage)}</p>
+  if (actor.userId === record.inspectorId) return <p className="ux-waiting" role="status"><ShieldCheck size={15} aria-hidden="true" />{t.separation}</p>
+
+  const act = (decision: "approved" | "returned") => {
+    try {
+      onChange(inspectionRepository.review(record.id, { decision, actorId: actor.userId, reason, expectedRevision: record.revision, stage }))
+      setMessage(""); setReturning(false); setReason(""); setConflict(false)
+    } catch (error) {
+      if ((error as { code?: string }).code === "STALE_REVISION") setConflict(true)
+      setMessage(errorMessage(language, error))
+    }
   }
-  useEffect(() => { if (done || !Object.keys(answers).length) return; const timer = window.setTimeout(() => { persist(false) }, 10000); return () => window.clearTimeout(timer) }, [answers, findings])
-  useEffect(() => { const update = () => setMessage(navigator.onLine ? "" : t.offline); update(); window.addEventListener("online", update); window.addEventListener("offline", update); return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update) } }, [t.offline])
-  const updateEvidence = (questionId: string, files: File[]) => { setAnswers((current) => ({ ...current, [questionId]: files })); setEvidenceUrls((current) => { current[questionId]?.forEach((url) => URL.revokeObjectURL(url)); return { ...current, [questionId]: files.map((file) => URL.createObjectURL(file)) } }) }
-  useEffect(() => () => Object.values(evidenceUrls).flat().forEach((url) => URL.revokeObjectURL(url)), [evidenceUrls])
-  const answer = (question: Question) => { const value = answers[question.id] ?? "", update = (next: unknown) => setAnswers((current) => ({ ...current, [question.id]: next })); const name = label(question, language)
-    if (["boolean"].includes(question.type)) return <div className="runner-choice-row" role="group" aria-label={name}>{[true, false].map((value) => <button type="button" key={String(value)} className={answers[question.id] === value ? "selected" : ""} aria-pressed={answers[question.id] === value} onClick={() => update(value)}>{value ? t.yes : t.no}</button>)}</div>
-    if (question.type === "single_select" || question.type === "multi_select") return <div className="runner-options">{(question.config.choices ?? []).map((choice) => { const selected = question.type === "multi_select" ? Array.isArray(value) && value.includes(choice.id) : value === choice.id; return <label className={`runner-option${selected ? " selected" : ""}`} key={choice.id}><input type={question.type === "multi_select" ? "checkbox" : "radio"} name={question.id} checked={selected} onChange={() => update(question.type === "multi_select" ? selected ? (value as string[]).filter((id) => id !== choice.id) : [...(Array.isArray(value) ? value : []), choice.id] : choice.id)} /><span>{choice.label[language] || choice.label.en}</span></label> })}</div>
-    if (question.type === "photo" || question.type === "file") return <div className="runner-evidence"><label className="runner-file" htmlFor={`evidence-${question.id}`}><Upload size={20} /><span>{t.photo}</span><input id={`evidence-${question.id}`} aria-label={name} type="file" accept={question.type === "photo" ? "image/*" : "*/*"} capture={question.type === "photo" ? "environment" : undefined} multiple={Number(question.config.maxFiles ?? 1) > 1} onChange={(event) => updateEvidence(question.id, Array.from(event.target.files ?? []))} /></label>{Array.isArray(value) && value.length > 0 && <div className="runner-evidence-list">{value.map((file, index) => <div className="runner-evidence-item" key={`${typeof file === "string" ? file : (file as File).name}-${index}`}>{question.type === "photo" && evidenceUrls[question.id]?.[index] && <img src={evidenceUrls[question.id][index]} alt={language === "ar" ? `معاينة ${index + 1}` : `Evidence ${index + 1} preview`} />}<span>{typeof file === "string" ? file : (file as File).name}</span><button type="button" aria-label={`${t.remove} ${typeof file === "string" ? file : (file as File).name}`} onClick={() => updateEvidence(question.id, (value as File[]).filter((_, fileIndex) => fileIndex !== index))}>{t.remove}</button></div>)}</div>}</div>
-    if (question.type === "attestation") return <label className="runner-option"><input type="checkbox" checked={value === true} onChange={(event) => update(event.target.checked)} /><span>{(question.config.statement as { en?: string; ar?: string } | undefined)?.[language] ?? name}</span></label>
-    if (question.type === "long_text") return <textarea aria-label={name} value={String(value)} onChange={(event) => update(event.target.value)} rows={4} />
-    const type = question.type === "integer" || question.type === "decimal" ? "number" : question.type === "date" ? "date" : question.type === "time" ? "time" : question.type === "datetime" ? "datetime-local" : "text"
-    return <input aria-label={name} type={type} inputMode={type === "number" ? "decimal" : undefined} value={String(value)} onChange={(event) => update(type === "number" ? event.target.value === "" ? "" : Number(event.target.value) : event.target.value)} />
+  return <div className="inspection-review-actions">
+    <p className="ux-review-heading">{t.waitingFor} <strong>{stageLabel(language, stage)}</strong></p>
+    <div className="ux-review-buttons">
+      <button type="button" className="button-outline" onClick={() => { setReturning(true); setMessage("") }}>{t.return}</button>
+      <button type="button" className="button-primary" onClick={() => act("approved")}><Check size={15} aria-hidden="true" />{t.approveAs} {stageLabel(language, stage)}</button>
+    </div>
+    {message && <p role="alert" className="inspection-alert">{message}{conflict && <> <button type="button" className="ux-link" onClick={() => { const latest = inspectionRepository.get(record.id); if (latest) { onChange(latest); setMessage(""); setConflict(false) } }}>{t.reload}</button></>}</p>}
+    {returning && <Dialog title={t.returnDialog} closeLabel={t.cancel} onClose={() => setReturning(false)}>
+      <label>{t.reasonLabel}<textarea data-autofocus value={reason} onChange={(event) => setReason(event.target.value)} rows={4} aria-describedby="return-hint" /></label>
+      <p id="return-hint" className="ux-dialog-hint">{t.reasonHint}</p>
+      {message && <p role="alert" className="inspection-alert">{message}</p>}
+      <div className="inspection-modal-actions"><button type="button" className="button-outline" onClick={() => setReturning(false)}>{t.cancel}</button><button type="button" className="button-primary" onClick={() => act("returned")}>{t.confirmReturn}</button></div>
+    </Dialog>}
+  </div>
+}
+
+/* --------------------------------------------------------------- findings */
+
+function FindingsTab({ record, actions, language, role, canCreate, onCreated }: { record: InspectionRecord; actions: ActionRecord[]; language: Language; role: string; canCreate: boolean; onCreated: () => void }) {
+  const t = words[language]
+  const [creatingFor, setCreatingFor] = useState<InspectionFinding | null>(null)
+  const findings = record.findings ?? []
+  return <>
+    <h2>{t.findings}</h2>
+    {findings.length === 0 && <p className="ux-muted">{t.emptyHint}</p>}
+    {findings.map((finding) => { const linked = actions.filter((action) => action.findingId === finding.id)
+      return <article className="inspection-finding ux-finding" key={finding.id}>
+        <div className="ux-finding-head"><div><strong>{finding.title}</strong>{finding.description && <span>{finding.description}</span>}</div><PriorityBadge priority={finding.priority} label={priorityText(finding.priority, language)} /></div>
+        <div className="ux-finding-actions"><span className="ux-muted">{t.actionsLinked}: {plural(language, "action", linked.length)}</span>
+          {linked.map((action) => <Link key={action.id} className="ux-link" href={`/app/actions/${action.id}`}>{action.id}</Link>)}
+          {canCreate && <button type="button" className="button-outline ux-small" onClick={() => setCreatingFor(finding)}><Plus size={14} aria-hidden="true" />{t.createAction}</button>}</div>
+      </article> })}
+    {creatingFor && <CreateActionDialog record={record} finding={creatingFor} language={language} role={role} onClose={() => setCreatingFor(null)} onCreated={() => { setCreatingFor(null); onCreated() }} />}
+  </>
+}
+
+function CreateActionDialog({ record, finding, language, role, onClose, onCreated }: { record: InspectionRecord; finding: InspectionFinding; language: Language; role: string; onClose: () => void; onCreated: () => void }) {
+  const t = words[language]
+  const owners = people.filter((person) => person.workspaceId === record.workspaceId && person.siteIds.includes(record.siteId))
+  const [title, setTitle] = useState(finding.title)
+  const [ownerId, setOwnerId] = useState(owners.find((person) => person.role === "action_owner")?.id ?? owners[0]?.id ?? "")
+  const [priority, setPriority] = useState<"low" | "medium" | "high" | "critical">(finding.priority)
+  const [dueAt, setDueAt] = useState("")
+  const [error, setError] = useState("")
+  const create = () => {
+    try {
+      actionRepository.create({ workspaceId: record.workspaceId, siteId: record.siteId, findingId: finding.id, inspectionId: record.id, title, description: finding.description, ownerId, priority, closureDueAt: dueAt ? new Date(`${dueAt}T17:00:00`).toISOString() : undefined, createdBy: demoActor(role).userId })
+      onCreated()
+    } catch (caught) { setError(errorMessage(language, caught)) }
   }
-  const addFinding = () => { if (!findingFor || !findingTitle.trim()) return; setFindings((current) => [...current, { id: `FND-${Date.now()}`, questionId: findingFor.id, title: findingTitle.trim(), description: findingDescription.trim(), priority: findingPriority, photoName: findingPhoto || undefined }]); setFindingFor(null); setFindingTitle(""); setFindingDescription(""); setFindingPhoto("") }
-  if (done) return <section className="inspection-runner inspection-success" dir={rtl ? "rtl" : "ltr"}><CheckCircle2 size={45} /><h1>{t.submitted}</h1><p>{queuedOffline ? t.syncing : t.submittedHint}</p><p>{findings.length} {t.findingsRaised}</p><Link className="button-primary" href="/app/inspections">{t.backWork}</Link><button className="button-outline" onClick={onExit}>{t.details}</button></section>
-  return <section className="inspection-runner" dir={rtl ? "rtl" : "ltr"}>
-    {typeof navigator !== "undefined" && !navigator.onLine && <p className="inspection-offline" role="status">{t.offline}</p>}{message && <p className="inspection-alert" role="status">{message}</p>}
-    {conflict && <div className="inspection-conflict" role="alert"><strong>{t.conflict}</strong><button onClick={() => { const latest = inspectionRepository.get(record.id); if (latest) { setRecord(latest); setAnswers(Object.fromEntries(latest.answers.map((item) => [item.questionId, item.value]))); setFindings(latest.findings ?? []); setConflict(false) } }}>{t.reload}</button><button onClick={() => { try { const copy = inspectionRepository.create({ workspaceId: record.workspaceId, siteId: record.siteId, templateId: record.templateId, templateVersion: record.templateVersion, title: `${record.title} — ${language === "ar" ? "نسخة" : "copy"}`, inspectorId: record.inspectorId, dueAt: record.dueAt }); const savedCopy = inspectionRepository.saveDraft(copy.id, answersToRows(answers), copy.revision, findings); setRecord(savedCopy); onChange(savedCopy); setConflict(false); setMessage(`${t.copyChanges}: ${savedCopy.id}`) } catch { setMessage(t.unavailable) } }}>{t.copyChanges}</button></div>}
-    <header className="runner-header"><button className="inspection-back" onClick={onExit}><ArrowLeft size={16} />{t.backWork}</button><p className="eyebrow">{record.id} · v{record.templateVersion}</p><h1>{template?.title[language] ?? record.title}</h1><div className="runner-progress-copy"><span>{t.start} {sectionIndex + 1} {t.of} {sections.length} · {answeredCount}/{totalCount} {t.answered}</span><span>{progress}%</span></div><div className="runner-progress-track" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label={`${answeredCount}/${totalCount} ${t.answered}`}><span style={{ width: `${progress}%` }} /></div></header>
-    {showReview ? <div className="runner-review"><h2>{t.reviewSubmit}</h2><p>{answeredCount}/{totalCount} {t.answered} · {findings.length} {t.findingsRaised}</p>{errors.length > 0 && <div role="alert" className="runner-errors"><strong>{t.requiredMissing}</strong>{errors.map(({ question, message: error }) => <a href={`#question-${question.id}`} key={question.id}>{label(question, language)} — {error}</a>)}</div>}{sections.map((section) => <section key={section.id}><h3>{section.title[language] || section.title.en}</h3>{section.questionIds.map((id) => { const question = form?.questions.find((item) => item.id === id); const value = answers[id]; return question && runtime[id]?.visible && question.type !== "instruction" ? <div id={`question-${id}`} className="inspection-answer-row" key={id}><strong>{label(question, language)}</strong><span>{formatAnswer(question, value, language)}</span></div> : null })}</section>)}<button className="button-primary" disabled={errors.length > 0} onClick={() => persist(true)}>{t.submit}</button></div> : <><div className="runner-section-heading"><span>{t.start} {sectionIndex + 1}</span><h2>{currentSection?.title[language] || currentSection?.title.en || t.noQuestions}</h2><p>{currentSection?.description[language] || currentSection?.description.en}</p></div>{visibleQuestionList.length ? <div className="runner-questions">{visibleQuestionList.map((question, index) => { const error = validateAnswer({ ...question, required: runtime[question.id]?.required ?? question.required }, answers[question.id]); return <article className="runner-question" id={`question-${question.id}`} key={question.id}><div className="runner-question-title"><span>{String(index + 1).padStart(2, "0")}</span><label htmlFor={`input-${question.id}`}>{label(question, language)}{runtime[question.id]?.required && <b aria-label={t.required}> *</b>}</label><button type="button" className="runner-raise" onClick={() => { setFindingFor(question); setFindingTitle(label(question, language)) }}><AlertTriangle size={15} />{t.raise}</button></div>{question.help[language] && <p>{question.help[language]}</p>}{answer(question)}{error && <small className="runner-error" role="alert">{error}</small>}</article> })}</div> : <p className="inspection-empty">{t.noQuestions}</p>}</>}
-    {savedTime && <p className="runner-saved" role="status">{t.savedAt} {savedTime}</p>}
-    {!showReview && <footer className="runner-footer"><button className="button-outline" disabled={sectionIndex === 0} onClick={() => setSectionIndex((index) => Math.max(0, index - 1))}><ChevronLeft size={16} />{t.back}</button><button className="button-outline" onClick={() => persist(false)}>{t.save}</button>{sectionIndex < sections.length - 1 ? <button className="button-primary" onClick={() => { persist(false); setSectionIndex((index) => Math.min(sections.length - 1, index + 1)) }}>{t.next}<ChevronRight size={16} /></button> : <button className="button-primary" onClick={() => { persist(false); setShowReview(true) }}>{t.reviewSubmit}<ArrowRight size={16} /></button>}</footer>}
-    {findingFor && <div className="inspection-modal-backdrop"><section className="inspection-modal" role="dialog" aria-modal="true" aria-labelledby="finding-dialog-title"><div className="inspection-modal-heading"><h2 id="finding-dialog-title">{t.raise}</h2><button onClick={() => setFindingFor(null)} aria-label={t.cancel}><X /></button></div><label>{t.title}<input autoFocus value={findingTitle} onChange={(event) => setFindingTitle(event.target.value)} /></label><label>{t.description}<textarea value={findingDescription} onChange={(event) => setFindingDescription(event.target.value)} /></label><label>{t.priority}<select value={findingPriority} onChange={(event) => setFindingPriority(event.target.value as InspectionFinding["priority"])}><option value="low">{language === "ar" ? "منخفضة" : "Low"}</option><option value="medium">{language === "ar" ? "متوسطة" : "Medium"}</option><option value="high">{language === "ar" ? "عالية" : "High"}</option></select></label><label>{t.photo}<input type="file" accept="image/*" capture="environment" onChange={(event) => setFindingPhoto(event.target.files?.[0]?.name ?? "")} /></label><div className="inspection-modal-actions"><button className="button-outline" onClick={() => setFindingFor(null)}>{t.cancel}</button><button className="button-primary" onClick={addFinding}>{t.saveFinding}</button></div></section></div>}
-  </section>
+  return <Dialog title={t.createAction} closeLabel={t.cancel} onClose={onClose}>
+    <label>{t.actionTitle}<input data-autofocus value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+    <label>{t.owner}<select value={ownerId} onChange={(event) => setOwnerId(event.target.value)}>{owners.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}</select></label>
+    <label>{t.priority}<select value={priority} onChange={(event) => setPriority(event.target.value as typeof priority)}>{(["low", "medium", "high", "critical"] as const).map((item) => <option key={item} value={item}>{priorityText(item, language)}</option>)}</select></label>
+    <label>{t.closureDue}<input type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} /></label>
+    {error && <p role="alert" className="inspection-alert">{error}</p>}
+    <div className="inspection-modal-actions"><button type="button" className="button-outline" onClick={onClose}>{t.cancel}</button><button type="button" className="button-primary" disabled={!title.trim() || !ownerId} onClick={create}>{t.createAction}</button></div>
+  </Dialog>
 }
