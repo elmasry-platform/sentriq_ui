@@ -1,4 +1,4 @@
-import seed from "@/data/mock-data.json"
+import seed from "../../data/mock-data.json" with { type: "json" }
 
 export type DemoRole =
   | "platform_admin"

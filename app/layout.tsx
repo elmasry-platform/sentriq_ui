@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import './sentriq.css'
+import './sentriq-polish.css'
 import './home.css'
 
 export const metadata: Metadata = {

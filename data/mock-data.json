@@ -374,7 +374,8 @@
       "createdAt": "2026-11-16T08:20:00+02:00",
       "submittedAt": "2026-11-16T10:12:00+02:00",
       "updatedAt": "2026-11-16T10:12:00+02:00",
-      "reviewHistory": []
+      "reviewHistory": [],
+      "dueAt": "2026-11-26T17:00:00.000Z"
     },
     {
       "id": "INS-2026-0147",
@@ -401,7 +402,8 @@
           "reason": "Please clarify the inspection of the secondary extinguisher point.",
           "revision": 2
         }
-      ]
+      ],
+      "dueAt": "2026-11-24T17:00:00.000Z"
     },
     {
       "id": "INS-2026-0146",
@@ -434,7 +436,8 @@
       "revision": 1,
       "createdAt": "2026-11-17T09:10:00+02:00",
       "updatedAt": "2026-11-17T09:10:00+02:00",
-      "reviewHistory": []
+      "reviewHistory": [],
+      "dueAt": "2026-11-18T17:00:00.000Z"
     },
     {
       "id": "INS-2026-0144",

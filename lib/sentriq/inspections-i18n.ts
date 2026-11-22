@@ -1,0 +1,51 @@
+// Dictionary for the inspection screens. English and Arabic must always have the same keys.
+const base = {
+  en: { inspections: "Inspections", reviews: "Review inbox", subtitle: "Field checks, review decisions, and a clear record of what changed.", new: "New inspection", search: "Search inspections", all: "All", assigned: "Assigned to me", inReview: "In review", returned: "Returned", overdue: "Overdue", id: "Record", form: "Form", site: "Site", inspector: "Inspector", updated: "Updated", stage: "Stage", status: "Status", empty: "No inspections yet", emptyHint: "Start a field check from a published form.", create: "Create inspection", cancel: "Cancel", due: "Due date (optional)", chooseForm: "Published form", chooseSite: "Site", details: "Overview", answers: "Answers", findings: "Findings & actions", history: "Review history", audit: "Audit trail", continue: "Continue inspection", run: "Start inspection", save: "Save draft", next: "Next section", back: "Back", reviewSubmit: "Review & submit", submit: "Submit inspection", answered: "answered", requiredMissing: "Required questions still need an answer.", findingsRaised: "findings raised", raise: "Raise finding", title: "Finding title", description: "Description", priority: "Priority", photo: "Optional photo", remove: "Remove", saveFinding: "Add finding", reviewReason: "Reason for return", approve: "Approve", return: "Return for changes", noHistory: "No review decisions yet.", submitted: "Inspection submitted", submittedHint: "Your inspection is now in the review inbox.", backWork: "Back to inspections", offline: "Offline — changes saved on this device", syncing: "Will sync when online", savedAt: "Saved at", conflict: "This inspection was changed by someone else.", reload: "Reload latest", copyChanges: "Keep my changes (copy)", draft: "Draft", in_progress: "In progress", submittedStatus: "Submitted", in_review: "In review", approved: "Approved", returnedStatus: "Returned", scheduled: "Scheduled", cancelled: "Cancelled", required: "Required", optional: "Optional", select: "Choose an option", yes: "Yes", no: "No", noQuestions: "This form has no questions yet.", returnReasonRequired: "Enter a reason before returning this inspection.", allDone: "Review complete", demo: "Demo data only — role simulation is not authorization.", start: "Section", of: "of", q: "questions", siteAccess: "You do not have access to this site. Contact your Company Superadmin.", unavailable: "Inspections could not be loaded.", retry: "Try again", searchFilter: "Search by form, site, or record ID" },
+  ar: { inspections: "التفتيشات", reviews: "صندوق المراجعة", subtitle: "الفحوصات الميدانية وقرارات المراجعة وسجل واضح للتغييرات.", new: "تفتيش جديد", search: "البحث في التفتيشات", all: "الكل", assigned: "مسند إليّ", inReview: "قيد المراجعة", returned: "مُعاد", overdue: "متأخر", id: "السجل", form: "النموذج", site: "الموقع", inspector: "المفتش", updated: "آخر تحديث", stage: "المرحلة", status: "الحالة", empty: "لا توجد تفتيشات بعد", emptyHint: "ابدأ فحصاً ميدانياً باستخدام نموذج منشور.", create: "إنشاء تفتيش", cancel: "إلغاء", due: "تاريخ الاستحقاق (اختياري)", chooseForm: "نموذج منشور", chooseSite: "الموقع", details: "نظرة عامة", answers: "الإجابات", findings: "الملاحظات والإجراءات", history: "سجل المراجعة", audit: "سجل التدقيق", continue: "متابعة التفتيش", run: "بدء التفتيش", save: "حفظ المسودة", next: "القسم التالي", back: "السابق", reviewSubmit: "مراجعة وإرسال", submit: "إرسال التفتيش", answered: "تمت الإجابة", requiredMissing: "لا تزال هناك أسئلة مطلوبة بلا إجابة.", findingsRaised: "ملاحظات مسجلة", raise: "تسجيل ملاحظة", title: "عنوان الملاحظة", description: "الوصف", priority: "الأولوية", photo: "صورة اختيارية", remove: "إزالة", saveFinding: "إضافة الملاحظة", reviewReason: "سبب الإعادة", approve: "اعتماد", return: "إعادة للتعديل", noHistory: "لا توجد قرارات مراجعة بعد.", submitted: "تم إرسال التفتيش", submittedHint: "أُضيف التفتيش إلى صندوق المراجعة.", backWork: "العودة إلى التفتيشات", offline: "غير متصل — تم حفظ التغييرات على هذا الجهاز", syncing: "ستتم المزامنة عند الاتصال", savedAt: "تم الحفظ في", conflict: "تم تغيير هذا التفتيش بواسطة شخص آخر.", reload: "إعادة تحميل الأحدث", copyChanges: "الاحتفاظ بتغييراتي (نسخة)", draft: "مسودة", in_progress: "قيد التنفيذ", submittedStatus: "مرسل", in_review: "قيد المراجعة", approved: "معتمد", returnedStatus: "مُعاد", scheduled: "مجدول", cancelled: "ملغى", required: "مطلوب", optional: "اختياري", select: "اختر خياراً", yes: "نعم", no: "لا", noQuestions: "لا يحتوي هذا النموذج على أسئلة بعد.", returnReasonRequired: "أدخل سبباً قبل إعادة التفتيش.", allDone: "اكتملت المراجعة", demo: "بيانات تجريبية فقط — محاكاة الأدوار لا تمثل صلاحيات فعلية.", start: "القسم", of: "من", q: "أسئلة", siteAccess: "ليس لديك حق الوصول إلى هذا الموقع. تواصل مع مسؤول الشركة.", unavailable: "تعذر تحميل التفتيشات.", retry: "إعادة المحاولة", searchFilter: "ابحث باسم النموذج أو الموقع أو رقم السجل" },
+} as const
+
+const extra = {
+  en: {
+    awaitingReview: "Awaiting review", drafts: "Drafts", dueDate: "Due", noDue: "No due date", completed: "Completed",
+    findingsTab: "Findings", actionsLinked: "Linked actions", noActions: "No actions yet", createAction: "Create action",
+    owner: "Owner", closureDue: "Closure due", actionTitle: "Action title", createActionDone: "Action created",
+    waitingFor: "Waiting for", approveAs: "Approve as", returnDialog: "Return for changes", reasonLabel: "What needs to change?",
+    reasonHint: "Be specific so the inspector knows what to fix (at least 5 characters).", confirmReturn: "Return inspection",
+    cancel: "Cancel", summary: "Summary", answers: "Answers", needsAttention: "Needs attention",
+    noReviewerRole: "You do not have a reviewer role", noReviewerRoleHint: "Ask your Company Superadmin to assign a reviewer role to your account.",
+    noInspectionAccess: "You do not have access to inspections", noInspectionAccessHint: "Platform operators do not see company inspection records. Open a company workspace with a company role.",
+    notYourStage: "Not your review stage", notYourStageHint: "This inspection is waiting for another reviewer.",
+    separation: "You carried out this inspection, so someone else must review it.",
+    flagIssue: "Flag issue", flagged: "flagged", jumpTo: "Go to", editSection: "Edit section", startedBy: "Started by",
+    submitBlocked: "Fix the required answers before submitting.", requiredHere: "Required answers missing in this section",
+    saving: "Saving…", unsaved: "Unsaved changes", noChanges: "No changes yet", saved: "Saved at",
+    viewInspection: "View inspection", createActions: "Create actions for these findings", sectionsLabel: "Sections",
+    timelineCreated: "Inspection created", timelineSubmitted: "Submitted for review", timelineApproved: "Approved", timelineReturned: "Returned",
+    audit: "Audit trail", auditHint: "Built from this record's history. A server-side audit log replaces this in the real system.",
+    yourInspections: "Your inspections", allSitesLabel: "All sites", clear: "Clear filters", results: "results",
+    reviewInboxHint: "Inspections waiting for your review stage.", newHint: "Pick a published form and a site.",
+  },
+  ar: {
+    awaitingReview: "بانتظار المراجعة", drafts: "مسودات", dueDate: "الاستحقاق", noDue: "بلا تاريخ استحقاق", completed: "مكتمل",
+    findingsTab: "الملاحظات", actionsLinked: "الإجراءات المرتبطة", noActions: "لا توجد إجراءات بعد", createAction: "إنشاء إجراء",
+    owner: "المسؤول", closureDue: "موعد الإغلاق", actionTitle: "عنوان الإجراء", createActionDone: "تم إنشاء الإجراء",
+    waitingFor: "بانتظار", approveAs: "اعتماد بصفة", returnDialog: "إعادة للتعديل", reasonLabel: "ما المطلوب تعديله؟",
+    reasonHint: "كن محددًا ليعرف المفتش ما يجب إصلاحه (5 أحرف على الأقل).", confirmReturn: "إعادة التفتيش",
+    cancel: "إلغاء", summary: "الملخص", answers: "الإجابات", needsAttention: "يحتاج إلى انتباه",
+    noReviewerRole: "ليس لديك دور مراجع", noReviewerRoleHint: "اطلب من مدير الشركة الأعلى إسناد دور مراجع إلى حسابك.",
+    noInspectionAccess: "ليس لديك صلاحية الوصول إلى التفتيشات", noInspectionAccessHint: "مشغلو المنصة لا يرون سجلات تفتيش الشركات. افتح مساحة شركة بدور شركة.",
+    notYourStage: "ليست مرحلتك في المراجعة", notYourStageHint: "هذا التفتيش بانتظار مراجع آخر.",
+    separation: "أنت من نفّذ هذا التفتيش، لذلك يجب أن يراجعه شخص آخر.",
+    flagIssue: "تسجيل مشكلة", flagged: "مسجّلة", jumpTo: "الانتقال إلى", editSection: "تعديل القسم", startedBy: "بدأه",
+    submitBlocked: "أصلح الإجابات المطلوبة قبل الإرسال.", requiredHere: "إجابات مطلوبة ناقصة في هذا القسم",
+    saving: "جارٍ الحفظ…", unsaved: "تغييرات غير محفوظة", noChanges: "لا توجد تغييرات بعد", saved: "تم الحفظ في",
+    viewInspection: "عرض التفتيش", createActions: "إنشاء إجراءات لهذه الملاحظات", sectionsLabel: "الأقسام",
+    timelineCreated: "تم إنشاء التفتيش", timelineSubmitted: "أُرسل للمراجعة", timelineApproved: "تم الاعتماد", timelineReturned: "أُعيد للتعديل",
+    audit: "سجل التدقيق", auditHint: "مبني من تاريخ هذا السجل. يحل محله سجل تدقيق على الخادم في النظام الفعلي.",
+    yourInspections: "تفتيشاتك", allSitesLabel: "كل المواقع", clear: "مسح التصفية", results: "نتيجة",
+    reviewInboxHint: "تفتيشات بانتظار مرحلة المراجعة الخاصة بك.", newHint: "اختر نموذجًا منشورًا وموقعًا.",
+  },
+} as const
+
+export const words = { en: { ...base.en, ...extra.en }, ar: { ...base.ar, ...extra.ar } } as const
+export type Labels = typeof words.en | typeof words.ar

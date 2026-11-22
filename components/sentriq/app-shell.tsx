@@ -16,6 +16,10 @@ import { FormsLibrary } from "@/components/sentriq/forms-library"
 import { MyWork } from "@/components/sentriq/my-work"
 import { AdminCenter } from "@/components/sentriq/admin-center"
 import { Inspections } from "@/components/sentriq/inspections"
+import { Actions } from "@/components/sentriq/actions"
+import { actionRepository, isActionOverdue } from "@/lib/actions/repository"
+import { inspectionRepository } from "@/lib/inspections/repository"
+import { can, canReviewAnyStage, demoActor, reviewStagesFor } from "@/lib/sentriq/demo-permissions"
 
 export type Language = "en" | "ar"
 
@@ -68,10 +72,16 @@ export function AppShell({ route }: { route: string }) {
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [moduleSearch, setModuleSearch] = useState("")
   const switcherRef = useRef<HTMLDivElement>(null)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const profileRef = useRef<HTMLDivElement>(null)
+  const profileButtonRef = useRef<HTMLButtonElement>(null)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const closeNavRef = useRef<HTMLButtonElement>(null)
+  const [attention, setAttention] = useState(0)
   const t = copy[language]
   const rtl = language === "ar"
   const data = useMemo(() => mockSentriqDashboardService.getDashboard(workspaceId), [workspaceId])
-  const selectedModule = modules.find((module) => module.href === route || (module.href === "/app/inspections" && route.startsWith("/app/inspections/")))
+  const selectedModule = modules.find((module) => module.href === route) ?? modules.filter((module) => route.startsWith(`${module.href}/`)).sort((a, b) => b.href.length - a.href.length)[0]
   const current = navigation.find((item) => route === item.href || route.startsWith(`${item.href}/`)) ?? (selectedModule ? { label: selectedModule.name, ar: moduleArabic[selectedModule.name], href: selectedModule.href, icon: Network } : route.startsWith("/app/admin") ? administration[0] : { label: "My Work", ar: "مساحة عملي", href: "/app/actions", icon: ListChecks })
   const contextualGroups = [
     { label: "Inspections", routes: ["/app/inspections", "/app/forms", "/app/reviews"] },
@@ -81,12 +91,12 @@ export function AppShell({ route }: { route: string }) {
     { label: "Documents & resources", routes: ["/app/evidence", "/app/people", "/app/assets", "/app/environment"] },
     { label: "Intelligence & governance", routes: ["/app/reports", "/app/audit"] },
   ].find((group) => group.routes.includes(route) || group.routes.some((href) => route.startsWith(`${href}/`)))
-  const contextualItems = contextualGroups?.routes.map((href) => modules.find((module) => module.href === href)).filter((module): module is (typeof modules)[number] => Boolean(module)) ?? []
+  const contextualItems = contextualGroups?.routes.filter((href) => href !== "/app/reviews" || canReviewAnyStage(role)).map((href) => modules.find((module) => module.href === href)).filter((module): module is (typeof modules)[number] => Boolean(module)) ?? []
 
   useEffect(() => {
     const savedRole = window.sessionStorage.getItem("sentriq-demo-role")
     if (savedRole && demoRoles.some((item) => item.value === savedRole)) setRole(savedRole as DemoRole)
-    const savedLanguage = window.sessionStorage.getItem("sentriq-demo-language")
+    const savedLanguage = window.localStorage.getItem("sentriq-demo-language") ?? window.sessionStorage.getItem("sentriq-demo-language")
     if (savedLanguage === "en" || savedLanguage === "ar") {
       setLanguage(savedLanguage)
       document.documentElement.lang = savedLanguage
@@ -103,17 +113,57 @@ export function AppShell({ route }: { route: string }) {
     return () => { document.removeEventListener("keydown", closeOnEscape); document.removeEventListener("mousedown", closeOnOutsideClick) }
   }, [switcherOpen])
 
+  useEffect(() => {
+    if (!profileOpen) return
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") { setProfileOpen(false); profileButtonRef.current?.focus() } }
+    const onDown = (event: MouseEvent) => { if (!profileRef.current?.contains(event.target as Node)) setProfileOpen(false) }
+    document.addEventListener("keydown", onKey); document.addEventListener("mousedown", onDown)
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("mousedown", onDown) }
+  }, [profileOpen])
+
+  useEffect(() => {
+    if (!mobileOpen) return
+    closeNavRef.current?.focus()
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") { setMobileOpen(false); menuButtonRef.current?.focus() } }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [mobileOpen])
+
+  useEffect(() => { setMobileOpen(false); setProfileOpen(false) }, [route])
+
+  // Honest notification count: derived from the same records the screens use, never a fixed number.
+  useEffect(() => {
+    try {
+      const me = demoActor(role).userId
+      const stages = reviewStagesFor(role)
+      const reviews = can(role, "inspections.read") ? inspectionRepository.list(workspaceId).filter((item) => ["submitted", "in_review"].includes(item.status) && item.currentStage && stages.includes(item.currentStage) && item.inspectorId !== me).length : 0
+      const returned = can(role, "inspections.read") ? inspectionRepository.list(workspaceId).filter((item) => item.status === "returned" && item.inspectorId === me).length : 0
+      const actions = can(role, "actions.read") ? actionRepository.list(workspaceId).filter((item) => (item.ownerId === me && isActionOverdue(item)) || (item.status === "closure_requested" && can(role, "actions.verify") && item.ownerId !== me)).length : 0
+      setAttention(reviews + returned + actions)
+    } catch { setAttention(0) }
+  }, [role, workspaceId, route])
+
+  const setLanguageAndPersist = (nextLanguage: Language) => {
+    setLanguage(nextLanguage)
+    window.localStorage.setItem("sentriq-demo-language", nextLanguage)
+    window.sessionStorage.setItem("sentriq-demo-language", nextLanguage)
+    document.documentElement.lang = nextLanguage
+    document.documentElement.dir = nextLanguage === "ar" ? "rtl" : "ltr"
+  }
+  const changeRole = (nextRole: DemoRole) => { setRole(nextRole); window.sessionStorage.setItem("sentriq-demo-role", nextRole) }
+  const showReviews = canReviewAnyStage(role)
   const dashboard = route === "/app/dashboard"
 
   return (
     <div className={`app-shell${rtl ? " is-rtl" : ""}`} dir={rtl ? "rtl" : "ltr"}>
+      <a className="skip-link" href="#main-content">{rtl ? "تخطَّ إلى المحتوى الرئيسي" : "Skip to main content"}</a>
       {mobileOpen && <button className="mobile-scrim" aria-label={t.close} onClick={() => setMobileOpen(false)} />}
-      <aside className={`sidebar${collapsed ? " sidebar-collapsed" : ""}${mobileOpen ? " sidebar-mobile-open" : ""}`}>
+      <aside id="primary-navigation" className={`sidebar${collapsed ? " sidebar-collapsed" : ""}${mobileOpen ? " sidebar-mobile-open" : ""}`}>
         <Link className="brand" href="/app/dashboard" aria-label="SENTRIQ home">
           <span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M23.5 6.5H13.2a6.7 6.7 0 0 0 0 13.4h5.6a6.7 6.7 0 0 1 0 13.4H8.5" transform="translate(0 -3.9)" stroke="currentColor" strokeWidth="2.1" strokeLinecap="square"/><circle cx="24" cy="4.8" r="2.1" fill="#D46A43"/></svg></span>
           {!collapsed && <span className="brand-name">SENTRIQ<span className="brand-period">.</span></span>}
         </Link>
-        {mobileOpen && <button type="button" className="sidebar-close" aria-label={t.close} onClick={() => setMobileOpen(false)}><X size={19} /></button>}
+        {mobileOpen && <button type="button" ref={closeNavRef} className="sidebar-close" aria-label={t.close} onClick={() => { setMobileOpen(false); menuButtonRef.current?.focus() }}><X size={19} /></button>}
         {!collapsed && <div className="workspace-label">{t.workspace}</div>}
         <label className="workspace-select-wrap">
           <span className="workspace-icon"><Building2 size={17} /></span>
@@ -135,12 +185,12 @@ export function AppShell({ route }: { route: string }) {
         <nav className="side-nav side-nav-admin" aria-label={rtl ? "إدارة المؤسسة" : "Administration"}>
           {administration.map(({ label, ar, href, icon: Icon }) => <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-link${route.startsWith("/app/admin") ? " nav-link-active" : ""}`} aria-current={route.startsWith("/app/admin") ? "page" : undefined} title={collapsed ? (rtl ? ar : label) : undefined}><Icon size={18} strokeWidth={1.8} /><span className="nav-link-text">{rtl ? ar : label}</span></Link>)}
         </nav>
-        {!collapsed && <div className="sidebar-bottom"><div className="support-card"><div className="support-icon"><ShieldCheck size={17} /></div><strong>{rtl ? "سلامة مؤسستك" : "Your safety, in sync."}</strong><span>{rtl ? "إدارة الجودة والصحة والسلامة في مكان واحد." : "QHSE workflows, all in one place."}</span></div><div className="sidebar-version">SENTRIQ WORKSPACE <span>v1.0.0 · DEMO</span></div></div>}
+        {!collapsed && <div className="sidebar-bottom"><div className="support-card"><div className="support-icon"><ShieldCheck size={17} /></div><strong>{rtl ? "سلامة مؤسستك" : "Your safety, in sync."}</strong><span>{rtl ? "إدارة الجودة والصحة والسلامة في مكان واحد." : "QHSE workflows, all in one place."}</span></div><div className="sidebar-version"><span>SENTRIQ</span><span>v1.0.0 · DEMO</span></div></div>}
         <button className="collapse-button" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? (rtl ? <ChevronLeft size={16} /> : <ChevronRight size={16} />) : (rtl ? <ChevronRight size={16} /> : <ChevronLeft size={16} />)}</button>
       </aside>
       <div className="main-column">
         <header className="topbar">
-          <button className="mobile-menu-button" aria-label={t.menu} onClick={() => setMobileOpen(true)}><Menu size={20} /></button>
+          <button ref={menuButtonRef} type="button" className="mobile-menu-button" aria-label={t.menu} aria-expanded={mobileOpen} aria-controls="primary-navigation" onClick={() => setMobileOpen(true)}><Menu size={20} /></button>
           <div className="breadcrumbs"><span>{rtl ? "مساحة العمل" : "Workspace"}</span><ChevronRight size={14} /><strong>{rtl ? current.ar : current.label}</strong></div>
           <div className="topbar-actions">
             <div className="module-switcher" ref={switcherRef}>
@@ -155,18 +205,27 @@ export function AppShell({ route }: { route: string }) {
             </div>
             <div className="top-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t.search} aria-label={t.searchLabel} /><kbd>⌘ K</kbd></div>
             <div className="topbar-divider" />
-            <button className="language-button" onClick={() => { const nextLanguage = rtl ? "en" : "ar"; setLanguage(nextLanguage); window.sessionStorage.setItem("sentriq-demo-language", nextLanguage); document.documentElement.lang = nextLanguage; document.documentElement.dir = nextLanguage === "ar" ? "rtl" : "ltr" }} aria-label={rtl ? "Switch to English" : "التغيير إلى العربية"}><Languages size={16} /><span>{rtl ? "العربية" : "EN"}</span></button>
-            <button className="icon-button notification-button" aria-label={rtl ? "الإشعارات، 3 غير مقروءة" : "Notifications, 3 unread"}><Bell size={18} /><i /></button>
+            <button type="button" className="language-button" onClick={() => setLanguageAndPersist(rtl ? "en" : "ar")} aria-label={rtl ? "Switch to English" : "التغيير إلى العربية"}><Languages size={16} /><span>{rtl ? "العربية" : "EN"}</span></button>
+            <button type="button" className="icon-button notification-button" aria-label={rtl ? `الإشعارات، ${attention} تحتاج إلى انتباه` : `Notifications, ${attention} need attention`} title={rtl ? "الإشعارات" : "Notifications"}><Bell size={18} />{attention > 0 && <i />}</button>
             <div className="topbar-divider profile-divider" />
-            <div className="role-picker"><span className="role-caption">{t.role}</span><select aria-label={t.role} value={role} onChange={(event) => { const nextRole = event.target.value as DemoRole; setRole(nextRole); window.sessionStorage.setItem("sentriq-demo-role", nextRole) }}>{demoRoles.map((item) => <option key={item.value} value={item.value}>{rtl ? item.ar : item.en}</option>)}</select><ChevronDown size={13} /></div>
+            <div className="role-picker"><span className="role-caption">{t.role}</span><select aria-label={t.role} value={role} onChange={(event) => changeRole(event.target.value as DemoRole)}>{demoRoles.map((item) => <option key={item.value} value={item.value}>{rtl ? item.ar : item.en}</option>)}</select><ChevronDown size={13} /></div>
             <div className="avatar" aria-label="Mariam Hassan">MH</div>
+            <div className="avatar-menu" ref={profileRef}>
+              <button type="button" ref={profileButtonRef} className="avatar avatar-menu-trigger" aria-haspopup="dialog" aria-expanded={profileOpen} aria-controls="avatar-menu-panel" aria-label={rtl ? "الحساب والإعدادات" : "Account and settings"} onClick={() => setProfileOpen(!profileOpen)}>MH</button>
+              {profileOpen && <div id="avatar-menu-panel" className="avatar-menu-panel" role="dialog" aria-label={rtl ? "الحساب والإعدادات" : "Account and settings"}>
+                <div className="avatar-menu-head"><span className="avatar" aria-hidden="true">MH</span><div><strong>Mariam Hassan</strong><small>{rtl ? "حساب تجريبي" : "Demo account"}</small></div></div>
+                <label className="avatar-menu-field"><span>{t.role}</span><select aria-label={t.role} value={role} onChange={(event) => changeRole(event.target.value as DemoRole)}>{demoRoles.map((item) => <option key={item.value} value={item.value}>{rtl ? item.ar : item.en}</option>)}</select></label>
+                <p className="avatar-menu-note">{t.simulation}</p>
+                <div className="avatar-menu-field"><span>{rtl ? "اللغة" : "Language"}</span><div className="avatar-menu-lang" role="group" aria-label={rtl ? "اللغة" : "Language"}><button type="button" aria-pressed={!rtl} onClick={() => setLanguageAndPersist("en")}>English</button><button type="button" aria-pressed={rtl} onClick={() => setLanguageAndPersist("ar")}>العربية</button></div></div>
+              </div>}
+            </div>
           </div>
         </header>
         {contextualGroups ? <nav className="contextual-nav" aria-label={rtl ? "التنقل داخل الوحدة" : `${contextualGroups.label} navigation`}>
           <span>{rtl ? ({ Inspections: "التفتيشات", "Findings & actions": "الملاحظات والإجراءات", "Risk & compliance": "المخاطر والامتثال", Organization: "المؤسسة", "Documents & resources": "المستندات والموارد", "Intelligence & governance": "الذكاء والحوكمة" } as Record<string, string>)[contextualGroups.label] : contextualGroups.label}</span>{contextualItems.map((module) => <Link key={module.href} href={module.href} className={route === module.href || (module.href === "/app/inspections" && route.startsWith("/app/inspections/")) ? "is-active" : ""} aria-current={route === module.href ? "page" : undefined}>{rtl ? moduleArabic[module.name] : module.name}</Link>)}
         </nav> : null}
-        <main className="main-content">
-          {dashboard ? <OverviewDashboard data={data} language={language} search={search} /> : route.startsWith("/app/admin") ? <AdminCenter route={route} role={role} language={language} /> : route === "/app/my-work" ? <MyWork data={data} role={role} language={language} /> : route === "/app/forms" ? <FormsLibrary language={language} /> : route === "/app/inspections" || route.startsWith("/app/inspections/") || route === "/app/reviews" ? <Inspections route={route} language={language} workspaceId={workspaceId} role={role} /> : route === "/app/modules" ? <ModuleDirectory language={language} /> : selectedModule ? <ModuleLanding module={selectedModule} /> : <ComingSoon language={language} route={route} title={rtl ? current.ar : current.label} />}
+        <main className="main-content" id="main-content" tabIndex={-1}>
+          {dashboard ? <OverviewDashboard data={data} language={language} search={search} role={role} workspaceId={workspaceId} /> : route.startsWith("/app/admin") ? <AdminCenter route={route} role={role} language={language} /> : route === "/app/my-work" ? <MyWork data={data} role={role} language={language} /> : route === "/app/forms" ? <FormsLibrary language={language} /> : route === "/app/inspections" || route.startsWith("/app/inspections/") || route === "/app/reviews" || route.startsWith("/app/reviews/") ? <Inspections route={route} language={language} workspaceId={workspaceId} role={role} /> : route === "/app/actions" || route.startsWith("/app/actions/") ? <Actions route={route} language={language} workspaceId={workspaceId} role={role} /> : route === "/app/modules" ? <ModuleDirectory language={language} /> : selectedModule ? <ModuleLanding module={selectedModule} /> : <ComingSoon language={language} route={route} title={rtl ? current.ar : current.label} />}
         </main>
       </div>
     </div>
