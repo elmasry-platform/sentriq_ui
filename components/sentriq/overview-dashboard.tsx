@@ -2,150 +2,129 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, CalendarDays, Check, ChevronDown, CircleAlert, ClipboardCheck, Clock3, FileText, ListFilter, MoreHorizontal, Plus, ShieldAlert, ShieldCheck, X } from "lucide-react"
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Activity, ArrowDownRight, ArrowRight, CalendarDays, Check, CircleAlert, ClipboardCheck, Clock3, Printer, ShieldAlert } from "lucide-react"
 import type { Language } from "@/components/sentriq/app-shell"
 import type { DashboardData } from "@/lib/sentriq/dashboard-service"
 import { actionRepository } from "@/lib/actions/repository"
 import { inspectionRepository } from "@/lib/inspections/repository"
-import { demoActor } from "@/lib/sentriq/demo-permissions"
+import { demoActor, reviewStagesFor } from "@/lib/sentriq/demo-permissions"
 
 type Props = { data: DashboardData; language: Language; search: string; role?: string; workspaceId?: string }
-const labels = {
+type QueueItem = { id: string; title: string; detail: string; status: string; href: string; dueAt?: string; kind: "action" | "inspection" | "follow-up" }
+
+const copy = {
   en: {
-    subtitle: "Here’s what’s happening across your QHSE operations today.", newInspection: "New inspection", overview: "OVERVIEW", inspections: "Inspections", openActions: "Open actions", highFindings: "High-priority findings", pendingReviews: "Pending reviews", fromLastWeek: "vs. last week", completion: "Inspection completion", completionSub: "Submitted inspections · last 6 months", thisMonth: "This month", inspectionsByStatus: "Inspections by status", allInspections: "All inspections", statusSub: "Current inspection workflow", recentActivity: "Recent activity", viewActivity: "View activity", activitySub: "Latest updates across your workspace", needsAttention: "Needs attention", attentionSub: "Items that may need a closer look", viewAll: "View all", dueSoon: "Due soon", overdue: "Overdue", inReview: "In review", draft: "Draft", submitted: "Submitted", approved: "Approved", returned: "Returned", open: "Open", active: "In progress", completed: "Completed", noResults: "No matching records", noResultsHint: "Try another search term.", risk: "Risk overview", riskSubtitle: "Live snapshot across your sites", assessed: "Assessed this month", siteHealth: "Site health", allSites: "All sites", scheduled: "Scheduled", trend: "+12.8%", period: "from previous period", percent: "of planned inspections completed", critical: "Critical", high: "High", medium: "Medium", low: "Low", today: "Today", yesterday: "Yesterday", due: "Due", inspection: "inspection", inspectionsPlural: "inspections", myWorkspace: "MY WORKSPACE", menu: "More options", filter: "Filter", loadHint: "Based on the last 6 months", siteComparison: "Site performance", siteComparisonSub: "Inspection completion by location", activityTimeline: "Operational timeline", activityTimelineSub: "Recent reviews, findings and actions", noActivity: "No recent activity", inspectionsShort: "inspections", actionsShort: "open actions"
+    title: "Overview", subtitle: "Operational control center", updated: "WORKSPACE SNAPSHOT", demo: "Demo data · changes are not production records", inspections: "Awaiting review", actions: "Open actions", findings: "High-priority findings", myWork: "My work", queueDescription: "Assigned actions and reviews for your current demo role", backlogDescription: "Workspace backlog · no work is assigned to this demo role", openQueue: "Open My Work", attention: "Needs attention", attentionDescription: "Exceptions across this workspace", activity: "Recent activity", activityDescription: "Latest recorded operational events", sites: "Site summary", sitesDescription: "Inspections and open actions by location", record: "Record", owner: "Owner", status: "Status", due: "Due", site: "Site", inspectionsAtSite: "Inspections", openActions: "Open actions", noWork: "No work is assigned to this demo role.", noAttention: "No priority exceptions to review.", noActivity: "No activity is available.", noSites: "No site records are available.", viewAll: "View all", today: "Today", overdue: "Overdue", dueSoon: "Due soon", submitted: "Submitted", inReview: "In review", returned: "Returned", draft: "Draft", open: "Open", inProgress: "In progress", closureRequested: "Closure review", followUp: "Follow-up", inspection: "Inspection", action: "Action", print: "Print", siteUnit: "site", sitesUnit: "sites", activityActor: "Workspace user", searchEmpty: "No records match the current search.", personless: "No owner assigned"
   },
   ar: {
-    subtitle: "إليك آخر المستجدات في عمليات الجودة والصحة والسلامة اليوم.", newInspection: "تفتيش جديد", overview: "نظرة عامة", inspections: "التفتيشات", openActions: "الإجراءات المفتوحة", highFindings: "ملاحظات عالية الأولوية", pendingReviews: "المراجعات المعلقة", fromLastWeek: "مقارنة بالأسبوع الماضي", completion: "إنجاز التفتيشات", completionSub: "التفتيشات المقدمة · آخر ٦ أشهر", thisMonth: "هذا الشهر", inspectionsByStatus: "التفتيشات حسب الحالة", allInspections: "كل التفتيشات", statusSub: "حالة سير عمل التفتيش", recentActivity: "النشاط الأخير", viewActivity: "عرض النشاط", activitySub: "آخر التحديثات في مساحة العمل", needsAttention: "تحتاج إلى اهتمام", attentionSub: "عناصر قد تتطلب مراجعة", viewAll: "عرض الكل", dueSoon: "قريب الاستحقاق", overdue: "متأخر", inReview: "قيد المراجعة", draft: "مسودة", submitted: "مُقدم", approved: "معتمد", returned: "مُعاد", open: "مفتوح", active: "قيد التنفيذ", completed: "مكتمل", noResults: "لا توجد سجلات مطابقة", noResultsHint: "جرب كلمة بحث أخرى.", risk: "نظرة عامة على المخاطر", riskSubtitle: "ملخص مباشر عبر المواقع", assessed: "تم تقييمه هذا الشهر", siteHealth: "حالة المواقع", allSites: "كل المواقع", scheduled: "مجدول", trend: "+١٢٫٨٪", period: "عن الفترة السابقة", percent: "من التفتيشات المخططة مكتملة", critical: "حرج", high: "مرتفع", medium: "متوسط", low: "منخفض", today: "اليوم", yesterday: "أمس", due: "الاستحقاق", inspection: "تفتيش", inspectionsPlural: "تفتيشات", myWorkspace: "مساحة عملي", menu: "خيارات إضافية", filter: "تصفية", loadHint: "استنادًا إلى آخر ٦ أشهر", siteComparison: "أداء المواقع", siteComparisonSub: "إنجاز التفتيش حسب الموقع", activityTimeline: "التسلسل التشغيلي", activityTimelineSub: "أحدث المراجعات والملاحظات والإجراءات", noActivity: "لا يوجد نشاط حديث", inspectionsShort: "تفتيشات", actionsShort: "إجراءات مفتوحة"
-  },
+    title: "نظرة عامة", subtitle: "مركز التحكم التشغيلي", updated: "ملخص مساحة العمل", demo: "بيانات تجريبية · التغييرات ليست سجلات إنتاجية", inspections: "بانتظار المراجعة", actions: "الإجراءات المفتوحة", findings: "ملاحظات عالية الأولوية", myWork: "مساحة عملي", queueDescription: "الإجراءات والمراجعات المسندة إلى دورك التجريبي الحالي", backlogDescription: "الأعمال المعلقة في مساحة العمل · لا توجد مهام مسندة إلى هذا الدور التجريبي", openQueue: "فتح مساحة عملي", attention: "تحتاج إلى اهتمام", attentionDescription: "الاستثناءات في مساحة العمل", activity: "النشاط الأخير", activityDescription: "أحدث الأحداث التشغيلية المسجلة", sites: "ملخص المواقع", sitesDescription: "التفتيشات والإجراءات المفتوحة حسب الموقع", record: "السجل", owner: "المسؤول", status: "الحالة", due: "الاستحقاق", site: "الموقع", inspectionsAtSite: "التفتيشات", openActions: "إجراءات مفتوحة", noWork: "لا توجد أعمال مسندة إلى هذا الدور التجريبي.", noAttention: "لا توجد استثناءات ذات أولوية للمراجعة.", noActivity: "لا يتوفر نشاط حديث.", noSites: "لا تتوفر سجلات للمواقع.", viewAll: "عرض الكل", today: "اليوم", overdue: "متأخر", dueSoon: "قريب الاستحقاق", submitted: "مُقدم", inReview: "قيد المراجعة", returned: "مُعاد", draft: "مسودة", open: "مفتوح", inProgress: "قيد التنفيذ", closureRequested: "مراجعة الإغلاق", followUp: "متابعة", inspection: "تفتيش", action: "إجراء", print: "طباعة", siteUnit: "موقع", sitesUnit: "مواقع", activityActor: "مستخدم مساحة العمل", searchEmpty: "لا توجد سجلات تطابق البحث الحالي.", personless: "لم يُعيّن مسؤول"
+  }
 }
-const monthLabels = { en: ["Jun", "Jul", "Aug", "Sep", "Oct", "Nov"], ar: ["يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر"] }
+
+const statusText = (status: string, t: typeof copy.en) => ({ submitted: t.submitted, in_review: t.inReview, returned: t.returned, draft: t.draft, open: t.open, in_progress: t.inProgress, closure_requested: t.closureRequested }[status] ?? status.replaceAll("_", " "))
+const formatDate = (value: string | undefined, language: Language) => value ? new Intl.DateTimeFormat(language === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "short" }).format(new Date(value)) : "—"
 
 export function OverviewDashboard({ data: seedData, language, search, role = "company_superadmin", workspaceId }: Props) {
-  const t = labels[language]
+  const t = copy[language]
   const rtl = language === "ar"
-  // Live records: the dashboard reads the same repositories as the inspection and action screens,
-  // so creating or submitting a record changes these numbers.
+  const term = search.trim().toLocaleLowerCase(language === "ar" ? "ar" : "en")
   const [live, setLive] = useState<{ inspections: DashboardData["inspections"]; actions: DashboardData["actions"] } | null>(null)
-  const [now, setNow] = useState<Date | null>(null)
+  const [today] = useState(() => new Date())
+
   useEffect(() => {
-    setNow(new Date())
     try {
       const id = workspaceId ?? seedData.workspace.id
       setLive({ inspections: inspectionRepository.list(id) as unknown as DashboardData["inspections"], actions: actionRepository.list(id) as unknown as DashboardData["actions"] })
-    } catch { setLive(null) }
+    } catch {
+      setLive(null)
+    }
   }, [workspaceId, seedData.workspace.id])
+
   const data = useMemo<DashboardData>(() => {
     if (!live) return seedData
     const known = new Set(seedData.findings.map((finding) => finding.id))
-    const raised = (live.inspections as unknown as { id: string; workspaceId: string; findings?: { id: string; title: string; description: string; priority: "low" | "medium" | "high" }[] }[])
+    const raised = (live.inspections as unknown as { id: string; workspaceId: string; findings?: { id: string; title: string; description: string; priority: "low" | "medium" | "high" | "critical" }[] }[])
       .flatMap((inspection) => (inspection.findings ?? []).filter((finding) => !known.has(finding.id)).map((finding) => ({ id: finding.id, workspaceId: inspection.workspaceId, inspectionId: inspection.id, title: finding.title, description: finding.description, priority: finding.priority, status: "open" as const })))
     return { ...seedData, inspections: live.inspections, actions: live.actions, findings: [...seedData.findings, ...raised] }
   }, [live, seedData])
-  const firstName = (data.users.find((user) => user.id === demoActor(role).userId)?.displayName ?? "").split(" ")[0]
-  const hour = now?.getHours() ?? 12
-  const greeting = !now ? (rtl ? "مرحبًا" : "Welcome") : rtl ? `${hour < 12 ? "صباح الخير" : hour < 18 ? "مساء الخير" : "مساء النور"}${firstName ? `، ${firstName}` : ""}` : `${hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"}${firstName ? `, ${firstName}` : ""}`
-  const dateText = now ? new Intl.DateTimeFormat(rtl ? "ar" : "en", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(now) : ""
-  const weekAgo = (now?.getTime() ?? 0) - 7 * 86_400_000
-  const newThisWeek = now ? data.inspections.filter((item) => new Date(item.createdAt).getTime() >= weekAgo).length : 0
-  const [period, setPeriod] = useState("6m")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [siteFilter, setSiteFilter] = useState("all")
-  const filteredInspections = useMemo(() => data.inspections.filter((item) => {
-    const term = search.trim().toLowerCase()
-    const matchesSearch = !term || [item.id, item.title, data.sites.find((site) => site.id === item.siteId)?.name].some((value) => value?.toLowerCase().includes(term))
-    return matchesSearch && (statusFilter === "all" || item.status === statusFilter) && (siteFilter === "all" || item.siteId === siteFilter)
-  }), [data, search, siteFilter, statusFilter])
-  const openActions = data.actions.filter((action) => action.status !== "closed")
-  const highFindings = data.findings.filter((finding) => finding.priority === "high" || finding.priority === "critical")
-  const pendingReviews = data.inspections.filter((item) => item.status === "in_review" || item.status === "submitted")
-  const draftCount = data.inspections.filter((item) => ["draft", "in_progress", "scheduled"].includes(item.status as string)).length
-  const approvedCount = data.inspections.filter((item) => item.status === "approved").length
-  const returnedCount = data.inspections.filter((item) => item.status === "returned").length
-  const submittedCount = data.inspections.filter((item) => ["submitted", "approved", "in_review"].includes(item.status)).length
-  const completionRate = data.inspections.length ? Math.round((submittedCount / data.inspections.length) * 100) : 0
-  const chartData = monthLabels[language].map((month, index) => {
-    const bucket = new Date((now ?? new Date(2026, 10, 1)).getFullYear(), (now ?? new Date(2026, 10, 1)).getMonth() - (5 - index), 1)
-    const inMonth = (value?: string) => { if (!value) return false; const date = new Date(value); return date.getFullYear() === bucket.getFullYear() && date.getMonth() === bucket.getMonth() }
-    return { month, completed: data.inspections.filter((item) => inMonth(item.submittedAt)).length, planned: data.inspections.filter((item) => inMonth(item.createdAt)).length }
-  })
-  const activity = data.auditEvents.slice().sort((a, b) => b.at.localeCompare(a.at)).slice(0, 5)
-  const siteSummaries = data.sites.map((site) => {
-    const inspectionsAtSite = data.inspections.filter((item) => item.siteId === site.id)
-    const completedAtSite = inspectionsAtSite.filter((item) => ["submitted", "approved", "in_review"].includes(item.status)).length
-    const actionsAtSite = openActions.filter((item) => item.siteId === site.id).length
-    return { ...site, inspections: inspectionsAtSite.length, completion: inspectionsAtSite.length ? Math.round(completedAtSite / inspectionsAtSite.length * 100) : 0, actions: actionsAtSite }
-  })
-  const needsAttention = [
-    ...openActions.filter((action) => action.status === "closure_requested").map((action) => ({ id: action.id, type: "closure" as const, title: action.title, meta: action.id, date: action.closureDueAt ?? action.responseDueAt })),
-    ...data.inspections.filter((item) => item.status === "returned" || item.status === "in_review").map((item) => ({ id: item.id, type: "inspection" as const, title: item.title, meta: item.id, date: item.updatedAt })),
-    ...openActions.filter((action) => action.status === "in_progress").map((action) => ({ id: action.id, type: "action" as const, title: action.title, meta: action.id, date: action.responseDueAt })),
-  ].slice(0, 3)
-  const statusData = [
-    { key: "in_review", label: t.inReview, count: pendingReviews.length, color: "#D46A43", track: "#F5E6DF" },
-    { key: "draft", label: t.draft, count: draftCount, color: "#8B918D", track: "#ECEBE6" },
-    { key: "approved", label: t.approved, count: approvedCount, color: "#426D65", track: "#E3EBE7" },
-    { key: "returned", label: t.returned, count: returnedCount, color: "#B84E48", track: "#F2E5E1" },
-  ]
-  const stageLabel = (stage: string | null) => stage === "reviewer_1" ? (rtl ? "المراجع الأول" : "Reviewer 1") : stage === "reviewer_2" ? (rtl ? "المراجع الثاني" : "Reviewer 2") : stage === "final_reviewer" ? (rtl ? "المراجع النهائي" : "Final review") : "—"
-  const eventMessage = (event: DashboardData["auditEvents"][number]) => {
-    const actor = data.users.find((user) => user.id === event.actorId)?.displayName ?? (rtl ? "مستخدم مساحة العمل" : "Workspace user")
-    return { actor, summary: rtl ? event.summary.replace("Submitted", "قدّم").replace("Published", "نشر").replace("Returned", "أعاد") : event.summary }
-  }
-  const formatDate = (value?: string) => value ? new Intl.DateTimeFormat(rtl ? "ar-EG" : "en-GB", { day: "numeric", month: "short" }).format(new Date(value)) : "—"
-  const dayLabel = (value?: string) => value ? new Date(value).toDateString() === new Date().toDateString() ? t.today : new Date(value).toDateString() === new Date(Date.now() - 86400000).toDateString() ? t.yesterday : formatDate(value) : "—"
 
-  return <div className="dashboard-page">
-    <div className="page-heading-row"><div><div className="date-line"><CalendarDays size={14} />{dateText}<span className="date-dot" />{data.workspace.industryLabel}</div><h1>{greeting}</h1><p className="page-subtitle">{t.subtitle}</p></div><div className="page-heading-actions"><button className="button-outline" onClick={() => window.print()}><CalendarDays size={16} />{t.today}</button><Link href="/app/inspections" className="button-primary"><Plus size={17} />{t.newInspection}</Link></div></div>
-    <section className="metric-grid" aria-label={rtl ? "مؤشرات الأداء الرئيسية" : "Key performance indicators"}>
-      <MetricCard title={t.inspections} value={data.inspections.length} change={newThisWeek ? (rtl ? `${newThisWeek} جديد هذا الأسبوع` : `${newThisWeek} new this week`) : undefined} helper={rtl ? "إجمالي التفتيشات" : "Total inspections"} icon={<ClipboardCheck size={18} />} tone="blue" trend={newThisWeek ? <ArrowUpRight size={14} /> : undefined} footer={<span />} />
-      <MetricCard title={t.openActions} value={openActions.length} helper={rtl ? "إجراءات غير مغلقة" : "Not yet closed"} icon={<ListFilter size={18} />} tone="teal" footer={<div className="metric-foot-copy"><span className="foot-dot foot-dot-amber" />{openActions.filter((action) => action.status === "closure_requested").length} {t.dueSoon.toLowerCase()}</div>} />
-      <MetricCard title={t.highFindings} value={highFindings.length} change={highFindings.length ? (rtl ? "تحتاج مراجعة" : "Needs review") : (rtl ? "لا توجد" : "All clear")} helper={t.myWorkspace} icon={<ShieldAlert size={18} />} tone="amber" trend={highFindings.length ? <ArrowUpRight size={14} /> : <Check size={14} />} footer={<div className="priority-segments" role="img" aria-label={rtl ? `ملاحظات: ${highFindings.length} عالية، ${data.findings.filter((f) => f.priority === "medium").length} متوسطة، ${data.findings.filter((f) => f.priority === "low").length} منخفضة` : `Findings: ${highFindings.length} high, ${data.findings.filter((f) => f.priority === "medium").length} medium, ${data.findings.filter((f) => f.priority === "low").length} low`}>{(() => { const total = Math.max(1, data.findings.length); return [highFindings.length, data.findings.filter((f) => f.priority === "medium").length, data.findings.filter((f) => f.priority === "low").length].map((count, index) => count ? <span key={index} style={{ width: `${Math.round(count / total * 100)}%` }} /> : null) })()}</div>} />
-      <MetricCard title={t.pendingReviews} value={pendingReviews.length} change={rtl ? `${data.inspections.filter((item) => item.status === "in_review").length} ${t.inReview}` : `${data.inspections.filter((item) => item.status === "in_review").length} in progress`} helper={t.myWorkspace} icon={<Clock3 size={18} />} tone="violet" trend={<ArrowRight size={14} />} footer={<div className="avatar-stack" aria-label={rtl ? "المراجعون" : "Reviewers"}>{data.users.filter((user) => String(user.role).startsWith("reviewer") || user.role === "final_reviewer").slice(0, 3).map((user, index) => <span key={user.id} title={user.displayName} className={`small-avatar ${["avatar-blue", "avatar-green", "avatar-lilac"][index]}`}>{user.displayName.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>)}</div>} />
+  const actorId = demoActor(role).userId
+  const reviewStages = reviewStagesFor(role)
+  const openActions = data.actions.filter((item) => item.status !== "closed")
+  const pendingReviews = data.inspections.filter((item) => ["submitted", "in_review"].includes(item.status) && item.currentStage && reviewStages.includes(item.currentStage))
+  const reviewBacklog = data.inspections.filter((item) => ["submitted", "in_review"].includes(item.status))
+  const highFindings = data.findings.filter((item) => item.status !== "resolved" && ["high", "critical"].includes(item.priority))
+
+  const queue: QueueItem[] = [
+    ...data.actions.filter((item) => item.ownerId === actorId && item.status !== "closed").map((item) => ({ id: item.id, title: item.title, detail: `${data.sites.find((site) => site.id === item.siteId)?.name ?? "—"} · ${t.action}`, status: item.status, href: `/app/actions/${item.id}`, dueAt: item.responseDueAt, kind: "action" as const })),
+    ...data.inspections.filter((item) => item.inspectorId === actorId && ["draft", "returned"].includes(item.status)).map((item) => ({ id: item.id, title: item.title, detail: `${data.sites.find((site) => site.id === item.siteId)?.name ?? "—"} · ${t.inspection}`, status: item.status, href: `/app/inspections/${item.id}`, kind: "inspection" as const })),
+    ...pendingReviews.map((item) => ({ id: item.id, title: item.title, detail: `${data.sites.find((site) => site.id === item.siteId)?.name ?? "—"} · ${item.id}`, status: item.status, href: `/app/inspections/${item.id}`, kind: "inspection" as const })),
+    ...data.followUps.filter((item) => item.ownerId === actorId && !["completed", "cancelled"].includes(item.status)).map((item) => ({ id: item.id, title: item.title, detail: t.followUp, status: item.status, href: "/app/follow-ups", dueAt: item.dueAt, kind: "follow-up" as const })),
+  ].filter((item) => !term || `${item.id} ${item.title} ${item.detail} ${item.status}`.toLocaleLowerCase().includes(term)).slice(0, 6)
+  const workspaceBacklog: QueueItem[] = [
+    ...data.inspections.filter((item) => ["submitted", "in_review", "returned"].includes(item.status)).map((item) => ({ id: item.id, title: item.title, detail: `${data.sites.find((site) => site.id === item.siteId)?.name ?? "—"} · ${item.id}`, status: item.status, href: `/app/inspections/${item.id}`, kind: "inspection" as const })),
+    ...openActions.map((item) => ({ id: item.id, title: item.title, detail: `${data.sites.find((site) => site.id === item.siteId)?.name ?? "—"} · ${item.id}`, status: item.status, href: `/app/actions/${item.id}`, dueAt: item.responseDueAt, kind: "action" as const })),
+  ].filter((item) => !term || `${item.id} ${item.title} ${item.detail} ${item.status}`.toLocaleLowerCase().includes(term)).slice(0, 6)
+  const queueItems = queue.length ? queue : workspaceBacklog
+
+  const attention = [
+    ...data.inspections.filter((item) => ["returned", "in_review"].includes(item.status)).map((item) => ({ id: item.id, title: item.title, detail: `${item.id} · ${statusText(item.status, t)}`, href: `/app/inspections/${item.id}`, kind: "inspection" })),
+    ...openActions.filter((item) => ["closure_requested", "in_progress"].includes(item.status)).map((item) => ({ id: item.id, title: item.title, detail: `${item.id} · ${statusText(item.status, t)}`, href: `/app/actions/${item.id}`, kind: "action" })),
+    ...highFindings.map((item) => ({ id: item.id, title: item.title, detail: `${item.id} · ${item.priority}`, href: `/app/inspections/${item.inspectionId}`, kind: "finding" })),
+  ].filter((item) => !term || `${item.title} ${item.detail}`.toLocaleLowerCase().includes(term)).slice(0, 5)
+
+  const activity = data.auditEvents.slice().sort((a, b) => b.at.localeCompare(a.at)).filter((item) => !term || `${item.summary} ${item.recordId} ${data.users.find((user) => user.id === item.actorId)?.displayName ?? ""}`.toLocaleLowerCase().includes(term)).slice(0, 5)
+  const siteRows = data.sites.map((site) => ({
+    ...site,
+    inspections: data.inspections.filter((item) => item.siteId === site.id).length,
+    actions: openActions.filter((item) => item.siteId === site.id).length,
+  })).filter((site) => !term || `${site.name} ${site.code} ${site.city}`.toLocaleLowerCase().includes(term))
+
+  return <div className="ops-dashboard" dir={rtl ? "rtl" : "ltr"}>
+    <header className="ops-page-heading">
+      <div><p className="ops-breadcrumb">SENTRIQ <span>/</span> {data.workspace.name}</p><h1>{t.title}</h1><p className="ops-page-subtitle">{t.subtitle}</p></div>
+      <div className="ops-heading-meta"><span className="ops-date"><CalendarDays size={15} />{new Intl.DateTimeFormat(rtl ? "ar-EG" : "en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(today)}</span><button type="button" className="ops-secondary-action ops-print-button" onClick={() => window.print()}><Printer size={15} />{t.print}</button><Link href="/app/inspections" className="ops-primary-action"><ClipboardCheck size={16} />{rtl ? "التفتيشات" : "Inspections"}</Link></div>
+    </header>
+
+    <div className="ops-data-note"><span className="ops-note-dot" />{t.demo}</div>
+
+    <section className="ops-metrics" aria-label={rtl ? "ملخص العمليات" : "Operational summary"}>
+      <div className="ops-metric"><span>{t.inspections}</span><strong>{reviewBacklog.length}</strong><Link href="/app/reviews">{rtl ? "قائمة المراجعة" : "Review queue"}<ArrowRight size={13} /></Link></div>
+      <div className="ops-metric"><span>{t.actions}</span><strong>{openActions.length}</strong><Link href="/app/actions">{rtl ? "فتح الإجراءات" : "Open actions"}<ArrowRight size={13} /></Link></div>
+      <div className="ops-metric"><span>{t.findings}</span><strong>{highFindings.length}</strong><Link href="/app/actions">{rtl ? "عرض الإجراءات" : "Review findings"}<ArrowRight size={13} /></Link></div>
     </section>
-    <section className="workspace-launcher" aria-labelledby="workspace-launcher-title"><div className="workspace-launcher-heading"><div><span>{rtl ? "مساحة العمل" : "YOUR OPERATIONAL WORKSPACE"}</span><h2 id="workspace-launcher-title">{rtl ? "انتقل إلى سير عملك" : "Go to your operational workflows"}</h2></div><Link href="/app/modules">{rtl ? "عرض جميع الوحدات" : "View all modules"}<ArrowRight size={14} /></Link></div><div className="workspace-launcher-grid">{[{ name: rtl ? "التفتيشات" : "Inspections", href: "/app/inspections", icon: ClipboardCheck }, { name: rtl ? "تقييمات المخاطر" : "Risk assessments", href: "/app/risks", icon: ShieldAlert }, { name: rtl ? "الملاحظات والإجراءات" : "Findings & actions", href: "/app/actions", icon: Activity }, { name: rtl ? "الحوادث" : "Incidents", href: "/app/incidents", icon: CircleAlert }, { name: rtl ? "التدقيق والامتثال" : "Audit & compliance", href: "/app/compliance", icon: ShieldCheck }, { name: rtl ? "المستندات والأدلة" : "Documents & evidence", href: "/app/evidence", icon: FileText }].map(({ name, href, icon: Icon }) => <Link href={href} key={href}><Icon size={16} /><span>{name}</span><ArrowRight size={13} /></Link>)}</div></section>
-    <section className="dashboard-grid dashboard-grid-primary">
-      <article className="panel completion-panel"><div className="panel-header"><div><h2>{t.completion}</h2><p>{t.completionSub}</p></div><button className="select-control" aria-label={rtl ? "الفترة الزمنية" : "Time period"} onClick={() => setPeriod(period === "6m" ? "30d" : "6m")}>{period === "6m" ? (rtl ? "آخر ٦ أشهر" : "Last 6 months") : (rtl ? "آخر ٣٠ يومًا" : "Last 30 days")}<ChevronDown size={14} /></button></div>
-        <div className="chart-summary"><div className="chart-value">{completionRate}<span>%</span></div><span className="chart-context">{t.period}</span></div>
-        <div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData} margin={{ top: 8, right: 4, left: -18, bottom: 0 }}><defs><linearGradient id="completedFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#D46A43" stopOpacity={0.15} /><stop offset="95%" stopColor="#D46A43" stopOpacity={0} /></linearGradient></defs><CartesianGrid stroke="#EEF1F5" vertical={false} /><XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "var(--muted)", fontSize: 12 }} tickMargin={12} /><YAxis axisLine={false} tickLine={false} tick={{ fill: "var(--muted)", fontSize: 12 }} allowDecimals={false} /><Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E4E9F0", fontSize: 12, boxShadow: "0 6px 18px rgba(17,28,46,.08)" }} /><Area type="monotone" dataKey="planned" name={rtl ? "مخطط" : "Planned"} stroke="#D4DCE8" strokeWidth={1.5} strokeDasharray="4 4" fill="transparent" /><Area type="monotone" dataKey="completed" name={rtl ? "مكتمل" : "Completed"} stroke="#D46A43" strokeWidth={2.5} fill="url(#completedFill)" activeDot={{ r: 4, fill: "#D46A43", stroke: "white", strokeWidth: 2 }} /></AreaChart></ResponsiveContainer></div>
-        <div className="chart-legend"><span><i className="legend-dot legend-blue" />{rtl ? "مكتمل" : "Completed"}</span><span><i className="legend-line" />{rtl ? "مخطط" : "Planned"}</span><span className="chart-footnote">{t.loadHint}</span></div>
+
+    <section className="ops-primary-grid">
+      <article className="ops-section ops-work-section">
+        <header className="ops-section-heading"><div><h2>{t.myWork}</h2><p>{queue.length ? t.queueDescription : workspaceBacklog.length ? t.backlogDescription : t.queueDescription}</p></div><Link href="/app/my-work" className="ops-section-link">{t.openQueue}<ArrowRight size={14} /></Link></header>
+        {queueItems.length ? <div className="ops-work-list" role="list">{queueItems.map((item) => <Link className="ops-work-row" href={item.href} key={`${item.kind}-${item.id}`} role="listitem">
+          <span className={`ops-row-mark ops-row-mark-${item.kind}`} aria-hidden="true">{item.kind === "action" ? <Activity size={16} /> : item.kind === "follow-up" ? <Clock3 size={16} /> : <ClipboardCheck size={16} />}</span>
+          <span className="ops-work-copy"><strong>{item.title}</strong><small>{item.detail}</small></span>
+          <span className={`ops-status ops-status-${item.status}`}>{statusText(item.status, t)}</span>
+          <span className="ops-work-due">{item.dueAt ? formatDate(item.dueAt, language) : "—"}</span>
+          <ArrowRight className="ops-row-arrow" size={15} />
+        </Link>)}</div> : <div className="ops-empty"><Check size={17} /><span>{term ? t.searchEmpty : t.noWork}</span></div>}
       </article>
-      <article className="panel status-panel"><div className="panel-header"><div><h2>{t.inspectionsByStatus}</h2><p>{t.statusSub}</p></div><button className="icon-button panel-more" aria-label={t.menu}><MoreHorizontal size={19} /></button></div>
-        <div className="status-total"><strong>{data.inspections.length}</strong><span>{rtl ? "إجمالي التفتيشات" : "Total inspections"}</span></div><div className="status-stacked" aria-label={statusData.map((item) => `${item.label} ${item.count}`).join(", ")}>{statusData.map((item) => <span key={item.key} style={{ width: `${data.inspections.length ? Math.max(item.count / data.inspections.length * 100, item.count ? 6 : 0) : 0}%`, backgroundColor: item.color }} />)}</div>
-        <div className="status-list">{statusData.map((item) => <div className="status-row" key={item.key}><span className="status-label"><i style={{ backgroundColor: item.color }} />{item.label}</span><span className="status-bar-track"><i style={{ width: `${data.inspections.length ? Math.round(item.count / data.inspections.length * 100) : 0}%`, backgroundColor: item.color }} /></span><strong>{item.count}</strong></div>)}</div>
-        <Link href="/app/inspections" className="panel-link">{t.allInspections}<ArrowRight size={15} /></Link>
-      </article>
-    </section>
-    <section className="dashboard-grid dashboard-grid-lower">
-      <article className="panel inspections-panel"><div className="panel-header"><div><h2>{rtl ? "التفتيشات الأخيرة" : "Recent inspections"}</h2><p>{t.statusSub}</p></div><div className="table-toolbar"><label className="site-filter"><select value={siteFilter} onChange={(event) => setSiteFilter(event.target.value)} aria-label={t.allSites}><option value="all">{t.allSites}</option>{data.sites.map((site) => <option value={site.id} key={site.id}>{site.name}</option>)}</select><ChevronDown size={13} /></label><label className="status-filter"><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label={rtl ? "حالة التفتيش" : "Filter by status"}><option value="all">{rtl ? "كل الحالات" : "All statuses"}</option><option value="in_review">{t.inReview}</option><option value="draft">{t.draft}</option><option value="approved">{t.approved}</option><option value="returned">{t.returned}</option></select><ChevronDown size={13} /></label><Link href="/app/inspections" className="table-more-link" aria-label={t.viewAll}><ArrowRight size={16} /></Link></div></div>
-        <div className="table-scroll" tabIndex={0} role="region" aria-label={rtl ? "التفتيشات الأخيرة" : "Recent inspections"}><table className="data-table"><thead><tr><th>{rtl ? "معرّف التفتيش" : "INSPECTION"}</th><th>{rtl ? "الموقع" : "SITE"}</th><th>{rtl ? "الحالة" : "STATUS"}</th><th>{rtl ? "المرحلة الحالية" : "CURRENT STAGE"}</th><th>{rtl ? "آخر تحديث" : "UPDATED"}</th><th><span className="sr-only">{rtl ? "التفاصيل" : "Details"}</span></th></tr></thead><tbody>{filteredInspections.slice(0, 4).map((item) => { const site = data.sites.find((value) => value.id === item.siteId); const statusLabel = item.status === "in_review" ? t.inReview : item.status === "draft" ? t.draft : item.status === "approved" ? t.approved : item.status === "returned" ? t.returned : t.submitted; const statusTone = item.status === "approved" ? "success" : item.status === "returned" ? "danger" : item.status === "draft" ? "neutral" : "info"; return <tr key={item.id}><td data-label={rtl ? "التفتيش" : "Inspection"}><Link href={`/app/inspections/${item.id}`} className="record-id">{item.id}</Link><span className="record-name">{item.title}</span></td><td data-label={rtl ? "الموقع" : "Site"}><span className="site-name">{site?.name ?? "—"}</span><span className="site-code">{site?.code ?? ""}</span></td><td data-label={rtl ? "الحالة" : "Status"}><span className={`status-pill status-${statusTone}`}><i />{statusLabel}</span></td><td data-label={rtl ? "المرحلة الحالية" : "Current stage"}><span className="stage-label"><span className="stage-avatar">{item.currentStage === "reviewer_1" ? "SF" : item.currentStage === "reviewer_2" ? "KF" : item.currentStage === "final_reviewer" ? "NS" : "—"}</span>{stageLabel(item.currentStage)}</span></td><td data-label={rtl ? "آخر تحديث" : "Updated"}><span className="updated-date">{formatDate(item.updatedAt)}</span></td><td data-label=""><Link href={`/app/inspections/${item.id}`} className="row-action" aria-label={`${rtl ? "عرض" : "View"} ${item.id}`}><ArrowRight size={15} /></Link></td></tr> })}{filteredInspections.length === 0 && <tr><td colSpan={6} className="empty-cell"><SearchEmpty title={t.noResults} hint={t.noResultsHint} /></td></tr>}</tbody></table></div>
-        <div className="table-footer"><span>{rtl ? `عرض ${filteredInspections.length ? 1 : 0}–${Math.min(4, filteredInspections.length)} من ${filteredInspections.length}` : `Showing ${filteredInspections.length ? 1 : 0}–${Math.min(4, filteredInspections.length)} of ${filteredInspections.length} inspections`}</span><Link href="/app/inspections" className="panel-link">{t.viewAll}<ArrowRight size={14} /></Link></div>
-      </article>
-      <div className="right-rail">
-        <article className="panel attention-panel"><div className="panel-header"><div><h2>{t.needsAttention}</h2><p>{t.attentionSub}</p></div><button className="icon-button panel-more" aria-label={t.menu}><MoreHorizontal size={19} /></button></div><div className="attention-list">{needsAttention.map((item, index) => <Link href={item.type === "inspection" ? `/app/inspections/${item.id}` : `/app/actions/${item.id}`} className="attention-item" key={`${item.id}-${index}`}><span className={`attention-icon attention-${item.type}`}>{item.type === "closure" ? <ShieldCheck size={16} /> : item.type === "inspection" ? <FileText size={16} /> : <CircleAlert size={16} />}</span><span className="attention-copy"><strong>{item.title}</strong><span>{item.meta}</span></span><span className="attention-date">{dayLabel(item.date)}</span></Link>)}{needsAttention.length === 0 && <div className="empty-inline"><Check size={16} />{rtl ? "لا توجد عناصر تتطلب الانتباه." : "Nothing needs attention right now."}</div>}</div><Link href="/app/actions" className="panel-link attention-footer">{t.viewAll}<ArrowRight size={14} /></Link></article>
-        <article className="panel risk-panel"><div className="panel-header"><div><h2>{t.risk}</h2><p>{t.riskSubtitle}</p></div><button className="icon-button panel-more" aria-label={t.menu}><MoreHorizontal size={19} /></button></div><div className="risk-main"><div className="risk-ring" style={{ "--ring-progress": `${completionRate}%` } as React.CSSProperties}><span>{highFindings.length ? highFindings.length : "—"}</span></div><div className="risk-copy"><strong>{highFindings.length ? (rtl ? "تحتاج مراجعة" : "Needs review") : (rtl ? "لا توجد مخاطر مرتفعة" : "No high risks")}</strong><span>{rtl ? "ملاحظات عالية الأولوية" : "High-priority findings"}</span></div></div><div className="risk-divider" /><div className="risk-footer"><span><i className="risk-health-dot" />{t.siteHealth}</span><div className="risk-sites"><span>{data.sites.length} {rtl ? "مواقع" : "sites"}</span><span className="health-bars" aria-label={`${data.sites.length} ${t.siteHealth}`}>{data.sites.slice(0, 4).map((site, index) => <i key={site.id} className={`health-${index}`} />)}</span></div></div></article>
-      </div>
-    </section>
-    <section className="operations-grid" aria-label={rtl ? "مؤشرات المواقع والنشاط" : "Site performance and recent activity"}>
-      <article className="operations-section site-performance">
-        <div className="section-index"><span>04</span><i /></div>
-        <div className="operations-heading"><div><h2>{t.siteComparison}</h2><p>{t.siteComparisonSub}</p></div><Link href="/app/reports" className="panel-link">{t.viewAll}<ArrowRight size={14} /></Link></div>
-        <div className="site-performance-list">{siteSummaries.map((site) => <div className="site-performance-row" key={site.id}><div className="site-performance-name"><strong>{site.name}</strong><span>{site.code} · {site.city}</span></div><div className="site-performance-meter" aria-label={`${site.completion}%`}><span style={{ width: `${site.completion}%` }} /></div><strong className="site-performance-rate">{site.completion}%</strong><span className="site-performance-count">{site.inspections} {t.inspectionsShort}</span><span className={`site-action-count${site.actions ? " has-actions" : ""}`}>{site.actions} {t.actionsShort}</span></div>)}</div>
-      </article>
-      <article className="operations-section timeline-section">
-        <div className="section-index"><span>05</span><i /></div>
-        <div className="operations-heading"><div><h2>{t.activityTimeline}</h2><p>{t.activityTimelineSub}</p></div><Link href="/app/audit" className="panel-link">{t.viewActivity}<ArrowRight size={14} /></Link></div>
-        {activity.length ? <ol className="activity-timeline">{activity.map((event) => { const message = eventMessage(event); return <li className="timeline-event" key={event.id}><span className="timeline-node" /><div className="timeline-copy"><strong>{message.actor}</strong><span>{message.summary}</span><small>{event.recordId} · {formatDate(event.at)}</small></div><span className="timeline-type">{event.recordType.replaceAll("_", " ")}</span></li> })}</ol> : <p className="timeline-empty">{t.noActivity}</p>}
+
+      <article className="ops-section ops-attention-section">
+        <header className="ops-section-heading"><div><h2>{t.attention}</h2><p>{t.attentionDescription}</p></div><span className="ops-count">{attention.length}</span></header>
+        {attention.length ? <ul className="ops-attention-list">{attention.map((item) => <li key={`${item.kind}-${item.id}`}><Link href={item.href} className="ops-attention-row"><span className={`ops-attention-symbol ops-attention-${item.kind}`} aria-hidden="true">{item.kind === "finding" ? <ShieldAlert size={15} /> : item.kind === "inspection" ? <ClipboardCheck size={15} /> : <CircleAlert size={15} />}</span><span><strong>{item.title}</strong><small>{item.detail}</small></span><ArrowRight className="ops-row-arrow" size={15} /></Link></li>)}</ul> : <div className="ops-empty"><Check size={17} /><span>{term ? t.searchEmpty : t.noAttention}</span></div>}
+        <Link href="/app/actions" className="ops-section-footer">{t.viewAll}<ArrowRight size={14} /></Link>
       </article>
     </section>
-    <div className="dashboard-footnote"><span><ShieldCheck size={14} />{rtl ? "بيانات تجريبية — لا تمثل سجلات تشغيلية حقيقية" : "Demo data — not live operational records"}</span><span>SENTRIQ · {rtl ? "إدارة الجودة والصحة والسلامة" : "Quality, health, safety & environment"}</span></div>
+
+    <section className="ops-secondary-grid">
+      <article className="ops-section ops-site-section">
+        <header className="ops-section-heading"><div><h2>{t.sites}</h2><p>{t.sitesDescription}</p></div><Link href="/app/organization" className="ops-section-link">{t.viewAll}<ArrowRight size={14} /></Link></header>
+        {siteRows.length ? <div className="ops-table-wrap"><table className="ops-table"><thead><tr><th>{t.site}</th><th>{t.inspectionsAtSite}</th><th>{t.openActions}</th></tr></thead><tbody>{siteRows.map((site) => <tr key={site.id}><td><strong>{site.name}</strong><small>{site.code} · {site.city}</small></td><td>{site.inspections}</td><td><span className={site.actions ? "ops-site-actions has-actions" : "ops-site-actions"}>{site.actions}</span></td></tr>)}</tbody></table></div> : <div className="ops-empty"><span>{t.searchEmpty}</span></div>}
+      </article>
+
+      <article className="ops-section ops-activity-section">
+        <header className="ops-section-heading"><div><h2>{t.activity}</h2><p>{t.activityDescription}</p></div><Link href="/app/audit" className="ops-section-link">{t.viewAll}<ArrowRight size={14} /></Link></header>
+        {activity.length ? <ol className="ops-activity-list">{activity.map((event) => <li key={event.id}><span className="ops-activity-mark" aria-hidden="true"><ArrowDownRight size={14} /></span><div><p><strong>{data.users.find((user) => user.id === event.actorId)?.displayName ?? t.activityActor}</strong> {event.summary}</p><small>{event.recordId} · {formatDate(event.at, language)}</small></div></li>)}</ol> : <div className="ops-empty"><span>{term ? t.searchEmpty : t.noActivity}</span></div>}
+      </article>
+    </section>
+
+    <footer className="ops-footer"><span>{t.updated} · {data.workspace.industryLabel}</span><span>{data.sites.length} {data.sites.length === 1 ? t.siteUnit : t.sitesUnit}</span></footer>
   </div>
-}
-
-function MetricCard({ title, value, change, helper, icon, tone, trend, footer }: { title: string; value: number; change?: string; helper: string; icon: React.ReactNode; tone: string; trend?: React.ReactNode; footer: React.ReactNode }) {
-  return <article className="metric-card"><div className="metric-top"><span className={`metric-icon metric-icon-${tone}`}>{icon}</span><button className="icon-button metric-more" aria-label="Metric options" title="Metric options"><MoreHorizontal size={18} /></button></div><div className="metric-title">{title}</div><div className="metric-value-row"><strong>{value}</strong>{change && <span className={`metric-change metric-change-${tone}`}>{trend}{change}</span>}</div><div className="metric-bottom"><span>{helper}</span>{footer}</div></article>
-}
-
-function SearchEmpty({ title, hint }: { title: string; hint: string }) {
-  return <div className="search-empty"><span><X size={16} /></span><strong>{title}</strong><small>{hint}</small></div>
 }

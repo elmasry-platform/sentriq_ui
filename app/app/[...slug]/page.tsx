@@ -17,7 +17,7 @@ const routeTitles: Record<string, string> = {
   compliance: "Audit & Compliance",
   actions: "Findings & Corrective Actions",
   evidence: "Documents & Evidence",
-  people: "People & Competency",
+  people: "People & Workforce",
   assets: "Assets & Equipment",
   environment: "Environmental Records",
   audit: "Audit Trail",

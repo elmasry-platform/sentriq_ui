@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import { demoRoles, mockSentriqDashboardService, type DemoRole } from "@/lib/sentriq/dashboard-service"
 import { OverviewDashboard } from "@/components/sentriq/overview-dashboard"
+import { PeopleDirectory } from "@/components/sentriq/people-directory"
 import { FormsLibrary } from "@/components/sentriq/forms-library"
 import { MyWork } from "@/components/sentriq/my-work"
 import { AdminCenter } from "@/components/sentriq/admin-center"
@@ -20,10 +21,22 @@ import { Actions } from "@/components/sentriq/actions"
 import { actionRepository, isActionOverdue } from "@/lib/actions/repository"
 import { inspectionRepository } from "@/lib/inspections/repository"
 import { can, canReviewAnyStage, demoActor, reviewStagesFor } from "@/lib/sentriq/demo-permissions"
+import type { Member } from "@/lib/sentriq/admin-data"
 
 export type Language = "en" | "ar"
 
 type NavigationItem = { label: string; ar: string; href: string; icon: LucideIcon; badge?: string }
+
+function isSessionMember(value: unknown): value is Member {
+  if (!value || typeof value !== "object") return false
+  const member = value as Partial<Member>
+  const validLevels = ["Company Superadmin", "Company Admin", "Employee"]
+  const isStringArray = (items: unknown) => Array.isArray(items) && items.every((item) => typeof item === "string")
+  return typeof member.id === "string" && typeof member.name === "string" && typeof member.email === "string"
+    && validLevels.includes(member.level ?? "") && (member.status === "Active" || member.status === "Suspended")
+    && isStringArray(member.roles) && isStringArray(member.sites) && isStringArray(member.units)
+    && (member.activity === undefined || typeof member.activity === "string")
+}
 
 const navigation: NavigationItem[] = [
   { label: "Overview", ar: "نظرة عامة", href: "/app/dashboard", icon: LayoutDashboard },
@@ -47,7 +60,7 @@ const modules = [
   { href: "/app/compliance", name: "Audit & compliance", group: "Risk & compliance", state: "Demonstration", purpose: "Organize audits and compliance obligations around observations and accountable actions.", workflow: "Audit → Observation → Non-conformity → Action → Verification", links: ["Forms library", "Findings & actions", "Documents & evidence"] },
   { href: "/app/actions", name: "Findings & corrective actions", group: "Findings & actions", state: "Demonstration", purpose: "Turn operational issues into owned, time-bound actions with evidence, review, and closure.", workflow: "Finding → Assignment → Correction → Verification → Closure", links: ["Inspections", "Incidents & observations", "Audit & compliance"] },
   { href: "/app/evidence", name: "Documents & evidence", group: "Documents & resources", state: "Demonstration", purpose: "Keep supporting evidence visible alongside the inspections, risks, and actions it relates to.", workflow: "Record → Evidence → Review → Retention", links: ["Findings & actions", "Inspections", "Audit & compliance"] },
-  { href: "/app/people", name: "People & competency", group: "Documents & resources", state: "Planned", purpose: "Provide a future home for training, qualifications, and workforce readiness.", workflow: "Role → Competency → Training → Verification", links: ["Users & teams", "Reports & analytics"] },
+  { href: "/app/people", name: "People & Workforce", group: "Documents & resources", state: "Demonstration", purpose: "Directory of workspace memberships, assigned roles, and operational site scopes.", workflow: "Person → Membership → Functional role → Site scope", links: ["Users & teams", "Organization & sites"] },
   { href: "/app/assets", name: "Assets & equipment", group: "Documents & resources", state: "Planned", purpose: "Connect equipment identity, inspections, condition, and maintenance follow-up.", workflow: "Asset → Inspection → Defect → Maintenance action", links: ["Inspections", "Findings & actions"] },
   { href: "/app/environment", name: "Environmental records", group: "Documents & resources", state: "Planned", purpose: "A coherent place for environmental monitoring and operational records.", workflow: "Measure → Record → Review → Report", links: ["Documents & evidence", "Reports & analytics"] },
   { href: "/app/reports", name: "Reports & analytics", group: "Intelligence & governance", state: "Demonstration", purpose: "Give managers an aggregated view of operational activity and areas needing attention.", workflow: "Operational records → Trends → Management review", links: ["Inspections", "Findings & actions", "Audit & compliance"] },
@@ -66,6 +79,8 @@ export function AppShell({ route }: { route: string }) {
   const [language, setLanguage] = useState<Language>("en")
   const [workspaceId, setWorkspaceId] = useState("ws_northstar")
   const [role, setRole] = useState<DemoRole>("company_superadmin")
+  const [sessionMembers, setSessionMembers] = useState<Member[]>([])
+  const [sessionMembersLoaded, setSessionMembersLoaded] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [search, setSearch] = useState("")
@@ -81,6 +96,26 @@ export function AppShell({ route }: { route: string }) {
   const t = copy[language]
   const rtl = language === "ar"
   const data = useMemo(() => mockSentriqDashboardService.getDashboard(workspaceId), [workspaceId])
+
+  useEffect(() => {
+    try {
+      const stored = window.sessionStorage.getItem("sentriq-demo-people")
+      const parsed: unknown = stored ? JSON.parse(stored) : []
+      if (Array.isArray(parsed) && parsed.every(isSessionMember)) setSessionMembers(parsed)
+    } catch {
+      setSessionMembers([])
+    } finally {
+      setSessionMembersLoaded(true)
+    }
+  }, [])
+
+  const addSessionMember = (member: Member) => {
+    setSessionMembers((current) => {
+      const next = [member, ...current]
+      try { window.sessionStorage.setItem("sentriq-demo-people", JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
   const selectedModule = modules.find((module) => module.href === route) ?? modules.filter((module) => route.startsWith(`${module.href}/`)).sort((a, b) => b.href.length - a.href.length)[0]
   const current = navigation.find((item) => route === item.href || route.startsWith(`${item.href}/`)) ?? (selectedModule ? { label: selectedModule.name, ar: moduleArabic[selectedModule.name], href: selectedModule.href, icon: Network } : route.startsWith("/app/admin") ? administration[0] : { label: "My Work", ar: "مساحة عملي", href: "/app/actions", icon: ListChecks })
   const contextualGroups = [
@@ -226,7 +261,7 @@ export function AppShell({ route }: { route: string }) {
           <span>{rtl ? ({ Inspections: "التفتيشات", "Findings & actions": "الملاحظات والإجراءات", "Risk & compliance": "المخاطر والامتثال", Organization: "المؤسسة", "Documents & resources": "المستندات والموارد", "Intelligence & governance": "الذكاء والحوكمة" } as Record<string, string>)[contextualGroups.label] : contextualGroups.label}</span>{contextualItems.map((module) => { const active = route === module.href || route.startsWith(`${module.href}/`); return <Link key={module.href} href={module.href} className={active ? "is-active" : ""} aria-current={route === module.href ? "page" : undefined}>{rtl ? moduleArabic[module.name] : module.name}</Link>})}
         </nav> : null}
         <main className="main-content" id="main-content" tabIndex={-1}>
-          {dashboard ? <OverviewDashboard data={data} language={language} search={search} role={role} workspaceId={workspaceId} /> : route.startsWith("/app/admin") ? <AdminCenter route={route} role={role} language={language} /> : route === "/app/my-work" ? <MyWork data={data} role={role} language={language} /> : route === "/app/forms" ? <FormsLibrary language={language} /> : route === "/app/inspections" || route.startsWith("/app/inspections/") || route === "/app/reviews" || route.startsWith("/app/reviews/") ? <Inspections route={route} language={language} workspaceId={workspaceId} role={role} /> : route === "/app/actions" || route.startsWith("/app/actions/") ? <Actions route={route} language={language} workspaceId={workspaceId} role={role} /> : route === "/app/modules" ? <ModuleDirectory language={language} /> : selectedModule ? <ModuleLanding module={selectedModule} /> : <ComingSoon language={language} route={route} title={rtl ? current.ar : current.label} />}
+          {dashboard ? <OverviewDashboard data={data} language={language} search={search} role={role} workspaceId={workspaceId} /> : route === "/app/people" || route.startsWith("/app/people/") ? <PeopleDirectory route={route} workspaceId={workspaceId} role={role} language={language} sessionMembers={sessionMembers} sessionMembersLoaded={sessionMembersLoaded} onAddMember={addSessionMember} /> : route.startsWith("/app/admin") ? <AdminCenter route={route} role={role} language={language} /> : route === "/app/my-work" ? <MyWork data={data} role={role} language={language} /> : route === "/app/forms" ? <FormsLibrary language={language} /> : route === "/app/inspections" || route.startsWith("/app/inspections/") || route === "/app/reviews" || route.startsWith("/app/reviews/") ? <Inspections route={route} language={language} workspaceId={workspaceId} role={role} /> : route === "/app/actions" || route.startsWith("/app/actions/") ? <Actions route={route} language={language} workspaceId={workspaceId} role={role} /> : route === "/app/modules" ? <ModuleDirectory language={language} /> : selectedModule ? <ModuleLanding module={selectedModule} /> : <ComingSoon language={language} route={route} title={rtl ? current.ar : current.label} />}
         </main>
       </div>
     </div>
@@ -235,7 +270,7 @@ export function AppShell({ route }: { route: string }) {
 
 const directoryCategories = ["All modules", "Enterprise", "Operations", "Risk & compliance", "Actions", "Resources", "Intelligence"]
 const moduleCategory = (group: string) => group === "Enterprise foundation" ? "Enterprise" : group === "QHSE operations" ? "Operations" : group === "Risk & compliance" ? "Risk & compliance" : group === "Findings & actions" ? "Actions" : group === "Documents & resources" ? "Resources" : "Intelligence"
-const moduleArabic: Record<string, string> = { "Organization & sites": "المؤسسة والمواقع", Workspaces: "مساحات العمل", "Users & teams": "المستخدمون والفرق", "Forms library": "مكتبة النماذج", "Inspection management": "إدارة التفتيش", "Incident management": "إدارة الحوادث", "Permit to work": "تصاريح العمل", "Risk assessments": "تقييمات المخاطر", "Audit & compliance": "التدقيق والامتثال", "Findings & corrective actions": "الملاحظات والإجراءات التصحيحية", "Documents & evidence": "المستندات والأدلة", "People & competency": "الأفراد والكفاءة", "Assets & equipment": "الأصول والمعدات", "Environmental records": "السجلات البيئية", "Reports & analytics": "التقارير والتحليلات", "Audit trail": "سجل التدقيق", "Review inbox": "صندوق المراجعة", "Follow-ups": "المتابعات" }
+const moduleArabic: Record<string, string> = { "Organization & sites": "المؤسسة والمواقع", Workspaces: "مساحات العمل", "Users & teams": "المستخدمون والفرق", "Forms library": "مكتبة النماذج", "Inspection management": "إدارة التفتيش", "Incident management": "إدارة الحوادث", "Permit to work": "تصاريح العمل", "Risk assessments": "تقييمات المخاطر", "Audit & compliance": "التدقيق والامتثال", "Findings & corrective actions": "الملاحظات والإجراءات التصحيحية", "Documents & evidence": "المستندات والأدلة", "People & Workforce": "الأفراد والقوى العاملة", "Assets & equipment": "الأصول والمعدات", "Environmental records": "السجلات البيئية", "Reports & analytics": "التقارير والتحليلات", "Audit trail": "سجل التدقيق", "Review inbox": "صندوق المراجعة", "Follow-ups": "المتابعات" }
 const moduleGroupArabic: Record<string, string> = { "Enterprise foundation": "أساس المؤسسة", "QHSE operations": "عمليات QHSE", "Risk & compliance": "المخاطر والامتثال", "Findings & actions": "الملاحظات والإجراءات", "Documents & resources": "المستندات والموارد", "Intelligence & governance": "الذكاء والحوكمة" }
 const moduleStateArabic: Record<string, string> = { "Working prototype": "نموذج أولي عامل", Demonstration: "عرض توضيحي", Planned: "مخطط" }
 
