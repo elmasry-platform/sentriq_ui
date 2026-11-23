@@ -97,7 +97,9 @@ export function OverviewDashboard({ data: seedData, language, search, role = "co
     <section className="ops-primary-grid">
       <article className="ops-section ops-work-section">
         <header className="ops-section-heading"><div><h2>{t.myWork}</h2><p>{queue.length ? t.queueDescription : workspaceBacklog.length ? t.backlogDescription : t.queueDescription}</p></div><Link href="/app/my-work" className="ops-section-link">{t.openQueue}<ArrowRight size={14} /></Link></header>
-        {queueItems.length ? <div className="ops-work-list" role="list">{queueItems.map((item) => <Link className="ops-work-row" href={item.href} key={`${item.kind}-${item.id}`} role="listitem">
+        {queueItems.length ? <div className="ops-work-list" role="list">
+          <div className="ops-work-columns" aria-hidden="true"><span>{rtl ? "السجل" : "Record"}</span><span>{rtl ? "الحالة" : "Status"}</span><span>{rtl ? "الاستحقاق" : "Due"}</span><span /></div>
+          {queueItems.map((item) => <Link className="ops-work-row" href={item.href} key={`${item.kind}-${item.id}`} role="listitem" aria-label={`${rtl ? "فتح" : "Open"} ${item.title}`}>
           <span className={`ops-row-mark ops-row-mark-${item.kind}`} aria-hidden="true">{item.kind === "action" ? <Activity size={16} /> : item.kind === "follow-up" ? <Clock3 size={16} /> : <ClipboardCheck size={16} />}</span>
           <span className="ops-work-copy"><strong>{item.title}</strong><small>{item.detail}</small></span>
           <span className={`ops-status ops-status-${item.status}`}>{statusText(item.status, t)}</span>
