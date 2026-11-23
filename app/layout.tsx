@@ -3,6 +3,7 @@ import './globals.css'
 import './sentriq.css'
 import './sentriq-polish.css'
 import './home.css'
+import './sentriq-workspace.css'
 
 export const metadata: Metadata = {
   title: {

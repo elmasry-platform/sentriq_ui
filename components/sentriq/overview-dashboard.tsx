@@ -2,131 +2,87 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { Activity, ArrowDownRight, ArrowRight, CalendarDays, Check, CircleAlert, ClipboardCheck, Clock3, Printer, ShieldAlert } from "lucide-react"
-import type { Language } from "@/components/sentriq/app-shell"
+import { Activity, ArrowRight, Check, ClipboardCheck, Clock3, FileText, Flag, RefreshCw, Search, X } from "lucide-react"
+import type { Language } from "./app-shell"
+import { Dialog } from "./dialog"
 import type { DashboardData } from "@/lib/sentriq/dashboard-service"
 import { actionRepository } from "@/lib/actions/repository"
 import { inspectionRepository } from "@/lib/inspections/repository"
-import { demoActor, reviewStagesFor } from "@/lib/sentriq/demo-permissions"
+import { buildOverview, filterWork, overdueAt, type OverviewSource, type OverviewView, type WorkItem } from "@/lib/sentriq/overview-model"
+import { demoActor, hasCompanyAccess } from "@/lib/sentriq/demo-permissions"
 
-type Props = { data: DashboardData; language: Language; search: string; role?: string; workspaceId?: string }
-type QueueItem = { id: string; title: string; detail: string; status: string; href: string; dueAt?: string; kind: "action" | "inspection" | "follow-up" }
-
-const copy = {
-  en: {
-    title: "Overview", subtitle: "Operational control center", updated: "WORKSPACE SNAPSHOT", demo: "Demo data · changes are not production records", inspections: "Awaiting review", actions: "Open actions", findings: "High-priority findings", myWork: "My work", queueDescription: "Assigned actions and reviews for your current demo role", backlogDescription: "Workspace backlog · no work is assigned to this demo role", openQueue: "Open My Work", attention: "Needs attention", attentionDescription: "Exceptions across this workspace", activity: "Recent activity", activityDescription: "Latest recorded operational events", sites: "Site summary", sitesDescription: "Inspections and open actions by location", record: "Record", owner: "Owner", status: "Status", due: "Due", site: "Site", inspectionsAtSite: "Inspections", openActions: "Open actions", noWork: "No work is assigned to this demo role.", noAttention: "No priority exceptions to review.", noActivity: "No activity is available.", noSites: "No site records are available.", viewAll: "View all", today: "Today", overdue: "Overdue", dueSoon: "Due soon", submitted: "Submitted", inReview: "In review", returned: "Returned", draft: "Draft", open: "Open", inProgress: "In progress", closureRequested: "Closure review", followUp: "Follow-up", inspection: "Inspection", action: "Action", print: "Print", siteUnit: "site", sitesUnit: "sites", activityActor: "Workspace user", searchEmpty: "No records match the current search.", personless: "No owner assigned"
-  },
-  ar: {
-    title: "نظرة عامة", subtitle: "مركز التحكم التشغيلي", updated: "ملخص مساحة العمل", demo: "بيانات تجريبية · التغييرات ليست سجلات إنتاجية", inspections: "بانتظار المراجعة", actions: "الإجراءات المفتوحة", findings: "ملاحظات عالية الأولوية", myWork: "مساحة عملي", queueDescription: "الإجراءات والمراجعات المسندة إلى دورك التجريبي الحالي", backlogDescription: "الأعمال المعلقة في مساحة العمل · لا توجد مهام مسندة إلى هذا الدور التجريبي", openQueue: "فتح مساحة عملي", attention: "تحتاج إلى اهتمام", attentionDescription: "الاستثناءات في مساحة العمل", activity: "النشاط الأخير", activityDescription: "أحدث الأحداث التشغيلية المسجلة", sites: "ملخص المواقع", sitesDescription: "التفتيشات والإجراءات المفتوحة حسب الموقع", record: "السجل", owner: "المسؤول", status: "الحالة", due: "الاستحقاق", site: "الموقع", inspectionsAtSite: "التفتيشات", openActions: "إجراءات مفتوحة", noWork: "لا توجد أعمال مسندة إلى هذا الدور التجريبي.", noAttention: "لا توجد استثناءات ذات أولوية للمراجعة.", noActivity: "لا يتوفر نشاط حديث.", noSites: "لا تتوفر سجلات للمواقع.", viewAll: "عرض الكل", today: "اليوم", overdue: "متأخر", dueSoon: "قريب الاستحقاق", submitted: "مُقدم", inReview: "قيد المراجعة", returned: "مُعاد", draft: "مسودة", open: "مفتوح", inProgress: "قيد التنفيذ", closureRequested: "مراجعة الإغلاق", followUp: "متابعة", inspection: "تفتيش", action: "إجراء", print: "طباعة", siteUnit: "موقع", sitesUnit: "مواقع", activityActor: "مستخدم مساحة العمل", searchEmpty: "لا توجد سجلات تطابق البحث الحالي.", personless: "لم يُعيّن مسؤول"
-  }
+const words = {
+  en: { title: "Operational overview", demo: "Demo workspace · local browser data, not production records", brief: "OPERATIONAL BRIEF", decisions: "Awaiting your decision", late: "Overdue in this view", count: "Assignments & follow-ups", headline: "A clear view. A decisive next step.", hint: "Review submissions, follow up on overdue work, and keep your next step in focus.", recommended: "NEXT REVIEW", noReview: "No decisions waiting for you", noReviewHint: "New review requests will appear here when your demo role can act on them.", review: "Start review", open: "Open record", work: "Work that needs you", scope: "Your assignments and review decisions", team: "Open work across the workspace", mine: "My work", workspace: "Workspace", reviews: "My reviews", overdue: "Overdue", allSites: "All sites", record: "Record / site", status: "Status", due: "Due", next: "Next step", follow: "Follow up", resume: "Continue", verify: "Verify", view: "View record", noWork: "You are all caught up", noWorkHint: "There is no assigned work in this view. Nothing from the workspace is being shown as your personal work.", noMatch: "No matching work", noMatchHint: "Try another site, view or search term.", reset: "Clear filters", attention: "Where attention is needed", siteHint: "Open corrective actions by site. The accent marks overdue work.", onTime: "Not overdue", actions: "open", activity: "What changed", noActivity: "No activity recorded.", noSites: "No sites in this view.", more: "Show more", saved: "Save view", savedViews: "Saved views", savedNote: "View saved in this browser", saveError: "Could not save this view in the browser.", remove: "Remove saved view", dataError: "Saved demo data could not be read. No data was overwritten.", retry: "Retry", loading: "Loading saved demo work…", preview: "Record preview", close: "Close", site: "Site", owner: "Owner", noOwner: "Unassigned", latest: "Latest recorded events", noAccess: "This role has no company workspace access", roleHint: "Choose a company demo role to view operational records.", search: "Search work by name or ID", filters: "Work views", emptyDate: "No deadline", inspect: "Inspections", shown: "records shown", readOnly: "Demo role simulation is not authorization." },
+  ar: { title: "نظرة تشغيلية", demo: "مساحة تجريبية · بيانات محلية بالمتصفح وليست سجلات إنتاجية", brief: "ملخص العمل", decisions: "بانتظار قرارك", late: "متأخر في هذا العرض", count: "مهام ومتابعات", headline: "رؤية أوضح. وخطوة تالية محددة.", hint: "راجع الطلبات، وتابع العمل المتأخر، واعرف خطوتك التالية بوضوح.", recommended: "المراجعة التالية", noReview: "لا توجد قرارات بانتظارك", noReviewHint: "ستظهر طلبات المراجعة عندما يسمح دورك التجريبي بالتصرف فيها.", review: "بدء المراجعة", open: "فتح السجل", work: "ما يحتاج تدخلك", scope: "تكليفاتك والقرارات المسندة إلى دورك", team: "الأعمال المفتوحة عبر مساحة العمل", mine: "عملي", workspace: "مساحة العمل", reviews: "مراجعاتي", overdue: "متأخر", allSites: "كل المواقع", record: "السجل / الموقع", status: "الحالة", due: "الاستحقاق", next: "الخطوة التالية", follow: "متابعة", resume: "استكمال", verify: "التحقق", view: "عرض السجل", noWork: "لا توجد مهام في هذا العرض", noWorkHint: "لا يوجد عمل مسند إليك هنا. لن نعرض أعمال الشركة باعتبارها عملك الشخصي.", noMatch: "لا توجد أعمال مطابقة", noMatchHint: "جرّب موقعًا أو عرضًا آخر أو غيّر كلمات البحث.", reset: "مسح الفلاتر", attention: "أين تحتاج المتابعة", siteHint: "الإجراءات التصحيحية المفتوحة حسب الموقع. الجزء الملون يوضح المتأخر.", onTime: "غير متأخر", actions: "مفتوحة", activity: "آخر المستجدات", noActivity: "لا توجد أحداث مسجلة.", noSites: "لا توجد مواقع في هذا العرض.", more: "عرض المزيد", saved: "حفظ العرض", savedViews: "العروض المحفوظة", savedNote: "تم حفظ العرض في هذا المتصفح", saveError: "تعذر حفظ العرض في المتصفح.", remove: "حذف العرض المحفوظ", dataError: "تعذرت قراءة البيانات التجريبية المحفوظة. لم يتم استبدال أي بيانات.", retry: "إعادة المحاولة", loading: "جارٍ تحميل الأعمال المحفوظة…", preview: "معاينة السجل", close: "إغلاق", site: "الموقع", owner: "المسؤول", noOwner: "غير مسند", latest: "آخر الأحداث المسجلة", noAccess: "هذا الدور لا يملك وصولًا لمساحة الشركة", roleHint: "اختر دورًا تجريبيًا بالشركة لعرض السجلات التشغيلية.", search: "البحث في العمل بالاسم أو الرقم", filters: "عروض العمل", emptyDate: "دون موعد", inspect: "التفتيشات", shown: "سجلات معروضة", readOnly: "محاكاة الدور التجريبي لا تمثل صلاحيات حقيقية." },
 }
+const statuses: Record<string, [string, string]> = { draft: ["Draft", "مسودة"], returned: ["Returned", "مُعاد"], submitted: ["Submitted", "مُقدم"], in_review: ["In review", "قيد المراجعة"], open: ["Open", "مفتوح"], in_progress: ["In progress", "قيد التنفيذ"], closure_requested: ["Closure review", "مراجعة الإغلاق"], scheduled: ["Scheduled", "مجدول"] }
+type SavedView = { view: OverviewView; siteId: string; query: string }
+const savedKey = (workspace: string, role: string) => `sentriq.overview.views.v1:${workspace}:${role}`
 
-const statusText = (status: string, t: typeof copy.en) => ({ submitted: t.submitted, in_review: t.inReview, returned: t.returned, draft: t.draft, open: t.open, in_progress: t.inProgress, closure_requested: t.closureRequested }[status] ?? status.replaceAll("_", " "))
-const formatDate = (value: string | undefined, language: Language) => value ? new Intl.DateTimeFormat(language === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "short" }).format(new Date(value)) : "—"
-
-export function OverviewDashboard({ data: seedData, language, search, role = "company_superadmin", workspaceId }: Props) {
-  const t = copy[language]
-  const rtl = language === "ar"
-  const term = search.trim().toLocaleLowerCase(language === "ar" ? "ar" : "en")
-  const [live, setLive] = useState<{ inspections: DashboardData["inspections"]; actions: DashboardData["actions"] } | null>(null)
-  const [today] = useState(() => new Date())
-
+export function OverviewDashboard({ data, language, search, role = "company_superadmin", workspaceId }: { data: DashboardData; language: Language; search: string; role?: string; workspaceId?: string }) {
+  const t = words[language], rtl = language === "ar", id = workspaceId ?? data.workspace.id
+  const [live, setLive] = useState<Pick<OverviewSource, "inspections" | "actions"> | null>(null)
+  const [ready, setReady] = useState(false), [error, setError] = useState(false)
+  const [now, setNow] = useState(() => new Date())
+  const [view, setView] = useState<OverviewView>("mine"), [siteId, setSiteId] = useState("")
+  const [query, setQuery] = useState(""), [limit, setLimit] = useState(6)
+  const [selected, setSelected] = useState<WorkItem | null>(null)
+  const [saved, setSaved] = useState<SavedView[]>([]), [notice, setNotice] = useState("")
+  const [retry, setRetry] = useState(0)
   useEffect(() => {
-    try {
-      const id = workspaceId ?? seedData.workspace.id
-      setLive({ inspections: inspectionRepository.list(id) as unknown as DashboardData["inspections"], actions: actionRepository.list(id) as unknown as DashboardData["actions"] })
-    } catch {
-      setLive(null)
+    const read = () => {
+      try { setLive({ inspections: inspectionRepository.list(id), actions: actionRepository.list(id) }); setError(false) } catch { setLive(null); setError(true) }
+      setReady(true); setNow(new Date())
     }
-  }, [workspaceId, seedData.workspace.id])
-
-  const data = useMemo<DashboardData>(() => {
-    if (!live) return seedData
-    const known = new Set(seedData.findings.map((finding) => finding.id))
-    const raised = (live.inspections as unknown as { id: string; workspaceId: string; findings?: { id: string; title: string; description: string; priority: "low" | "medium" | "high" | "critical" }[] }[])
-      .flatMap((inspection) => (inspection.findings ?? []).filter((finding) => !known.has(finding.id)).map((finding) => ({ id: finding.id, workspaceId: inspection.workspaceId, inspectionId: inspection.id, title: finding.title, description: finding.description, priority: finding.priority, status: "open" as const })))
-    return { ...seedData, inspections: live.inspections, actions: live.actions, findings: [...seedData.findings, ...raised] }
-  }, [live, seedData])
-
-  const actorId = demoActor(role).userId
-  const reviewStages = reviewStagesFor(role)
-  const openActions = data.actions.filter((item) => item.status !== "closed")
-  const pendingReviews = data.inspections.filter((item) => ["submitted", "in_review"].includes(item.status) && item.currentStage && reviewStages.includes(item.currentStage))
-  const reviewBacklog = data.inspections.filter((item) => ["submitted", "in_review"].includes(item.status))
-  const highFindings = data.findings.filter((item) => item.status !== "resolved" && ["high", "critical"].includes(item.priority))
-
-  const queue: QueueItem[] = [
-    ...data.actions.filter((item) => item.ownerId === actorId && item.status !== "closed").map((item) => ({ id: item.id, title: item.title, detail: `${data.sites.find((site) => site.id === item.siteId)?.name ?? "—"} · ${t.action}`, status: item.status, href: `/app/actions/${item.id}`, dueAt: item.responseDueAt, kind: "action" as const })),
-    ...data.inspections.filter((item) => item.inspectorId === actorId && ["draft", "returned"].includes(item.status)).map((item) => ({ id: item.id, title: item.title, detail: `${data.sites.find((site) => site.id === item.siteId)?.name ?? "—"} · ${t.inspection}`, status: item.status, href: `/app/inspections/${item.id}`, kind: "inspection" as const })),
-    ...pendingReviews.map((item) => ({ id: item.id, title: item.title, detail: `${data.sites.find((site) => site.id === item.siteId)?.name ?? "—"} · ${item.id}`, status: item.status, href: `/app/inspections/${item.id}`, kind: "inspection" as const })),
-    ...data.followUps.filter((item) => item.ownerId === actorId && !["completed", "cancelled"].includes(item.status)).map((item) => ({ id: item.id, title: item.title, detail: t.followUp, status: item.status, href: "/app/follow-ups", dueAt: item.dueAt, kind: "follow-up" as const })),
-  ].filter((item) => !term || `${item.id} ${item.title} ${item.detail} ${item.status}`.toLocaleLowerCase().includes(term)).slice(0, 6)
-  const workspaceBacklog: QueueItem[] = [
-    ...data.inspections.filter((item) => ["submitted", "in_review", "returned"].includes(item.status)).map((item) => ({ id: item.id, title: item.title, detail: `${data.sites.find((site) => site.id === item.siteId)?.name ?? "—"} · ${item.id}`, status: item.status, href: `/app/inspections/${item.id}`, kind: "inspection" as const })),
-    ...openActions.map((item) => ({ id: item.id, title: item.title, detail: `${data.sites.find((site) => site.id === item.siteId)?.name ?? "—"} · ${item.id}`, status: item.status, href: `/app/actions/${item.id}`, dueAt: item.responseDueAt, kind: "action" as const })),
-  ].filter((item) => !term || `${item.id} ${item.title} ${item.detail} ${item.status}`.toLocaleLowerCase().includes(term)).slice(0, 6)
-  const queueItems = queue.length ? queue : workspaceBacklog
-
-  const attention = [
-    ...data.inspections.filter((item) => ["returned", "in_review"].includes(item.status)).map((item) => ({ id: item.id, title: item.title, detail: `${item.id} · ${statusText(item.status, t)}`, href: `/app/inspections/${item.id}`, kind: "inspection" })),
-    ...openActions.filter((item) => ["closure_requested", "in_progress"].includes(item.status)).map((item) => ({ id: item.id, title: item.title, detail: `${item.id} · ${statusText(item.status, t)}`, href: `/app/actions/${item.id}`, kind: "action" })),
-    ...highFindings.map((item) => ({ id: item.id, title: item.title, detail: `${item.id} · ${item.priority}`, href: `/app/inspections/${item.inspectionId}`, kind: "finding" })),
-  ].filter((item) => !term || `${item.title} ${item.detail}`.toLocaleLowerCase().includes(term)).slice(0, 5)
-
-  const activity = data.auditEvents.slice().sort((a, b) => b.at.localeCompare(a.at)).filter((item) => !term || `${item.summary} ${item.recordId} ${data.users.find((user) => user.id === item.actorId)?.displayName ?? ""}`.toLocaleLowerCase().includes(term)).slice(0, 5)
-  const siteRows = data.sites.map((site) => ({
-    ...site,
-    inspections: data.inspections.filter((item) => item.siteId === site.id).length,
-    actions: openActions.filter((item) => item.siteId === site.id).length,
-  })).filter((site) => !term || `${site.name} ${site.code} ${site.city}`.toLocaleLowerCase().includes(term))
-
-  return <div className="ops-dashboard" dir={rtl ? "rtl" : "ltr"}>
-    <header className="ops-page-heading">
-      <div><p className="ops-breadcrumb">SENTRIQ <span>/</span> {data.workspace.name}</p><h1>{t.title}</h1><p className="ops-page-subtitle">{t.subtitle}</p></div>
-      <div className="ops-heading-meta"><span className="ops-date"><CalendarDays size={15} />{new Intl.DateTimeFormat(rtl ? "ar-EG" : "en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(today)}</span><button type="button" className="ops-secondary-action ops-print-button" onClick={() => window.print()}><Printer size={15} />{t.print}</button><Link href="/app/inspections" className="ops-primary-action"><ClipboardCheck size={16} />{rtl ? "التفتيشات" : "Inspections"}</Link></div>
-    </header>
-
-    <div className="ops-data-note"><span className="ops-note-dot" />{t.demo}</div>
-
-    <section className="ops-metrics" aria-label={rtl ? "ملخص العمليات" : "Operational summary"}>
-      <div className="ops-metric"><span>{t.inspections}</span><strong>{reviewBacklog.length}</strong><Link href="/app/reviews">{rtl ? "قائمة المراجعة" : "Review queue"}<ArrowRight size={13} /></Link></div>
-      <div className="ops-metric"><span>{t.actions}</span><strong>{openActions.length}</strong><Link href="/app/actions">{rtl ? "فتح الإجراءات" : "Open actions"}<ArrowRight size={13} /></Link></div>
-      <div className="ops-metric"><span>{t.findings}</span><strong>{highFindings.length}</strong><Link href="/app/actions">{rtl ? "عرض الإجراءات" : "Review findings"}<ArrowRight size={13} /></Link></div>
-    </section>
-
-    <section className="ops-primary-grid">
-      <article className="ops-section ops-work-section">
-        <header className="ops-section-heading"><div><h2>{t.myWork}</h2><p>{queue.length ? t.queueDescription : workspaceBacklog.length ? t.backlogDescription : t.queueDescription}</p></div><Link href="/app/my-work" className="ops-section-link">{t.openQueue}<ArrowRight size={14} /></Link></header>
-        {queueItems.length ? <div className="ops-work-list" role="list">
-          <div className="ops-work-columns" aria-hidden="true"><span>{rtl ? "السجل" : "Record"}</span><span>{rtl ? "الحالة" : "Status"}</span><span>{rtl ? "الاستحقاق" : "Due"}</span><span /></div>
-          {queueItems.map((item) => <Link className="ops-work-row" href={item.href} key={`${item.kind}-${item.id}`} role="listitem" aria-label={`${rtl ? "فتح" : "Open"} ${item.title}`}>
-          <span className={`ops-row-mark ops-row-mark-${item.kind}`} aria-hidden="true">{item.kind === "action" ? <Activity size={16} /> : item.kind === "follow-up" ? <Clock3 size={16} /> : <ClipboardCheck size={16} />}</span>
-          <span className="ops-work-copy"><strong>{item.title}</strong><small>{item.detail}</small></span>
-          <span className={`ops-status ops-status-${item.status}`}>{statusText(item.status, t)}</span>
-          <span className="ops-work-due">{item.dueAt ? formatDate(item.dueAt, language) : "—"}</span>
-          <ArrowRight className="ops-row-arrow" size={15} />
-        </Link>)}</div> : <div className="ops-empty"><Check size={17} /><span>{term ? t.searchEmpty : t.noWork}</span></div>}
-      </article>
-
-      <article className="ops-section ops-attention-section">
-        <header className="ops-section-heading"><div><h2>{t.attention}</h2><p>{t.attentionDescription}</p></div><span className="ops-count">{attention.length}</span></header>
-        {attention.length ? <ul className="ops-attention-list">{attention.map((item) => <li key={`${item.kind}-${item.id}`}><Link href={item.href} className="ops-attention-row"><span className={`ops-attention-symbol ops-attention-${item.kind}`} aria-hidden="true">{item.kind === "finding" ? <ShieldAlert size={15} /> : item.kind === "inspection" ? <ClipboardCheck size={15} /> : <CircleAlert size={15} />}</span><span><strong>{item.title}</strong><small>{item.detail}</small></span><ArrowRight className="ops-row-arrow" size={15} /></Link></li>)}</ul> : <div className="ops-empty"><Check size={17} /><span>{term ? t.searchEmpty : t.noAttention}</span></div>}
-        <Link href="/app/actions" className="ops-section-footer">{t.viewAll}<ArrowRight size={14} /></Link>
-      </article>
-    </section>
-
-    <section className="ops-secondary-grid">
-      <article className="ops-section ops-site-section">
-        <header className="ops-section-heading"><div><h2>{t.sites}</h2><p>{t.sitesDescription}</p></div><Link href="/app/organization" className="ops-section-link">{t.viewAll}<ArrowRight size={14} /></Link></header>
-        {siteRows.length ? <div className="ops-table-wrap"><table className="ops-table"><thead><tr><th>{t.site}</th><th>{t.inspectionsAtSite}</th><th>{t.openActions}</th></tr></thead><tbody>{siteRows.map((site) => <tr key={site.id}><td><strong>{site.name}</strong><small>{site.code} · {site.city}</small></td><td>{site.inspections}</td><td><span className={site.actions ? "ops-site-actions has-actions" : "ops-site-actions"}>{site.actions}</span></td></tr>)}</tbody></table></div> : <div className="ops-empty"><span>{t.searchEmpty}</span></div>}
-      </article>
-
-      <article className="ops-section ops-activity-section">
-        <header className="ops-section-heading"><div><h2>{t.activity}</h2><p>{t.activityDescription}</p></div><Link href="/app/audit" className="ops-section-link">{t.viewAll}<ArrowRight size={14} /></Link></header>
-        {activity.length ? <ol className="ops-activity-list">{activity.map((event) => <li key={event.id}><span className="ops-activity-mark" aria-hidden="true"><ArrowDownRight size={14} /></span><div><p><strong>{data.users.find((user) => user.id === event.actorId)?.displayName ?? t.activityActor}</strong> {event.summary}</p><small>{event.recordId} · {formatDate(event.at, language)}</small></div></li>)}</ol> : <div className="ops-empty"><span>{term ? t.searchEmpty : t.noActivity}</span></div>}
-      </article>
-    </section>
-
-    <footer className="ops-footer"><span>{t.updated} · {data.workspace.industryLabel}</span><span>{data.sites.length} {data.sites.length === 1 ? t.siteUnit : t.sitesUnit}</span></footer>
+    setReady(false); read()
+    window.addEventListener("focus", read); window.addEventListener("storage", read)
+    const tick = window.setInterval(() => setNow(new Date()), 60000)
+    return () => { window.removeEventListener("focus", read); window.removeEventListener("storage", read); window.clearInterval(tick) }
+  }, [id, retry])
+  useEffect(() => {
+    setView("mine"); setSiteId(""); setQuery(""); setSelected(null); setNotice("")
+    try { const value: unknown = JSON.parse(localStorage.getItem(savedKey(id, role)) ?? "[]"); setSaved(Array.isArray(value) ? value.filter((v): v is SavedView => !!v && ["mine", "workspace", "reviews", "overdue"].includes(v.view) && typeof v.siteId === "string" && typeof v.query === "string").slice(0, 5) : []) } catch { setSaved([]) }
+  }, [id, role])
+  useEffect(() => { setLimit(6) }, [view, siteId, query, search])
+  const model = useMemo(() => buildOverview({ ...data, ...(live ?? {}) }, role, now), [data, live, role, now])
+  const effectiveView = view === "workspace" && !model.manager ? "mine" : view
+  const base = effectiveView === "workspace" ? model.items : model.personal
+  const term = [search, query].filter(Boolean).join(" ")
+  const all = filterWork(base, "mine", siteId, "", now)
+  const visible = filterWork(base, effectiveView, siteId, term, now)
+  const personal = filterWork(model.personal, "mine", siteId, "", now)
+  const recommendation = personal.find((r) => r.review)
+  const sites = model.siteStats.filter((r) => !siteId || r.id === siteId)
+  const max = Math.max(1, ...sites.map((r) => r.open))
+  const activity = data.auditEvents.slice().sort((a, b) => b.at.localeCompare(a.at)).slice(0, 3)
+  const date = (value?: string) => {
+    if (!value) return t.emptyDate
+    const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T12:00:00`) : new Date(value)
+    return Number.isNaN(parsed.getTime()) ? t.emptyDate : new Intl.DateTimeFormat(rtl ? "ar-EG" : "en-GB", { day: "numeric", month: "short" }).format(parsed)
+  }
+  const status = (r: WorkItem) => overdueAt(r.dueAt, now) ? t.overdue : (statuses[r.status]?.[rtl ? 1 : 0] ?? r.status.replaceAll("_", " "))
+  const next = (r: WorkItem) => r.review ? r.kind === "action" ? t.verify : t.review : overdueAt(r.dueAt, now) ? t.follow : ["draft", "returned"].includes(r.status) ? t.resume : t.view
+  const clear = () => { setQuery(""); setSiteId(""); setView("mine") }
+  const persist = (nextSaved: SavedView[]) => {
+    try { localStorage.setItem(savedKey(id, role), JSON.stringify(nextSaved)); setSaved(nextSaved); setNotice(t.savedNote) } catch { setNotice(t.saveError) }
+  }
+  if (!hasCompanyAccess(role)) return <section className="sq-overview" dir={rtl ? "rtl" : "ltr"}><div className="sq-empty"><Check /><h1>{t.noAccess}</h1><p>{t.roleHint}</p></div></section>
+  return <div className="sq-overview" dir={rtl ? "rtl" : "ltr"}>
+    <div className="sq-demo"><i />{t.demo}</div>
+    <header className="sq-heading"><div><h1>{t.title}</h1><p>{data.workspace.name} · {data.workspace.industryLabel}</p></div><div className="sq-heading-actions"><label className="sq-site-select"><span className="sr-only">{t.site}</span><select value={siteId} onChange={(e) => setSiteId(e.target.value)}><option value="">{t.allSites}</option>{data.sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label><Link className="sq-button sq-button-primary" href="/app/inspections"><ClipboardCheck size={15} />{t.inspect}</Link></div></header>
+    {error && <div className="sq-error" role="alert"><span>{t.dataError}</span><button onClick={() => setRetry((v) => v + 1)}><RefreshCw size={14} />{t.retry}</button></div>}
+    {!ready ? <div className="sq-loading" role="status"><span className="sq-skeleton" />{t.loading}</div> : !error && <>
+      <section className="sq-hero-grid"><article className="sq-brief"><div className="sq-brief-content"><div className="sq-eyebrow"><i />{t.brief} / {date(now.toISOString())}</div><h2>{t.headline}</h2><p>{t.hint}</p></div><div className="sq-stats"><button onClick={() => setView("reviews")}><strong>{personal.filter((r) => r.review).length}</strong><span>{t.decisions}</span></button><button onClick={() => setView("overdue")}><strong className="sq-warm">{all.filter((r) => overdueAt(r.dueAt, now)).length}</strong><span>{t.late}</span></button><button onClick={() => setView(effectiveView === "workspace" ? "workspace" : "mine")}><strong>{all.length}</strong><span>{t.count}</span></button></div></article>
+      <article className="sq-card sq-next"><div className="sq-eyebrow"><Clock3 size={14} />{t.recommended}</div>{recommendation ? <><h2>{recommendation.title}</h2><p>{data.sites.find((s) => s.id === recommendation.siteId)?.name}</p><small><bdi>{recommendation.id}</bdi> · {date(recommendation.dueAt)}</small><div className="sq-next-bottom"><span className={`sq-badge sq-badge-${recommendation.status}`}>{status(recommendation)}</span><Link className="sq-button sq-button-primary" href={recommendation.href}>{t.review}<ArrowRight size={14} /></Link></div></> : <div className="sq-next-empty"><Check size={25} /><h2>{t.noReview}</h2><p>{t.noReviewHint}</p></div>}</article></section>
+      <div className="sq-main-grid"><section className="sq-card sq-queue"><header className="sq-section-heading"><div><h2>{t.work}</h2><p>{effectiveView === "workspace" ? t.team : t.scope}</p></div><span className="sq-actor">{demoActor(role).label}</span></header>
+        <div className="sq-toolbar"><div className="sq-view-tabs" role="group" aria-label={t.filters}>{(["mine", ...(model.manager ? ["workspace"] : []), "reviews", "overdue"] as OverviewView[]).map((v) => <button key={v} aria-pressed={effectiveView === v} className={effectiveView === v ? "is-selected" : ""} onClick={() => setView(v)}>{v === "mine" ? t.mine : v === "workspace" ? t.workspace : v === "reviews" ? t.reviews : t.overdue}</button>)}</div><button className="sq-save" onClick={() => { const item = { view: effectiveView, siteId, query }; persist([item, ...saved.filter((s) => JSON.stringify(s) !== JSON.stringify(item))].slice(0, 5)) }}>＋ {t.saved}</button></div>
+        <label className="sq-work-search"><Search size={14} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t.search} aria-label={t.search} /></label>
+        {!!saved.length && <div className="sq-saved" aria-label={t.savedViews}>{saved.map((s, i) => <span key={i}><button onClick={() => { setView(s.view); setSiteId(s.siteId); setQuery(s.query) }}>{s.view === "mine" ? t.mine : s.view === "workspace" ? t.workspace : s.view === "reviews" ? t.reviews : t.overdue} · {data.sites.find((r) => r.id === s.siteId)?.name ?? t.allSites}{s.query ? ` · ${s.query}` : ""}</button><button aria-label={`${t.remove} ${i + 1}`} onClick={() => persist(saved.filter((_, n) => n !== i))}><X size={12} /></button></span>)}</div>}
+        <div role="status" className="sq-notice">{notice}</div>
+        {visible.length ? <><div className="sq-columns" aria-hidden="true"><span>{t.record}</span><span>{t.status}</span><span>{t.due}</span><span>{t.next}</span></div><ul className="sq-work-list">{visible.slice(0, limit).map((r) => <li key={`${r.kind}:${r.id}`}><button className="sq-row-preview" onClick={() => setSelected(r)}><span className="sq-record-icon">{r.kind === "inspection" ? <ClipboardCheck size={17} /> : r.kind === "action" ? <Flag size={17} /> : <Clock3 size={17} />}</span><span><strong>{r.title}</strong><small><bdi>{r.id}</bdi> · {data.sites.find((s) => s.id === r.siteId)?.name}</small></span></button><span className={`sq-badge sq-badge-${overdueAt(r.dueAt, now) ? "overdue" : r.status}`}>{status(r)}</span><span className={`sq-due${overdueAt(r.dueAt, now) ? " is-overdue" : ""}`}>{date(r.dueAt)}</span><Link className="sq-next-link" href={r.href}>{next(r)}<ArrowRight size={13} /></Link></li>)}</ul><div className="sq-queue-footer"><span>{Math.min(limit, visible.length)} / {visible.length} {t.shown}</span>{visible.length > limit ? <button onClick={() => setLimit((v) => v + 6)}>{t.more}</button> : <Link href="/app/my-work">{t.mine}<ArrowRight size={12} /></Link>}</div></> : <div className="sq-empty"><Check size={27} /><h3>{query || search || siteId || effectiveView !== "mine" ? t.noMatch : t.noWork}</h3><p>{query || search || siteId || effectiveView !== "mine" ? t.noMatchHint : t.noWorkHint}</p>{(query || siteId || effectiveView !== "mine") && <button className="sq-button" onClick={clear}>{t.reset}</button>}</div>}
+      </section><div className="sq-rail"><section className="sq-card sq-sites"><h2>{t.attention}</h2><p>{t.siteHint}</p><div className="sq-legend"><span><i />{t.onTime}</span><span><i className="late" />{t.overdue}</span></div>{sites.map((site) => <div className="sq-site" key={site.id}><div><strong>{site.name}</strong><span>{site.open} {t.actions}</span></div><div className="sq-bar" role="img" aria-label={`${site.name}: ${site.open} ${t.actions}, ${site.overdue} ${t.overdue}`}><i style={{ width: `${(site.open - site.overdue) / max * 100}%` }} /><i className="late" style={{ width: `${site.overdue / max * 100}%` }} /></div><small>{site.overdue} {t.overdue}</small></div>)}{!sites.length && <p>{t.noSites}</p>}</section><section className="sq-card sq-activity"><h2>{t.activity}</h2><p className="sq-activity-note">{t.latest}</p>{activity.length ? <ol>{activity.map((event) => <li key={event.id}><i /><div><p><strong>{data.users.find((u) => u.id === event.actorId)?.displayName ?? t.owner}</strong> {event.summary}</p><small><bdi>{event.recordId}</bdi> · {date(event.at)}</small></div></li>)}</ol> : <p>{t.noActivity}</p>}</section></div></div>
+    </>}
+    <footer className="sq-footer"><span>SENTRIQ · {data.workspace.name}</span><span>{t.readOnly}</span></footer>
+    {selected && <Dialog title={t.preview} closeLabel={t.close} onClose={() => setSelected(null)}><div className="sq-preview"><span className={`sq-badge sq-badge-${overdueAt(selected.dueAt, now) ? "overdue" : selected.status}`}>{status(selected)}</span><h2>{selected.title}</h2><p><bdi>{selected.id}</bdi></p><dl><div><dt>{t.site}</dt><dd>{data.sites.find((s) => s.id === selected.siteId)?.name ?? "—"}</dd></div><div><dt>{t.owner}</dt><dd>{data.users.find((u) => u.id === selected.ownerId)?.displayName ?? t.noOwner}</dd></div><div><dt>{t.due}</dt><dd>{date(selected.dueAt)}</dd></div></dl><Link className="sq-button sq-button-primary" href={selected.href}>{t.open}<ArrowRight size={15} /></Link></div></Dialog>}
   </div>
 }

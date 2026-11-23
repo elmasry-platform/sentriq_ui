@@ -41,11 +41,14 @@ function isSessionMember(value: unknown): value is Member {
 const navigation: NavigationItem[] = [
   { label: "Overview", ar: "نظرة عامة", href: "/app/dashboard", icon: LayoutDashboard },
   { label: "My Work", ar: "مساحة عملي", href: "/app/my-work", icon: ListChecks },
-  { label: "Modules", ar: "الوحدات", href: "/app/modules", icon: Network },
-  { label: "Reports", ar: "التقارير", href: "/app/reports", icon: ChartNoAxesCombined },
+  { label: "Inspections", ar: "التفتيشات", href: "/app/inspections", icon: ClipboardCheck },
+  { label: "Corrective actions", ar: "الإجراءات التصحيحية", href: "/app/actions", icon: HardHat },
+  { label: "Forms library", ar: "مكتبة النماذج", href: "/app/forms", icon: ClipboardList },
 ]
 const administration: NavigationItem[] = [
-  { label: "Administration", ar: "الإدارة", href: "/app/admin/workspace", icon: Settings2 },
+  { label: "Reports", ar: "التقارير", href: "/app/reports", icon: ChartNoAxesCombined },
+  { label: "People", ar: "الأفراد", href: "/app/people", icon: UsersRound },
+  { label: "Settings", ar: "الإعدادات", href: "/app/admin/workspace", icon: Settings2 },
 ]
 
 const modules = [
@@ -84,9 +87,7 @@ export function AppShell({ route }: { route: string }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [search, setSearch] = useState("")
-  const [switcherOpen, setSwitcherOpen] = useState(false)
-  const [moduleSearch, setModuleSearch] = useState("")
-  const switcherRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const [profileOpen, setProfileOpen] = useState(false)
   const profileRef = useRef<HTMLDivElement>(null)
   const profileButtonRef = useRef<HTMLButtonElement>(null)
@@ -117,7 +118,7 @@ export function AppShell({ route }: { route: string }) {
     })
   }
   const selectedModule = modules.find((module) => module.href === route) ?? modules.filter((module) => route.startsWith(`${module.href}/`)).sort((a, b) => b.href.length - a.href.length)[0]
-  const current = navigation.find((item) => route === item.href || route.startsWith(`${item.href}/`)) ?? (selectedModule ? { label: selectedModule.name, ar: moduleArabic[selectedModule.name], href: selectedModule.href, icon: Network } : route.startsWith("/app/admin") ? administration[0] : { label: "My Work", ar: "مساحة عملي", href: "/app/actions", icon: ListChecks })
+  const current = navigation.find((item) => route === item.href || route.startsWith(`${item.href}/`)) ?? (selectedModule ? { label: selectedModule.name, ar: moduleArabic[selectedModule.name], href: selectedModule.href, icon: Network } : route.startsWith("/app/admin") ? administration[2] : { label: "My Work", ar: "مساحة عملي", href: "/app/actions", icon: ListChecks })
   const contextualGroups = [
     { label: "Inspections", routes: ["/app/inspections", "/app/forms", "/app/reviews"] },
     { label: "Findings & actions", routes: ["/app/actions", "/app/follow-ups"] },
@@ -138,15 +139,6 @@ export function AppShell({ route }: { route: string }) {
       document.documentElement.dir = savedLanguage === "ar" ? "rtl" : "ltr"
     }
   }, [])
-
-  useEffect(() => {
-    if (!switcherOpen) return
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setSwitcherOpen(false) }
-    const closeOnOutsideClick = (event: MouseEvent) => { if (!switcherRef.current?.contains(event.target as Node)) setSwitcherOpen(false) }
-    document.addEventListener("keydown", closeOnEscape)
-    document.addEventListener("mousedown", closeOnOutsideClick)
-    return () => { document.removeEventListener("keydown", closeOnEscape); document.removeEventListener("mousedown", closeOnOutsideClick) }
-  }, [switcherOpen])
 
   useEffect(() => {
     if (!profileOpen) return
@@ -178,6 +170,16 @@ export function AppShell({ route }: { route: string }) {
     } catch { setAttention(0) }
   }, [role, workspaceId, route])
 
+  useEffect(() => {
+    const focusSearch = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k" && route === "/app/dashboard") {
+        event.preventDefault(); searchRef.current?.focus()
+      }
+    }
+    document.addEventListener("keydown", focusSearch)
+    return () => document.removeEventListener("keydown", focusSearch)
+  }, [route])
+
   const setLanguageAndPersist = (nextLanguage: Language) => {
     setLanguage(nextLanguage)
     window.localStorage.setItem("sentriq-demo-language", nextLanguage)
@@ -186,11 +188,10 @@ export function AppShell({ route }: { route: string }) {
     document.documentElement.dir = nextLanguage === "ar" ? "rtl" : "ltr"
   }
   const changeRole = (nextRole: DemoRole) => { setRole(nextRole); window.sessionStorage.setItem("sentriq-demo-role", nextRole) }
-  const showReviews = canReviewAnyStage(role)
   const dashboard = route === "/app/dashboard"
 
   return (
-    <div className={`app-shell${rtl ? " is-rtl" : ""}`} dir={rtl ? "rtl" : "ltr"}>
+    <div className={`app-shell sq-shell${rtl ? " is-rtl" : ""}`} dir={rtl ? "rtl" : "ltr"}>
       <a className="skip-link" href="#main-content">{rtl ? "تخطَّ إلى المحتوى الرئيسي" : "Skip to main content"}</a>
       {mobileOpen && <button className="mobile-scrim" aria-label={t.close} onClick={() => setMobileOpen(false)} />}
       <aside id="primary-navigation" className={`sidebar${collapsed ? " sidebar-collapsed" : ""}${mobileOpen ? " sidebar-mobile-open" : ""}`}>
@@ -209,19 +210,19 @@ export function AppShell({ route }: { route: string }) {
           {!collapsed && <ChevronDown className="select-chevron" size={14} />}
         </label>
         <nav className="side-nav" aria-label={rtl ? "التنقل الرئيسي" : "Main navigation"}>
-          {navigation.map(({ label, ar, href, icon: Icon }) => {
-            const active = route === href || (href !== "/app/dashboard" && route.startsWith(`${href}/`)) || (href === "/app/modules" && Boolean(selectedModule))
+          {navigation.map(({ label, ar, href, icon: Icon }, index) => {
+            const active = route === href || (href !== "/app/dashboard" && route.startsWith(`${href}/`))
             const currentState = route === href ? "page" : href === "/app/modules" && selectedModule ? "location" : undefined
-            return <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-link${active ? " nav-link-active" : ""}`} aria-current={currentState} title={collapsed ? (rtl ? ar : label) : undefined}>
+            return <div key={href}>{index === 2 && !collapsed && <div className="sq-nav-label">{rtl ? "عمليات QHSE" : "QHSE OPERATIONS"}</div>}<Link href={href} onClick={() => setMobileOpen(false)} className={`nav-link${active ? " nav-link-active" : ""}`} aria-current={currentState} title={collapsed ? (rtl ? ar : label) : undefined}>
               <Icon size={18} strokeWidth={1.8} /><span className="nav-link-text">{rtl ? ar : label}</span>
-            </Link>
+            </Link></div>
           })}
         </nav>
         <div className="sidebar-admin-separator" />
         <nav className="side-nav side-nav-admin" aria-label={rtl ? "إدارة المؤسسة" : "Administration"}>
-          {administration.map(({ label, ar, href, icon: Icon }) => <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-link${route.startsWith("/app/admin") ? " nav-link-active" : ""}`} aria-current={route.startsWith("/app/admin") ? "page" : undefined} title={collapsed ? (rtl ? ar : label) : undefined}><Icon size={18} strokeWidth={1.8} /><span className="nav-link-text">{rtl ? ar : label}</span></Link>)}
+          {administration.map(({ label, ar, href, icon: Icon }) => <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-link${(href.startsWith("/app/admin") ? route.startsWith("/app/admin") : route === href) ? " nav-link-active" : ""}`} aria-current={(href.startsWith("/app/admin") ? route.startsWith("/app/admin") : route === href) ? "page" : undefined} title={collapsed ? (rtl ? ar : label) : undefined}><Icon size={18} strokeWidth={1.8} /><span className="nav-link-text">{rtl ? ar : label}</span></Link>)}
         </nav>
-        {!collapsed && <div className="sidebar-bottom"><div className="support-card"><div className="support-icon"><ShieldCheck size={17} /></div><strong>{rtl ? "سلامة مؤسستك" : "Your safety, in sync."}</strong><span>{rtl ? "إدارة الجودة والصحة والسلامة في مكان واحد." : "QHSE workflows, all in one place."}</span></div><div className="sidebar-version"><span>SENTRIQ</span><span>v1.0.0 · DEMO</span></div></div>}
+        <div className="sidebar-bottom sq-sidebar-bottom"><Link className={`nav-link${route === "/app/modules" ? " nav-link-active" : ""}`} href="/app/modules" onClick={() => setMobileOpen(false)} aria-current={route === "/app/modules" ? "page" : undefined} title={rtl ? "كل التطبيقات" : "All apps"}><Grid2X2 size={17} /><span className="nav-link-text">{rtl ? "كل التطبيقات" : "All apps"}</span></Link>{!collapsed && <div className="sidebar-version"><span>QHSE WORKSPACE</span><span>DEMO</span></div>}</div>
         <button className="collapse-button" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? (rtl ? <ChevronLeft size={16} /> : <ChevronRight size={16} />) : (rtl ? <ChevronRight size={16} /> : <ChevronLeft size={16} />)}</button>
       </aside>
       <div className="main-column">
@@ -229,23 +230,12 @@ export function AppShell({ route }: { route: string }) {
           <button ref={menuButtonRef} type="button" className="mobile-menu-button" aria-label={t.menu} aria-expanded={mobileOpen} aria-controls="primary-navigation" onClick={() => setMobileOpen(true)}><Menu size={20} /></button>
           <div className="breadcrumbs"><span>{rtl ? "مساحة العمل" : "Workspace"}</span><ChevronRight size={14} /><strong>{rtl ? current.ar : current.label}</strong></div>
           <div className="topbar-actions">
-            <div className="module-switcher" ref={switcherRef}>
-              <button className={`module-switcher-trigger${switcherOpen ? " is-open" : ""}`} onClick={() => setSwitcherOpen(!switcherOpen)} aria-expanded={switcherOpen} aria-haspopup="dialog"><Grid2X2 size={16} /><span>{t.modules}</span><ChevronDown size={13} /></button>
-              {switcherOpen && <div className="module-switcher-panel" role="dialog" aria-label={t.modules}>
-                <div className="switcher-heading"><div><span>{rtl ? "مساحة العمل" : "WORKSPACE"}</span><strong>{t.modules}</strong></div><button type="button" aria-label={t.close} onClick={() => setSwitcherOpen(false)}><X size={16} /></button></div>
-                <label className="switcher-search"><Search size={15} /><input autoFocus value={moduleSearch} onChange={(event) => setModuleSearch(event.target.value)} placeholder={t.searchModules} aria-label={t.searchModules} /></label>
-                <div className="switcher-quick-access"><span><Star size={12} />{rtl ? "الوصول السريع" : "QUICK ACCESS"}</span>{modules.filter((module) => ["/app/inspections", "/app/risks", "/app/actions"].includes(module.href)).map((module) => <Link href={module.href} key={module.href} onClick={() => setSwitcherOpen(false)}>{rtl ? moduleArabic[module.name] : module.name}</Link>)}</div>
-                <div className="switcher-modules">{[...new Set(modules.map((module) => module.group))].map((group) => { const groupModules = modules.filter((module) => module.group === group && `${module.name} ${rtl ? moduleArabic[module.name] : ""} ${module.group} ${rtl ? moduleGroupArabic[module.group] : ""} ${module.purpose}`.toLowerCase().includes(moduleSearch.toLowerCase())); return groupModules.length ? <section className="switcher-module-group" key={group}><h3>{rtl ? moduleGroupArabic[group] : group}</h3>{groupModules.slice(0, 4).map((module) => <Link href={module.href} key={module.href} onClick={() => setSwitcherOpen(false)}><span className="switcher-module-icon"><ModuleIcon module={module.name} /></span><span><strong>{rtl ? moduleArabic[module.name] : module.name}</strong><small>{rtl ? moduleStateArabic[module.state] : module.state} · {rtl ? moduleGroupArabic[module.group] : module.group}</small></span><ArrowRight size={14} /></Link>)}</section> : null})}</div>
-                <Link className="switcher-directory-link" href="/app/modules" onClick={() => setSwitcherOpen(false)}>{t.directory}<ArrowRight size={14} /></Link>
-              </div>}
-            </div>
-            <div className="top-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t.search} aria-label={t.searchLabel} /><kbd>⌘ K</kbd></div>
+            {dashboard && <div className="top-search"><Search size={16} /><input ref={searchRef} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={rtl ? "البحث في أعمال النظرة العامة" : "Search overview work..."} aria-label={rtl ? "البحث في أعمال النظرة العامة" : "Search overview work"} /><kbd>⌘ K</kbd></div>}
             <div className="topbar-divider" />
             <button type="button" className="language-button" onClick={() => setLanguageAndPersist(rtl ? "en" : "ar")} aria-label={rtl ? "Switch to English" : "التغيير إلى العربية"}><Languages size={16} /><span>{rtl ? "العربية" : "EN"}</span></button>
             <button type="button" className="icon-button notification-button" aria-label={rtl ? `الإشعارات، ${attention} تحتاج إلى انتباه` : `Notifications, ${attention} need attention`} title={rtl ? "الإشعارات" : "Notifications"}><Bell size={18} />{attention > 0 && <i />}</button>
             <div className="topbar-divider profile-divider" />
             <div className="role-picker"><span className="role-caption">{t.role}</span><select aria-label={t.role} value={role} onChange={(event) => changeRole(event.target.value as DemoRole)}>{demoRoles.map((item) => <option key={item.value} value={item.value}>{rtl ? item.ar : item.en}</option>)}</select><ChevronDown size={13} /></div>
-            <div className="avatar" aria-label="Mariam Hassan">MH</div>
             <div className="avatar-menu" ref={profileRef}>
               <button type="button" ref={profileButtonRef} className="avatar avatar-menu-trigger" aria-haspopup="dialog" aria-expanded={profileOpen} aria-controls="avatar-menu-panel" aria-label={rtl ? "الحساب والإعدادات" : "Account and settings"} onClick={() => setProfileOpen(!profileOpen)}>MH</button>
               {profileOpen && <div id="avatar-menu-panel" className="avatar-menu-panel" role="dialog" aria-label={rtl ? "الحساب والإعدادات" : "Account and settings"}>
