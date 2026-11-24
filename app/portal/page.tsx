@@ -23,17 +23,20 @@ function PortalIndexInner({ lang }: { lang: "en" | "ar" }) {
 
   useEffect(() => {
     if (loading) return
-    if (!session) { router.replace("/portal/login"); return }
+    // Full navigations, not router.replace: in the static export router.replace
+    // never commits here, and it can also race supabase session persistence
+    // (same reason the login page assigns window.location).
+    if (!session) { window.location.assign("/portal/login"); return }
     resolveIdentity(session.accessToken, session.userId)
       .then((identity) => {
-        if (identity.role === "owner") router.replace("/portal/owner")
-        else if (identity.role === "subowner") router.replace("/portal/subowner")
-        else if (identity.role === "superadmin") router.replace("/portal/superadmin")
-        else if (identity.membershipStatus === "none" || identity.operatorRole === "inactive") router.replace("/portal/employee")
-        else router.replace(`/portal/${identity.role}`)
+        if (identity.role === "owner") window.location.assign("/portal/owner")
+        else if (identity.role === "subowner") window.location.assign("/portal/subowner")
+        else if (identity.role === "superadmin") window.location.assign("/portal/superadmin")
+        else if (identity.membershipStatus === "none" || identity.operatorRole === "inactive") window.location.assign("/portal/employee")
+        else window.location.assign(`/portal/${identity.role}`)
       })
       .catch((e) => setError(e instanceof Error ? e.message : "identity_resolution_failed"))
-  }, [session, loading, router])
+  }, [session, loading])
 
   if (error) return <PortalError message={friendlyErrorLang(lang, error)} onRetry={() => { setError(null); router.refresh() }} />
   return <PortalLoading label={t(lang, "portal.opening")} />
