@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
-import { ShieldCheck, LoaderCircle } from "lucide-react"
+import { LoaderCircle } from "lucide-react"
 import { usePortalSession } from "@/lib/portal/session"
 
 export default function PortalLoginPage() {
@@ -28,44 +28,27 @@ export default function PortalLoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
-            <ShieldCheck className="h-6 w-6" />
-          </div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">Sign in to SENTRIQ</h1>
-          <p className="text-sm text-slate-500">Use your platform or company account.</p>
+    <div className="platform-login">
+      <div className="platform-login-card">
+        <div className="platform-login-brand">
+          <span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M23.5 6.5H13.2a6.7 6.7 0 0 0 0 13.4h5.6a6.7 6.7 0 0 1 0 13.4H8.5" transform="translate(0 -3.9)" stroke="currentColor" strokeWidth="2.1" strokeLinecap="square" /><circle cx="24" cy="4.8" r="2.1" fill="#D46A43" /></svg></span>
+          <h1>Sign in to SENTRIQ</h1>
+          <p>Use your platform or company account.</p>
         </div>
-        <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div>
-            <label htmlFor="email" className="mb-1.5 block text-xs font-semibold text-slate-700">Email</label>
-            <input
-              id="email" type="email" required autoComplete="email" value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="mb-1.5 block text-xs font-semibold text-slate-700">Password</label>
-            <input
-              id="password" type="password" required autoComplete="current-password" value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-            />
-          </div>
-          {error ? <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">{error}</p> : null}
-          <button
-            type="submit" disabled={busy}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-          >
-            {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+        <form onSubmit={onSubmit} className="panel platform-login-form">
+          <label htmlFor="email">Email
+            <input id="email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label htmlFor="password">Password
+            <input id="password" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          {error ? <p className="inspection-alert" role="alert">{error}</p> : null}
+          <button type="submit" disabled={busy} className="button-primary platform-login-submit">
+            {busy ? <LoaderCircle size={15} className="spin" /> : null}
             Sign in
           </button>
         </form>
-        <p className="mt-6 text-center text-xs text-slate-400">
-          <Link href="/" className="hover:text-slate-600">Back to sentriq.online</Link>
-        </p>
+        <p className="platform-login-back"><Link href="/">Back to sentriq.online</Link></p>
       </div>
     </div>
   )

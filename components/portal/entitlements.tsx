@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { PackageCheck, CheckCircle2, XCircle } from "lucide-react"
+import { CheckCircle2, XCircle } from "lucide-react"
 import { rpc } from "@/lib/portal/api"
 import { PortalEmpty, PortalLoading } from "./states"
 
@@ -24,24 +24,31 @@ export function EntitlementsPanel({ accessToken, tenantId }: { accessToken: stri
   if (rows.length === 0) return <PortalEmpty title="No entitlements" hint="Module and feature entitlements will appear here." />
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-3">
-        <PackageCheck className="h-4 w-4 text-slate-400" />
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Module & feature entitlements</p>
+    <div className="panel platform-panel">
+      <div className="panel-header">
+        <div>
+          <h2>Module & feature entitlements</h2>
+          <p>What this company is entitled to use.</p>
+        </div>
       </div>
-      <ul className="divide-y divide-slate-50">
-        {rows.map((e) => (
-          <li key={`${e.entitlement_kind}:${e.entitlement_key}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
-            <span className="text-slate-700">
-              <span className="mr-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-500">{e.entitlement_kind}</span>
-              {e.entitlement_key}
-            </span>
-            {e.entitled
-              ? <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600"><CheckCircle2 className="h-4 w-4" /> Entitled</span>
-              : <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-400"><XCircle className="h-4 w-4" /> Not entitled</span>}
-          </li>
-        ))}
-      </ul>
+      <table className="data-table">
+        <thead>
+          <tr><th>Kind</th><th>Entitlement</th><th>State</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((e) => (
+            <tr key={`${e.entitlement_kind}:${e.entitlement_key}`}>
+              <td><span className="ux-badge platform-capitalize">{e.entitlement_kind}</span></td>
+              <td>{e.entitlement_key}</td>
+              <td>
+                {e.entitled
+                  ? <span className="ux-badge ux-badge-approved"><CheckCircle2 size={13} /> Entitled</span>
+                  : <span className="ux-badge ux-badge-returned"><XCircle size={13} /> Not entitled</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

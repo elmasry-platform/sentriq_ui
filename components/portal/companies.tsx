@@ -1,15 +1,16 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Building2, PauseCircle, PlayCircle, LoaderCircle, ChevronRight } from "lucide-react"
+import { Building2, ChevronRight, LoaderCircle, PauseCircle, PlayCircle } from "lucide-react"
 import { rpc, ApiError } from "@/lib/portal/api"
+import { Dialog } from "@/components/sentriq/dialog"
 import { PortalEmpty, PortalError, PortalLoading } from "./states"
 
 export interface CompanyRow { id: string; name: string; industry_label: string | null; status: string; created_at: string }
 
-function StatusBadge({ status }: { status: string }) {
-  const tone = status === "active" ? "bg-emerald-50 text-emerald-700" : status === "suspended" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"
-  return <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ${tone}`}>{status}</span>
+export function CompanyStatusBadge({ status }: { status: string }) {
+  const tone = status === "active" ? "ux-badge-approved" : status === "suspended" ? "ux-badge-in-review" : "ux-badge-returned"
+  return <span className={`ux-badge ${tone} platform-capitalize`}>{status}</span>
 }
 
 export function CompaniesPanel({ accessToken, allowLifecycle, onOpen }: { accessToken: string; allowLifecycle: boolean; onOpen?: (company: CompanyRow) => void }) {
@@ -58,45 +59,53 @@ export function CompaniesPanel({ accessToken, allowLifecycle, onOpen }: { access
   if (rows.length === 0) return <PortalEmpty title="No companies yet" hint="Companies created on the platform will appear here." />
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <table className="w-full text-left text-sm">
+    <div className="panel platform-panel">
+      <div className="panel-header">
+        <div>
+          <h2>Companies</h2>
+          <p>Every company on the platform. Lifecycle changes are audited.</p>
+        </div>
+      </div>
+      <table className="data-table">
         <thead>
-          <tr className="border-b border-slate-100 bg-slate-50/60 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            <th className="px-4 py-3">Company</th>
-            <th className="px-4 py-3">Industry</th>
-            <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Created</th>
-            {allowLifecycle ? <th className="px-4 py-3 text-right">Actions</th> : null}
+          <tr>
+            <th>Company</th>
+            <th>Industry</th>
+            <th>Status</th>
+            <th>Created</th>
+            {allowLifecycle || onOpen ? <th>Actions</th> : null}
           </tr>
         </thead>
         <tbody>
           {rows.map((c) => (
-            <tr key={c.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500"><Building2 className="h-4 w-4" /></div>
+            <tr key={c.id}>
+              <td>
+                <div className="platform-person">
+                  <span className="avatar" aria-hidden="true"><Building2 size={14} /></span>
                   {onOpen ? (
-                    <button onClick={() => onOpen(c)} className="inline-flex items-center gap-1 font-medium text-slate-800 hover:text-slate-950 hover:underline">
-                      {c.name}<ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                    <button type="button" onClick={() => onOpen(c)} className="platform-link-button">
+                      {c.name}<ChevronRight size={13} />
                     </button>
                   ) : (
-                    <span className="font-medium text-slate-800">{c.name}</span>
+                    <strong className="platform-cell-strong">{c.name}</strong>
                   )}
                 </div>
               </td>
-              <td className="px-4 py-3 text-slate-500">{c.industry_label ?? "-"}</td>
-              <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
-              <td className="px-4 py-3 text-slate-500">{new Date(c.created_at).toLocaleDateString()}</td>
-              {allowLifecycle ? (
-                <td className="px-4 py-3 text-right">
-                  {busyId === c.id ? <LoaderCircle className="ml-auto h-4 w-4 animate-spin text-slate-400" /> : c.status === "active" ? (
-                    <button onClick={() => { setPending({ company: c, status: "suspended" }); setReason("") }} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50">
-                      <PauseCircle className="h-3.5 w-3.5" /> Suspend
+              <td>{c.industry_label ?? "—"}</td>
+              <td><CompanyStatusBadge status={c.status} /></td>
+              <td>{new Date(c.created_at).toLocaleDateString()}</td>
+              {allowLifecycle || onOpen ? (
+                <td>
+                  {busyId === c.id ? <LoaderCircle size={15} className="spin platform-muted" /> : allowLifecycle && c.status === "active" ? (
+                    <button type="button" onClick={() => { setPending({ company: c, status: "suspended" }); setReason("") }} className="button-outline platform-warn">
+                      <PauseCircle size={13} /> Suspend
                     </button>
-                  ) : c.status === "suspended" ? (
-                    <button onClick={() => { setPending({ company: c, status: "active" }); setReason("") }} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">
-                      <PlayCircle className="h-3.5 w-3.5" /> Reactivate
+                  ) : allowLifecycle && c.status === "suspended" ? (
+                    <button type="button" onClick={() => { setPending({ company: c, status: "active" }); setReason("") }} className="button-outline platform-ok">
+                      <PlayCircle size={13} /> Reactivate
                     </button>
+                  ) : onOpen ? (
+                    <button type="button" onClick={() => onOpen(c)} className="button-outline">Open</button>
                   ) : null}
                 </td>
               ) : null}
@@ -105,39 +114,23 @@ export function CompaniesPanel({ accessToken, allowLifecycle, onOpen }: { access
         </tbody>
       </table>
       {pending ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-6">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-base font-semibold text-slate-900">
-              {pending.status === "suspended" ? "Suspend" : "Reactivate"} {pending.company.name}
-            </h3>
-            <p className="mt-1 text-sm text-slate-500">
-              {pending.status === "suspended"
-                ? "Members of this company immediately lose access until it is reactivated. This action is audited."
-                : "The company and its members regain access. This action is audited."}
-            </p>
-            <label className="mt-4 block text-xs font-semibold text-slate-700" htmlFor="reason">Reason (min 3 characters)</label>
-            <textarea
-              id="reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={3}
-              className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-              placeholder="e.g. Missed payment follow-up"
-            />
-            <div className="mt-4 flex justify-end gap-3">
-              <button onClick={() => setPending(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                Cancel
-              </button>
-              <button
-                onClick={confirmStatus}
-                disabled={reason.trim().length < 3 || busyId !== null}
-                className={`rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 ${pending.status === "suspended" ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
-              >
-                {busyId ? "Working..." : pending.status === "suspended" ? "Suspend company" : "Reactivate company"}
-              </button>
-            </div>
+        <Dialog title={`${pending.status === "suspended" ? "Suspend" : "Reactivate"} ${pending.company.name}`} closeLabel="Cancel" onClose={() => setPending(null)}>
+          <p className="ux-dialog-hint">
+            {pending.status === "suspended"
+              ? "Members of this company immediately lose access until it is reactivated. This action is audited."
+              : "The company and its members regain access. This action is audited."}
+          </p>
+          <label>Reason (min 3 characters)
+            <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="e.g. Missed payment follow-up" data-autofocus />
+          </label>
+          <div className="inspection-modal-actions">
+            <button type="button" className="button-outline" onClick={() => setPending(null)}>Cancel</button>
+            <button type="button" onClick={confirmStatus} disabled={reason.trim().length < 3 || busyId !== null} className="button-primary">
+              {busyId ? <LoaderCircle size={14} className="spin" /> : null}
+              {pending.status === "suspended" ? "Suspend company" : "Reactivate company"}
+            </button>
           </div>
-        </div>
+        </Dialog>
       ) : null}
     </div>
   )
