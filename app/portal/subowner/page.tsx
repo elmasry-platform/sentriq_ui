@@ -41,6 +41,8 @@ function SubownerPanels({ accessToken }: { accessToken: string }) {
           accessToken={accessToken}
           company={selected}
           canLifecycle={perms["membership.lifecycle"] !== false}
+          canAccess={perms["member.permissions"] !== false}
+          canInvite={perms["superadmin.invite"] !== false}
           onClose={() => setSelected(null)}
         />
       ) : null}

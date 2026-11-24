@@ -23,15 +23,17 @@ const CATALOG_TO_CAPABILITY: Record<string, string> = Object.fromEntries(
   CAPABILITIES.flatMap((c) => c.catalogKeys.map((k) => [k, c.key])),
 )
 
-interface MemberRow { id: string; membershipId: string; role: string; status: string; displayName: string | null; email: string | null }
-interface DecisionRow { id: string; membership_id: string; permission_key: string; decision: "allow" | "deny"; reason: string | null; created_at: string }
+export interface MemberRow { id: string; membershipId: string; role: string; status: string; displayName: string | null; email: string | null }
+export interface DecisionRow { id: string; membership_id: string; permission_key: string; decision: "allow" | "deny"; reason: string | null; created_at: string }
 
 type Choice = "default" | "allow" | "deny"
 
 /** Per-member access editor: every capability visible with its current state,
  *  segmented Default/Allow/Deny, one audited reason per save. No dropdowns. */
-function AccessEditor({ accessToken, tenantId, member, decisions, onSaved }: {
+export function AccessEditor({ accessToken, tenantId, member, decisions, onSaved, platform = false }: {
   accessToken: string; tenantId: string; member: MemberRow; decisions: DecisionRow[]; onSaved: () => void
+  /** Platform operators save through the audited operator RPC and also get a whole-module row. */
+  platform?: boolean
 }) {
   const t = useT()
   const fe = useFriendlyError()
@@ -51,15 +53,33 @@ function AccessEditor({ accessToken, tenantId, member, decisions, onSaved }: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [moduleChoice, setModuleChoice] = useState<Choice | null>(null)
   const stateOf = (key: PermKey): Choice => changes[key] ?? (current[key]?.decision ?? "default")
-  const dirty = Object.keys(changes).length > 0
+  const allSame = (c: Choice) => CAPABILITY_KEYS.every((k) => (current[k]?.decision ?? "default") === c)
+  const moduleBase: Choice = allSame("deny") ? "deny" : allSame("allow") ? "allow" : "default"
+  const moduleState: Choice = moduleChoice ?? moduleBase
+  const isSuperadmin = member.role === "company_superadmin"
+  const dirty = Object.keys(changes).length > 0 || moduleChoice !== null
 
   async function save() {
     if (!dirty || reason.trim().length < 3) return
     setBusy(true)
     setError(null)
     try {
-      for (const [key, choice] of Object.entries(changes) as [PermKey, Choice][]) {
+      if (platform && moduleChoice !== null) {
+        await rpc("platform_set_member_access", {
+          p_tenant_id: tenantId, p_membership_id: member.membershipId, p_choice: moduleChoice,
+          p_reason: reason.trim(), p_module_key: "hse",
+        }, accessToken)
+      } else if (platform) {
+        for (const [key, choice] of Object.entries(changes) as [PermKey, Choice][]) {
+          const catalogKeys = CAPABILITIES.find((c) => c.key === key)?.catalogKeys ?? [key]
+          await rpc("platform_set_member_access", {
+            p_tenant_id: tenantId, p_membership_id: member.membershipId, p_choice: choice,
+            p_reason: reason.trim(), p_permission_keys: catalogKeys,
+          }, accessToken)
+        }
+      } else for (const [key, choice] of Object.entries(changes) as [PermKey, Choice][]) {
         const catalogKeys = CAPABILITIES.find((c) => c.key === key)?.catalogKeys ?? [key]
         for (const catalogKey of catalogKeys) {
           if (choice === "default") {
@@ -78,6 +98,7 @@ function AccessEditor({ accessToken, tenantId, member, decisions, onSaved }: {
         }
       }
       setChanges({})
+      setModuleChoice(null)
       setReason("")
       onSaved()
     } catch (e) {
@@ -91,8 +112,31 @@ function AccessEditor({ accessToken, tenantId, member, decisions, onSaved }: {
     <div className="access-editor">
       <div className="access-editor-title">{t("people.accessOf", { email: member.displayName ?? member.email ?? t("people.memberFallback") })}</div>
       <p className="access-editor-hint">{t("people.accessHint")}</p>
+      {platform ? (
+        <div className="access-row access-row-module">
+          <div className="access-row-name">
+            <strong>{t("perm.module.hse")}</strong>
+            <span>{t("perm.module.hse.desc")}</span>
+          </div>
+          <div className="seg" role="group" aria-label={t("perm.module.hse")}>
+            {(["default", "allow", "deny"] as Choice[]).filter((c) => !(isSuperadmin && c === "allow")).map((c) => (
+              <button key={c} type="button"
+                className={`seg-option${moduleState === c ? ` seg-on-${c}` : ""}`}
+                aria-pressed={moduleState === c}
+                onClick={() => { setChanges({}); setModuleChoice(c === moduleBase ? null : c) }}>
+                {t(`people.seg.${c}` as CopyKey)}{moduleState === c ? " ✓" : ""}
+              </button>
+            ))}
+          </div>
+          <div className="access-row-state">
+            <span className={`ux-badge ${moduleState === "deny" ? "b-red" : moduleState === "allow" ? "b-blue" : "b-grey"}`}>
+              {moduleState === "deny" ? t("perm.module.off") : moduleState === "allow" ? t("perm.module.on") : t("perm.module.default")}
+            </span>
+          </div>
+        </div>
+      ) : null}
       {CAPABILITY_KEYS.map((key) => {
-        const state = stateOf(key)
+        const state = moduleChoice !== null ? moduleChoice : stateOf(key)
         const live = current[key]
         return (
           <div key={key} className="access-row">
@@ -101,10 +145,11 @@ function AccessEditor({ accessToken, tenantId, member, decisions, onSaved }: {
               <span>{t(`perm.${key}.desc` as CopyKey)}</span>
             </div>
             <div className="seg" role="group" aria-label={t(`perm.${key}` as CopyKey)}>
-              {(["default", "allow", "deny"] as Choice[]).map((c) => (
+              {(["default", "allow", "deny"] as Choice[]).filter((c) => !(platform && isSuperadmin && c === "allow")).map((c) => (
                 <button key={c} type="button"
                   className={`seg-option${state === c ? ` seg-on-${c}` : ""}`}
                   aria-pressed={state === c}
+                  disabled={moduleChoice !== null}
                   onClick={() => setChanges((prev) => {
                     const base = current[key]?.decision ?? "default"
                     const next = { ...prev }

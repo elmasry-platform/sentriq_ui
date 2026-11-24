@@ -15,7 +15,7 @@ const KNOWN_POWERS = [
   "subscription.create", "subscription.update",
   "entitlement.issue", "entitlement.revoke", "entitlement.status",
   "delegation.review", "delegation.revoke",
-  "membership.lifecycle", "superadmin.invite", "superadmin.capability",
+  "membership.lifecycle", "member.permissions", "superadmin.invite", "superadmin.capability",
 ] as const
 
 function powerLabel(t: (key: CopyKey) => string, key: string): string {
