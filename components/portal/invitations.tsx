@@ -20,7 +20,7 @@ const LEVEL_KEY: Record<string, CopyKey> = {
 }
 const STATUS_TONE: Record<string, string> = { pending: "b-blue", accepted: "ux-badge-approved", expired: "b-grey", revoked: "ux-badge-returned" }
 
-/** Operator mode (Owner, Sub-owner): any company, any level. Company mode (Superadmin): own company, Employees only.
+/** Operator mode (Owner, Sub-owner): any company, any level. Company mode (Superadmin): own company, Admins and Employees (never Superadmin).
  *  The server enforces both; the form only offers what the caller may do. The one-time link is shown once. */
 export function InvitationsPage({ accessToken, ownTenantId }: { accessToken: string; ownTenantId?: string }) {
   const t = useT()
