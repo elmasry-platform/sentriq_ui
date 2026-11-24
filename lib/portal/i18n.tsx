@@ -9,6 +9,7 @@ export type PortalLang = "en" | "ar"
  *  vocabulary instead of inventing their own. */
 const COPY = {
   en: {
+    "err.notReady": "This feature is not available yet on this environment.",
     "companies.add": "Add company",
     "companies.add.title": "Add a company",
     "companies.add.hint": "Creates an empty company. Next, invite its Superadmin by email.",
@@ -487,6 +488,7 @@ const COPY = {
     "err.capabilityLimit": "Your role does not allow this change.",
   },
   ar: {
+    "err.notReady": "هذه الميزة غير متاحة بعد في هذه البيئة.",
     "companies.add": "إضافة شركة",
     "companies.add.title": "إضافة شركة",
     "companies.add.hint": "ينشئ شركة فارغة. بعدها ادعُ المشرف العام للشركة بالبريد الإلكتروني.",
@@ -1063,6 +1065,7 @@ export function friendlyErrorLang(lang: PortalLang, error: unknown): string {
     request_failed_404: "err.notFound",
     request_failed_429: "err.throttled",
   }
+  if (/Could not find the function|schema cache|PGRST202/i.test(raw)) return t(lang, "err.notReady")
   if (raw && codeMap[raw]) return t(lang, codeMap[raw])
   if (/^[a-z0-9_]+_not_authorized$/.test(raw)) return t(lang, "err.withdrawn")
   if (/^[a-z0-9_]+$/.test(raw) || !raw) return t(lang, "generic.failed")
