@@ -7,7 +7,7 @@ import { friendlyError } from "@/lib/portal/errors"
 import { Dialog } from "@/components/sentriq/dialog"
 import { PortalEmpty, PortalError, PortalLoading } from "./states"
 
-export interface CompanyRow { id: string; name: string; industry_label: string | null; status: string; created_at: string }
+export interface CompanyRow { id: string; name: string; industry_label: string | null; status: string; created_at: string; member_count?: number }
 
 export function CompanyStatusBadge({ status }: { status: string }) {
   const tone = status === "active" ? "ux-badge-approved" : status === "suspended" ? "ux-badge-in-review" : "ux-badge-returned"
@@ -74,6 +74,7 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
           <tr>
             <th>Company</th>
             <th>Industry</th>
+            <th>Members</th>
             <th>Status</th>
             <th>Created</th>
             {allowLifecycle || onOpen ? <th>Actions</th> : null}
@@ -95,6 +96,7 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
                 </div>
               </td>
               <td>{c.industry_label ?? "—"}</td>
+              <td>{c.member_count ?? "—"}</td>
               <td><CompanyStatusBadge status={c.status} /></td>
               <td>{new Date(c.created_at).toLocaleDateString()}</td>
               {allowLifecycle || onOpen ? (

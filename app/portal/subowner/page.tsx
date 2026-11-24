@@ -50,7 +50,7 @@ function SubownerPanels({ accessToken }: { accessToken: string }) {
 
 export default function SubownerCompaniesPage() {
   return (
-    <PlatformShell expect="subowner" route="/portal/subowner" title="Companies" subtitle="Every company on the platform. You hold full platform powers unless the owner withdraws one.">
+    <PlatformShell expect="subowner" route="/portal/subowner" title="Companies" subtitle="Every company on the platform. Open one to see and manage its people. You hold full platform powers unless the owner withdraws one.">
       {({ session }) => <SubownerPanels accessToken={session.accessToken} />}
     </PlatformShell>
   )
