@@ -1,12 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { Fragment, useCallback, useEffect, useState } from "react"
 import { LoaderCircle, PauseCircle, PlayCircle, UserRound, X } from "lucide-react"
 import { rpc } from "@/lib/portal/api"
 import { useFriendlyError, useT, type CopyKey } from "@/lib/portal/i18n"
 import { Dialog } from "@/components/sentriq/dialog"
 import type { CompanyRow } from "./companies"
 import { PortalEmpty, PortalError, PortalLoading } from "./states"
+import { PlatformMemberAccess } from "./platform-member-access"
 
 interface CompanyMemberRow { id: string; user_id: string; member_role: string; status: string; display_name: string | null; email: string | null }
 
@@ -17,7 +18,7 @@ const LEVEL_KEY: Record<string, CopyKey> = {
 }
 
 /** Platform view into one company: its people and their access lifecycle. */
-export function CompanyDetail({ accessToken, company, canLifecycle = true, onClose }: { accessToken: string; company: CompanyRow; canLifecycle?: boolean; onClose: () => void }) {
+export function CompanyDetail({ accessToken, company, canLifecycle = true, canPermissions = true, canEntitlements = true, onClose }: { accessToken: string; company: CompanyRow; canLifecycle?: boolean; canPermissions?: boolean; canEntitlements?: boolean; onClose: () => void }) {
   const t = useT()
   const fe = useFriendlyError()
   const [rows, setRows] = useState<CompanyMemberRow[] | null>(null)
@@ -27,6 +28,7 @@ export function CompanyDetail({ accessToken, company, canLifecycle = true, onClo
   const [reason, setReason] = useState("")
   const [saveError, setSaveError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
 
   const load = useCallback(() => setTick((v) => v + 1), [])
 
@@ -79,7 +81,8 @@ export function CompanyDetail({ accessToken, company, canLifecycle = true, onClo
             </thead>
             <tbody>
               {rows.map((m) => (
-                <tr key={m.id}>
+                <Fragment key={m.id}>
+                <tr>
                   <td>
                     <div className="platform-person">
                       <span className="avatar" aria-hidden="true"><UserRound size={14} /></span>
@@ -94,6 +97,11 @@ export function CompanyDetail({ accessToken, company, canLifecycle = true, onClo
                     <span className={`ux-badge ${m.status === "active" ? "ux-badge-approved" : "ux-badge-returned"}`}>{m.status === "active" ? t("status.active") : t("status.suspended")}</span>
                   </td>
                   <td>
+                    {canPermissions || canEntitlements ? (
+                      <button type="button" className="button-outline" aria-expanded={openId === m.id} onClick={() => setOpenId(openId === m.id ? null : m.id)}>
+                        {openId === m.id ? t("people.hideAccess") : t("detail.manageAccess")}
+                      </button>
+                    ) : null}{" "}
                     {busyId === m.id ? <LoaderCircle size={15} className="spin platform-muted" /> : !canLifecycle ? (
                       <span className="platform-muted">{t("detail.managedByOwner")}</span>
                     ) : m.status === "active" ? (
@@ -107,6 +115,15 @@ export function CompanyDetail({ accessToken, company, canLifecycle = true, onClo
                     )}
                   </td>
                 </tr>
+                {(canPermissions || canEntitlements) && openId === m.id ? (
+                  <tr className="access-editor-row">
+                    <td colSpan={4}>
+                      <PlatformMemberAccess accessToken={accessToken} tenantId={company.id} canPermissions={canPermissions} canEntitlements={canEntitlements}
+                        member={{ membershipId: m.id, role: m.member_role, status: m.status, displayName: m.display_name, email: m.email }} />
+                    </td>
+                  </tr>
+                ) : null}
+                </Fragment>
               ))}
             </tbody>
           </table>

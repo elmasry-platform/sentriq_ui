@@ -41,6 +41,8 @@ function SubownerPanels({ accessToken }: { accessToken: string }) {
           accessToken={accessToken}
           company={selected}
           canLifecycle={perms["membership.lifecycle"] !== false}
+          canPermissions={perms["member.permissions"] !== false}
+          canEntitlements={perms["member.entitlements"] !== false}
           onClose={() => setSelected(null)}
         />
       ) : null}
