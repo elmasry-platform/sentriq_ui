@@ -1,13 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { useState, type FormEvent } from "react"
 import { ShieldCheck, LoaderCircle } from "lucide-react"
 import { usePortalSession } from "@/lib/portal/session"
 
 export default function PortalLoginPage() {
-  const router = useRouter()
   const { signIn } = usePortalSession()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -20,7 +18,9 @@ export default function PortalLoginPage() {
     setError(null)
     try {
       await signIn(email.trim(), password)
-      router.replace("/portal")
+      // Full navigation so the new session is read from storage deterministically
+      // (router.replace can race supabase session persistence in the static export).
+      window.location.assign("/portal")
     } catch {
       setError("Invalid email or password.")
       setBusy(false)
