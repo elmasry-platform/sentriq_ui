@@ -15,7 +15,7 @@ export default function SuperadminPeoplePage() {
         return (
           <div className="platform-stack">
             <CapabilitiesCard accessToken={session.accessToken} tenantId={identity.tenantId} />
-            <MembersPanel accessToken={session.accessToken} tenantId={identity.tenantId} selfUserId={session.userId} />
+            <MembersPanel accessToken={session.accessToken} tenantId={identity.tenantId} selfUserId={session.userId} moduleEditor />
             <PermissionMatrix accessToken={session.accessToken} tenantId={identity.tenantId} />
           </div>
         )

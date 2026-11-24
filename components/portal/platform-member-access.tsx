@@ -13,13 +13,14 @@ interface ModuleState { module_key: string; company_entitled: boolean; state: st
 interface FeatureState { feature_key: string; module_key: string; state: string }
 interface GrantRow {
   grant_id: string; module_key: string | null; feature_key: string | null; can_use: boolean; can_delegate: boolean
+  delegated_by?: string | null
   starts_at: string; expires_at: string | null; permanent: boolean; reason: string; status: string
   delegated_from_grant_id: string | null; revoke_reason: string | null
 }
 interface PermissionRow {
   permission_key: string; module_key: string; feature_key: string | null
   entitlement_state: string; functional_state: string; effective: boolean; scoped: boolean
-  decision: { deny_id: string | null; allow_id: string | null; reason: string | null; ends_at: string | null }
+  decision: { deny_id: string | null; allow_id: string | null; reason: string | null; ends_at: string | null; granted_by?: string | null }
   lapsed: { kind: string; at: string; reason: string | null } | null
 }
 interface EffectiveAccess {
@@ -52,8 +53,19 @@ function currentChoice(p: PermissionRow): Choice {
 /** Platform-operator view of one member's access. Three separate layers: what the
  *  company subscribes to, personal entitlement exceptions or restrictions, and
  *  functional permissions (Default, Allow, Deny). */
-export function PlatformMemberAccess({ accessToken, tenantId, member, canPermissions = true, canEntitlements = true }: {
-  accessToken: string; tenantId: string; member: PlatformMember; canPermissions?: boolean; canEntitlements?: boolean
+/** Company mode (Superadmin): same editor, company rules. Decisions go through the
+ *  company RPCs, personal exceptions cannot be created (only delegated from an
+ *  entitlement the signed-in person holds), and a Deny placed by another
+ *  Superadmin is locked: only its setter, a Subowner or the Owner can change it. */
+export interface CompanyContext {
+  selfUserId: string
+  selfMembershipId: string | null
+  /** Active members of the company, by user id, so the setter of a Deny can be classified. */
+  people: { userId: string; role: string; status: string }[]
+}
+
+export function PlatformMemberAccess({ accessToken, tenantId, member, canPermissions = true, canEntitlements = true, company }: {
+  accessToken: string; tenantId: string; member: PlatformMember; canPermissions?: boolean; canEntitlements?: boolean; company?: CompanyContext
 }) {
   const t = useT()
   const fe = useFriendlyError()
@@ -75,6 +87,10 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
   const [addDelegate, setAddDelegate] = useState(false)
   const [addExpires, setAddExpires] = useState("")
   const [addReason, setAddReason] = useState("")
+  const [mine, setMine] = useState<GrantRow[]>([])
+  const [delSource, setDelSource] = useState("")
+  const [delExpires, setDelExpires] = useState("")
+  const [delReason, setDelReason] = useState("")
   const [revokeId, setRevokeId] = useState<string | null>(null)
   const [revokeReason, setRevokeReason] = useState("")
 
@@ -84,9 +100,24 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
     rpc<EffectiveAccess>("member_effective_access", { p_tenant_id: tenantId, p_membership_id: member.membershipId }, accessToken)
       .then((r) => { if (active) { setData(r); setChanges({}) } })
       .catch((e) => { if (active) setError(fe(e)) })
+    if (company?.selfMembershipId) {
+      rpc<EffectiveAccess>("member_effective_access", { p_tenant_id: tenantId, p_membership_id: company.selfMembershipId }, accessToken)
+        .then((r) => { if (active) setMine((r.entitlement_grants ?? []).filter((g) => g.status === "live" && g.can_use && g.can_delegate && !g.delegated_from_grant_id)) })
+        .catch(() => { if (active) setMine([]) })
+    }
     return () => { active = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, tenantId, member.membershipId, tick])
+
+  // A Deny is locked for this person when someone else placed it and that someone is
+  // a Superadmin, no longer active, or not in this company. The server enforces the same rule.
+  const denyLocked = (p: PermissionRow): boolean => {
+    if (!company || !p.decision.deny_id) return false
+    const by = p.decision.granted_by
+    if (!by || by === company.selfUserId) return false
+    const setter = company.people.find((x) => x.userId === by)
+    return !(setter && setter.status === "active" && setter.role !== "company_superadmin")
+  }
 
   const groups = useMemo(() => {
     const by = new Map<string, PermissionRow[]>()
@@ -114,9 +145,23 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
     let saved = 0
     try {
       for (const [key, choice] of entries) {
-        await rpc("platform_set_member_decision", {
-          p_tenant_id: tenantId, p_membership_id: member.membershipId, p_permission_key: key, p_choice: choice, p_reason: reason.trim(),
-        }, accessToken)
+        if (company) {
+          if (choice === "default") {
+            await rpc("clear_member_permission_decision", {
+              p_tenant_id: tenantId, p_membership_id: member.membershipId, p_permission_key: key, p_reason: reason.trim(),
+            }, accessToken)
+          } else {
+            await rpc("set_member_permission_decision", {
+              p_tenant_id: tenantId, p_membership_id: member.membershipId, p_permission_key: key,
+              p_decision: choice, p_scope_kind: "tenant", p_site_id: null, p_org_unit_id: null, p_task_kind: null, p_task_id: null,
+              p_can_read: choice === "allow", p_can_write: choice === "allow", p_ends_at: null, p_exception_kind: null, p_reason: reason.trim(),
+            }, accessToken)
+          }
+        } else {
+          await rpc("platform_set_member_decision", {
+            p_tenant_id: tenantId, p_membership_id: member.membershipId, p_permission_key: key, p_choice: choice, p_reason: reason.trim(),
+          }, accessToken)
+        }
         saved += 1
       }
       setReason("")
@@ -138,8 +183,15 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
   }, () => { setAddReason(""); setAddKey(""); setAddExpires(""); setAddDelegate(false) })
 
   const revoke = () => run(async () => {
-    await rpc("platform_revoke_member_entitlement", { p_grant_id: revokeId, p_reason: revokeReason.trim() }, accessToken)
+    await rpc(company ? "revoke_delegated_entitlement" : "platform_revoke_member_entitlement", { p_grant_id: revokeId, p_reason: revokeReason.trim() }, accessToken)
   }, () => { setRevokeId(null); setRevokeReason("") })
+
+  const delegate = () => run(async () => {
+    await rpc("delegate_member_entitlement", {
+      p_tenant_id: tenantId, p_source_grant_id: delSource, p_target_membership_id: member.membershipId,
+      p_reason: delReason.trim(), p_expires_at: delExpires ? new Date(`${delExpires}T23:59:59Z`).toISOString() : null,
+    }, accessToken)
+  }, () => { setDelSource(""); setDelExpires(""); setDelReason("") })
 
   return (
     <div className="access-editor" data-testid="effective-access">
@@ -179,7 +231,7 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
                   <td><span className={`ux-badge ${badgeFor(g.status)}`}>{t(`ea.status.${g.status}` as CopyKey)}</span></td>
                   <td style={{ overflowWrap: "anywhere", paddingInlineEnd: 12 }}>{g.status === "revoked" && g.revoke_reason ? `${g.reason} / ${g.revoke_reason}` : g.reason}</td>
                   <td>
-                    {canEntitlements && g.status === "live" && !g.delegated_from_grant_id ? (
+                    {(company ? (g.status === "live" && !!g.delegated_from_grant_id && g.delegated_by === company.selfUserId) : (canEntitlements && g.status === "live" && !g.delegated_from_grant_id)) ? (
                       revokeId === g.grant_id ? (
                         <span className="access-save-row">
                           <input value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} placeholder={t("ea.personal.revokeReason")} aria-label={t("ea.personal.revokeReason")} />
@@ -193,7 +245,25 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
             </tbody>
           </table>
         )}
-        {canEntitlements ? (
+        {company ? (
+          <div role="group" aria-label={t("ea.delegate.title")}>
+            <p className="access-audit-note">{t("ea.company.noException")}</p>
+            {mine.length === 0 ? <p className="platform-muted">{t("ea.delegate.none")}</p> : (
+              <div className="access-save-row">
+                <strong>{t("ea.delegate.title")}</strong>
+                <select value={delSource} onChange={(e) => setDelSource(e.target.value)} aria-label={t("ea.delegate.source")}>
+                  <option value="">—</option>
+                  {mine.map((g) => <option key={g.grant_id} value={g.grant_id}>{g.feature_key ?? g.module_key}</option>)}
+                </select>
+                <label>{t("ea.add.expires")} <input type="date" value={delExpires} onChange={(e) => setDelExpires(e.target.value)} /></label>
+                <input value={delReason} onChange={(e) => setDelReason(e.target.value)} placeholder={t("ea.personal.reason")} aria-label={t("ea.personal.reason")} />
+                <button type="button" className="button-primary" disabled={busy || !delSource || delReason.trim().length < 3} onClick={delegate}>
+                  {busy ? <LoaderCircle size={14} className="spin" /> : null} {t("ea.delegate.submit")}
+                </button>
+              </div>
+            )}
+          </div>
+        ) : canEntitlements ? (
           <div className="access-save-row" role="group" aria-label={t(addMode === "exception" ? "ea.add.exception" : "ea.add.restriction")}>
             <select value={addMode} onChange={(e) => setAddMode(e.target.value as "exception" | "restriction")} aria-label={t("ea.personal.kind")}>
               <option value="exception">{t("ea.add.exception")}</option>
@@ -264,7 +334,8 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
                     {p.decision.reason ? <div className="platform-muted">{p.decision.reason}</div> : null}
                   </div>
                   {canPermissions ? (
-                    <select value={choice} aria-label={p.permission_key}
+                    <div>
+                    <select value={choice} aria-label={p.permission_key} disabled={denyLocked(p)}
                       onChange={(e) => {
                         const v = e.target.value as Choice
                         setChanges((c) => {
@@ -277,6 +348,8 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
                       <option value="allow" disabled={!canAllow && choice !== "allow"} title={!canAllow ? t("ea.perms.notEntitled") : undefined}>{t("ea.perms.choice.allow")}</option>
                       <option value="deny">{t("ea.perms.choice.deny")}</option>
                     </select>
+                    {denyLocked(p) ? <div className="platform-muted" role="note">{t("ea.lock.deny")}</div> : null}
+                    </div>
                   ) : null}
                 </div>
               )
