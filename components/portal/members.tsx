@@ -6,8 +6,22 @@ import { rpc, select } from "@/lib/portal/api"
 import { dateLocale, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
 import { PortalEmpty, PortalError, PortalLoading } from "./states"
 
-const PERMISSION_KEYS = ["hse.dashboard", "hse.inspections", "hse.forms", "hse.actions", "hse.reports"] as const
-type PermKey = (typeof PERMISSION_KEYS)[number]
+/** Capabilities shown in the access editor, mapped to the enabled iam.permission_catalog
+ *  keys they control. A decision on a capability writes one audited decision per
+ *  catalog key so the backend enforcement and the UI state always agree. */
+const CAPABILITIES: { key: string; catalogKeys: string[] }[] = [
+  { key: "hse.dashboard", catalogKeys: ["hse.dashboard.read"] },
+  { key: "hse.inspections", catalogKeys: ["hse.inspections.read", "hse.inspections.create", "hse.inspections.review"] },
+  { key: "hse.forms", catalogKeys: ["hse.forms.read", "hse.forms.manage"] },
+  { key: "hse.actions", catalogKeys: ["hse.actions.read", "hse.actions.manage"] },
+  { key: "hse.reports", catalogKeys: ["hse.findings.read", "hse.audit.read"] },
+]
+type PermKey = string
+
+const CAPABILITY_KEYS = CAPABILITIES.map((c) => c.key)
+const CATALOG_TO_CAPABILITY: Record<string, string> = Object.fromEntries(
+  CAPABILITIES.flatMap((c) => c.catalogKeys.map((k) => [k, c.key])),
+)
 
 interface MemberRow { id: string; membershipId: string; role: string; status: string; displayName: string | null; email: string | null }
 interface DecisionRow { id: string; membership_id: string; permission_key: string; decision: "allow" | "deny"; reason: string | null; created_at: string }
@@ -25,8 +39,9 @@ function AccessEditor({ accessToken, tenantId, member, decisions, onSaved }: {
   const current = useMemo(() => {
     const map: Partial<Record<PermKey, DecisionRow>> = {}
     for (const d of decisions) {
-      if (d.membership_id === member.membershipId && (PERMISSION_KEYS as readonly string[]).includes(d.permission_key)) {
-        map[d.permission_key as PermKey] = d
+      const cap = CATALOG_TO_CAPABILITY[d.permission_key]
+      if (d.membership_id === member.membershipId && cap && !map[cap]) {
+        map[cap] = d
       }
     }
     return map
@@ -45,18 +60,21 @@ function AccessEditor({ accessToken, tenantId, member, decisions, onSaved }: {
     setError(null)
     try {
       for (const [key, choice] of Object.entries(changes) as [PermKey, Choice][]) {
-        if (choice === "default") {
-          await rpc("clear_member_permission_decision", {
-            p_tenant_id: tenantId, p_membership_id: member.membershipId, p_permission_key: key, p_reason: reason.trim(),
-          }, accessToken)
-        } else {
-          await rpc("set_member_permission_decision", {
-            p_tenant_id: tenantId, p_membership_id: member.membershipId, p_permission_key: key,
-            p_decision: choice, p_scope_kind: "tenant", p_site_id: null, p_org_unit_id: null,
-            p_task_kind: null, p_task_id: null,
-            p_can_read: choice === "allow", p_can_write: choice === "allow",
-            p_ends_at: null, p_exception_kind: null, p_reason: reason.trim(),
-          }, accessToken)
+        const catalogKeys = CAPABILITIES.find((c) => c.key === key)?.catalogKeys ?? [key]
+        for (const catalogKey of catalogKeys) {
+          if (choice === "default") {
+            await rpc("clear_member_permission_decision", {
+              p_tenant_id: tenantId, p_membership_id: member.membershipId, p_permission_key: catalogKey, p_reason: reason.trim(),
+            }, accessToken)
+          } else {
+            await rpc("set_member_permission_decision", {
+              p_tenant_id: tenantId, p_membership_id: member.membershipId, p_permission_key: catalogKey,
+              p_decision: choice, p_scope_kind: "tenant", p_site_id: null, p_org_unit_id: null,
+              p_task_kind: null, p_task_id: null,
+              p_can_read: choice === "allow", p_can_write: choice === "allow",
+              p_ends_at: null, p_exception_kind: null, p_reason: reason.trim(),
+            }, accessToken)
+          }
         }
       }
       setChanges({})
@@ -73,7 +91,7 @@ function AccessEditor({ accessToken, tenantId, member, decisions, onSaved }: {
     <div className="access-editor">
       <div className="access-editor-title">{t("people.accessOf", { email: member.displayName ?? member.email ?? t("people.memberFallback") })}</div>
       <p className="access-editor-hint">{t("people.accessHint")}</p>
-      {PERMISSION_KEYS.map((key) => {
+      {CAPABILITY_KEYS.map((key) => {
         const state = stateOf(key)
         const live = current[key]
         return (
@@ -159,10 +177,16 @@ export function MembersPanel({ accessToken, tenantId, selfUserId }: { accessToke
   if (rows.length === 0) return <PortalEmpty title={t("people.empty.title")} hint={t("people.empty.hint")} />
 
   const summary = (m: MemberRow) => {
-    const mine = decisions.filter((d) => d.membership_id === m.membershipId && (PERMISSION_KEYS as readonly string[]).includes(d.permission_key))
+    const seen = new Set<string>()
+    const mine = decisions.filter((d) => {
+      const cap = CATALOG_TO_CAPABILITY[d.permission_key]
+      if (d.membership_id !== m.membershipId || !cap || seen.has(cap)) return false
+      seen.add(cap)
+      return true
+    })
     const allowed = mine.filter((d) => d.decision === "allow").length
     const denied = mine.filter((d) => d.decision === "deny").length
-    return { allowed, denied, rest: PERMISSION_KEYS.length - allowed - denied }
+    return { allowed, denied, rest: CAPABILITY_KEYS.length - allowed - denied }
   }
 
   return (
