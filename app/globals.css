@@ -318,3 +318,5 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .platform-login-back a { color: #718096; }
 .platform-login-back a:hover { color: var(--text); }
 @media (max-width: 720px) { .platform-metric-grid { grid-template-columns: 1fr; } .platform-role-pill { display: none; } }
+.platform-person { max-width: 100%; }
+.platform-person .platform-cell-strong, .platform-person .platform-link-button { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
