@@ -35,7 +35,7 @@ function SubownerPanels({ accessToken }: { accessToken: string }) {
         allowLifecycle
         canLifecycle={perms["company.lifecycle"] !== false}
         canModules={perms["entitlement.issue"] !== false}
-        onInviteSuperadmin={perms["company.create"] !== false ? (c) => router.push(`/portal/subowner/invitations?company=${c.id}&level=company_superadmin`) : undefined} openLabelKey="companies.openAccess"
+        onInviteSuperadmin={perms["company.create"] !== false && perms["superadmin.invite"] !== false ? (c) => router.push(`/portal/subowner/invitations?company=${c.id}&level=company_superadmin`) : undefined} openLabelKey="companies.openAccess"
         onOpen={(c) => router.push(`/portal/subowner/access?company=${c.id}`)}
       />
     </div>

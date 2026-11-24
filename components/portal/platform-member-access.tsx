@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, LoaderCircle } from "lucide-react"
 import { rpc } from "@/lib/portal/api"
 import { dateLocale, tryCopy, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
 import { PortalError, PortalLoading } from "./states"
-import { ROLE_PRESETS, type RolePreset } from "@/lib/portal/presets"
+import { ROLE_PRESETS, isOperational, presetKeys, type RolePreset } from "@/lib/portal/presets"
 
 /** Everything below is rendered from the server's effective-access calculation.
  *  No module, feature or permission key is named here: groups, labels and
@@ -127,6 +127,16 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
     return !(setter && setter.status === "active" && setter.role !== "company_superadmin")
   }
 
+  // An Allow placed by an operator is protected: a company Superadmin cannot change it, so presets skip it.
+  const allowProtected = (p: PermissionRow): boolean => {
+    if (!company || !p.decision.allow_id) return false
+    const by = p.decision.granted_by
+    if (!by) return true
+    if (by === company.selfUserId) return false
+    const setter = company.people.find((x) => x.userId === by)
+    return !(setter && setter.status === "active" && setter.role === "company_superadmin")
+  }
+
   const groups = useMemo(() => {
     const by = new Map<string, PermissionRow[]>()
     for (const p of data?.permissions ?? []) by.set(p.module_key, [...(by.get(p.module_key) ?? []), p])
@@ -142,7 +152,9 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
     const all = data.permissions
     const blocked = all.filter((p) => p.functional_state === "deny" || p.entitlement_state === "restricted").length
     const allowed = all.filter((p) => p.effective).length
-    return { total: all.length, allowed, blocked, unavailable: Math.max(0, all.length - allowed - blocked) }
+    const rest = all.filter((p) => !p.effective && !(p.functional_state === "deny" || p.entitlement_state === "restricted"))
+    const notGranted = rest.filter((p) => p.entitlement_state === "company" || p.entitlement_state === "personal_exception").length
+    return { total: all.length, allowed, blocked, notGranted, notInPlan: rest.length - notGranted }
   })()
   const q = permQuery.trim().toLowerCase()
   const visibleGroups = groups
@@ -201,13 +213,13 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
   }
 
   const applyPreset = (preset: RolePreset) => {
-    const wanted = new Set(preset.keys)
+    const wanted = new Set(presetKeys(preset.id, data.permissions))
     const next: Record<string, Choice> = {}
     for (const p of data.permissions) {
-      if (denyLocked(p) || p.decision.deny_id) continue
+      if (denyLocked(p) || allowProtected(p) || p.decision.deny_id) continue
       const cur = currentChoice(p)
       const canAllow = p.entitlement_state === "company" || p.entitlement_state === "personal_exception"
-      const target: Choice | null = wanted.has(p.permission_key) ? (canAllow ? "allow" : null) : (p.module_key === "hse" && cur === "allow" ? "default" : null)
+      const target: Choice | null = wanted.has(p.permission_key) ? (canAllow ? "allow" : null) : (isOperational(p) && cur === "allow" ? "default" : null)
       if (target && target !== cur) next[p.permission_key] = target
     }
     setChanges(next)
@@ -241,7 +253,7 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
 
       <section aria-label={t("ea.summary.title")} className="access-summary" data-testid="access-summary">
         <h4>{t("ea.summary.title")}</h4>
-        <p><strong>{t("ea.summary.line", { allowed: sum.allowed, total: sum.total, blocked: sum.blocked, unavailable: sum.unavailable })}</strong></p>
+        <p><strong>{t("ea.summary.line", { allowed: sum.allowed, total: sum.total, blocked: sum.blocked, notGranted: sum.notGranted, notInPlan: sum.notInPlan })}</strong></p>
         <p className="access-audit-note">{t("ea.summary.hint")}</p>
       </section>
 

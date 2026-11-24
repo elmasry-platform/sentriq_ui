@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Copy, LoaderCircle, Plus } from "lucide-react"
 import { rpc } from "@/lib/portal/api"
 import { dateLocale, tryCopy, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
-import { ROLE_PRESETS } from "@/lib/portal/presets"
+import { ROLE_PRESETS, isOperational, presetKeys, type CatalogKey, type PresetId } from "@/lib/portal/presets"
 import { Dialog } from "@/components/sentriq/dialog"
 import type { CompanyRow } from "./companies"
 import { PortalEmpty, PortalError, PortalLoading } from "./states"
@@ -15,7 +15,6 @@ interface InvitationRow {
   revoke_reason: string | null; decision_count: number
 }
 type Choice = "default" | "allow" | "deny"
-const ALL_KEYS = Array.from(new Set(ROLE_PRESETS.flatMap((p) => p.keys)))
 const LEVEL_KEY: Record<string, CopyKey> = {
   company_superadmin: "level.company_superadmin", company_admin: "level.company_admin", employee: "level.employee",
 }
@@ -104,6 +103,13 @@ function CreateInvitation({ accessToken, ownTenantId, companies, onClose, onCrea
   const [name, setName] = useState("")
   const [level, setLevel] = useState(ownTenantId ? "employee" : qs.get("level") === "company_superadmin" ? "company_superadmin" : "employee")
   const [days, setDays] = useState(7)
+  const [catalog, setCatalog] = useState<CatalogKey[]>([])
+  useEffect(() => {
+    let active = true
+    rpc<CatalogKey[]>("list_permission_catalog", {}, accessToken).then((r) => { if (active) setCatalog(Array.isArray(r) ? r : []) }).catch(() => { if (active) setCatalog([]) })
+    return () => { active = false }
+  }, [accessToken])
+  const allKeys = useMemo(() => catalog.filter(isOperational).map((k) => k.permission_key), [catalog])
   const [choices, setChoices] = useState<Record<string, Choice>>({})
   const [reason, setReason] = useState("")
   const [busy, setBusy] = useState(false)
@@ -113,7 +119,7 @@ function CreateInvitation({ accessToken, ownTenantId, companies, onClose, onCrea
   const withAccess = level !== "company_superadmin"
   const valid = !!tenantId && /.+@.+\..+/.test(email.trim()) && name.trim().length > 0 && (!withAccess || decisions.length === 0 || reason.trim().length >= 3)
 
-  const preset = (keys: string[]) => setChoices(Object.fromEntries(keys.map((k) => [k, "allow" as Choice])))
+  const preset = (id: PresetId) => setChoices(Object.fromEntries(presetKeys(id, catalog).map((k) => [k, "allow" as Choice])))
 
   async function submit() {
     setBusy(true); setErr(null)
@@ -157,11 +163,11 @@ function CreateInvitation({ accessToken, ownTenantId, companies, onClose, onCrea
             <>
               <p className="access-audit-note">{t("invites.form.access.hint")}</p>
               <div className="access-presets">
-                {ROLE_PRESETS.map((p) => <button key={p.id} type="button" className="button-outline" title={t(p.hintKey)} onClick={() => preset(p.keys)}>{t(p.labelKey)}</button>)}
+                {ROLE_PRESETS.map((p) => <button key={p.id} type="button" className="button-outline" title={t(p.hintKey)} onClick={() => preset(p.id)}>{t(p.labelKey)}</button>)}
                 <button type="button" className="button-outline" onClick={() => setChoices({})}>{t("ea.perms.choice.default")}</button>
               </div>
               <div className="invite-keys">
-                {ALL_KEYS.map((k) => {
+                {allKeys.map((k) => {
                   const c = choices[k] ?? "default"
                   const label = tryCopy(lang, `perm.${k}`) ?? k
                   return (
