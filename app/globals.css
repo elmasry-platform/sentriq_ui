@@ -280,6 +280,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .platform-panel > .ux-state, .platform-panel > .platform-boot-inline { padding: 26px 16px; }
 .platform-role-pill { background: #e8efff; color: #3558aa; }
 .platform-person { display: flex; align-items: center; gap: 10px; }
+.platform-person > span { min-width: 0; }
 .platform-cell-strong { display: block; color: #2c3a51; font-weight: 600; }
 .platform-link-button { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; padding: 0; color: var(--blue); font: inherit; font-weight: 600; cursor: pointer; }
 .platform-link-button:hover { text-decoration: underline; }
