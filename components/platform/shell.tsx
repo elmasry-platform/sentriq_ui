@@ -4,8 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import {
-  Building2, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, HardHat,
-  LayoutDashboard, ListChecks, LogOut, Menu, ShieldCheck, UsersRound, X, KeyRound,
+  Building2, ChevronLeft, ChevronRight, LogOut, Menu, ShieldCheck, UsersRound, X, KeyRound,
   PackageCheck, type LucideIcon,
 } from "lucide-react"
 import { usePortalSession } from "@/lib/portal/session"
@@ -22,14 +21,6 @@ export const ROLE_LABEL: Record<PortalRole, string> = {
 export function roleLabel(role: PortalRole) { return ROLE_LABEL[role] }
 
 type NavItem = { label: string; href: string; icon: LucideIcon }
-
-const workspaceNav: NavItem[] = [
-  { label: "Overview", href: "/app/dashboard", icon: LayoutDashboard },
-  { label: "My Work", href: "/app/my-work", icon: ListChecks },
-  { label: "Inspections", href: "/app/inspections", icon: ClipboardCheck },
-  { label: "Corrective actions", href: "/app/actions", icon: HardHat },
-  { label: "Forms library", href: "/app/forms", icon: ClipboardList },
-]
 
 const platformNav: Record<PortalRole, NavItem[]> = {
   owner: [
@@ -142,8 +133,10 @@ export function PlatformShell({
   }
 
   const platformItems = platformNav[identity.role]
-  const navLink = (item: NavItem, section: "workspace" | "platform") => {
-    const active = section === "platform" && (route === item.href || route.startsWith(`${item.href}/`))
+  const noCompany = identity.role === "employee" && !identity.tenantId && identity.membershipStatus === "none"
+  const displayLabel = noCompany ? "No company membership" : ROLE_LABEL[identity.role]
+  const navLink = (item: NavItem) => {
+    const active = route === item.href || route.startsWith(`${item.href}/`)
     return (
       <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
         className={`nav-link${active ? " nav-link-active" : ""}`}
@@ -159,19 +152,14 @@ export function PlatformShell({
       <a className="skip-link" href="#main-content">Skip to main content</a>
       {mobileOpen && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
       <aside id="primary-navigation" className={`sidebar${collapsed ? " sidebar-collapsed" : ""}${mobileOpen ? " sidebar-mobile-open" : ""}`}>
-        <Link className="brand" href="/app/dashboard" aria-label="SENTRIQ home">
+        <Link className="brand" href="/portal" aria-label="SENTRIQ home">
           <span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M23.5 6.5H13.2a6.7 6.7 0 0 0 0 13.4h5.6a6.7 6.7 0 0 1 0 13.4H8.5" transform="translate(0 -3.9)" stroke="currentColor" strokeWidth="2.1" strokeLinecap="square" /><circle cx="24" cy="4.8" r="2.1" fill="#D46A43" /></svg></span>
           {!collapsed && <span className="brand-name">SENTRIQ<span className="brand-period">.</span></span>}
         </Link>
         {mobileOpen && <button type="button" className="sidebar-close" aria-label="Close navigation" onClick={() => { setMobileOpen(false); menuButtonRef.current?.focus() }}><X size={19} /></button>}
-        {!collapsed && <div className="workspace-label">WORKSPACE</div>}
-        <nav className="side-nav" aria-label="Workspace navigation">
-          {workspaceNav.map((item) => navLink(item, "workspace"))}
-        </nav>
-        <div className="sidebar-admin-separator" />
-        {!collapsed && <div className="workspace-label">PLATFORM · {ROLE_LABEL[identity.role].toUpperCase()}</div>}
+        {!collapsed && <div className="workspace-label">PLATFORM · {displayLabel.toUpperCase()}</div>}
         <nav className="side-nav side-nav-admin" aria-label="Platform navigation">
-          {platformItems.map((item) => navLink(item, "platform"))}
+          {platformItems.map((item) => navLink(item))}
         </nav>
         <div className="sidebar-bottom sq-sidebar-bottom">
           {!collapsed && <div className="sidebar-version"><span>SENTRIQ PLATFORM</span><span>LIVE</span></div>}
@@ -183,12 +171,12 @@ export function PlatformShell({
           <button ref={menuButtonRef} type="button" className="mobile-menu-button" aria-label="Open navigation" aria-expanded={mobileOpen} aria-controls="primary-navigation" onClick={() => setMobileOpen(true)}><Menu size={20} /></button>
           <div className="breadcrumbs"><span>Platform</span><ChevronRight size={14} /><strong>{title}</strong></div>
           <div className="topbar-actions">
-            <span className="status-pill platform-role-pill"><ShieldCheck size={13} />{ROLE_LABEL[identity.role]}</span>
+            <span className="status-pill platform-role-pill"><ShieldCheck size={13} />{displayLabel}</span>
             <div className="topbar-divider profile-divider" />
             <div className="avatar-menu" ref={profileRef}>
               <button type="button" ref={profileButtonRef} className="avatar avatar-menu-trigger" aria-haspopup="dialog" aria-expanded={profileOpen} aria-controls="avatar-menu-panel" aria-label="Account and settings" onClick={() => setProfileOpen(!profileOpen)}>{initials(session.email)}</button>
               {profileOpen && <div id="avatar-menu-panel" className="avatar-menu-panel" role="dialog" aria-label="Account and settings">
-                <div className="avatar-menu-head"><span className="avatar" aria-hidden="true">{initials(session.email)}</span><div><strong>{session.email}</strong><small>{ROLE_LABEL[identity.role]}</small></div></div>
+                <div className="avatar-menu-head"><span className="avatar" aria-hidden="true">{initials(session.email)}</span><div><strong>{session.email}</strong><small>{displayLabel}</small></div></div>
                 <button type="button" className="button-outline platform-signout" onClick={handleSignOut}><LogOut size={14} /> Sign out</button>
               </div>}
             </div>

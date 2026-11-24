@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { LoaderCircle, PauseCircle, PlayCircle, UserRound, X } from "lucide-react"
 import { rpc } from "@/lib/portal/api"
+import { friendlyError } from "@/lib/portal/errors"
 import { Dialog } from "@/components/sentriq/dialog"
 import type { CompanyRow } from "./companies"
 import { PortalEmpty, PortalError, PortalLoading } from "./states"
@@ -16,7 +17,7 @@ const LEVEL_LABEL: Record<string, string> = {
 }
 
 /** Platform view into one company: its people and their access lifecycle. */
-export function CompanyDetail({ accessToken, company, onClose }: { accessToken: string; company: CompanyRow; onClose: () => void }) {
+export function CompanyDetail({ accessToken, company, canLifecycle = true, onClose }: { accessToken: string; company: CompanyRow; canLifecycle?: boolean; onClose: () => void }) {
   const [rows, setRows] = useState<CompanyMemberRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
@@ -33,7 +34,7 @@ export function CompanyDetail({ accessToken, company, onClose }: { accessToken: 
     setError(null)
     rpc<{ rows?: CompanyMemberRow[] } | CompanyMemberRow[]>("platform_read_company", { p_tenant_id: company.id, p_resource: "iam.memberships", p_limit: 100 }, accessToken)
       .then((res) => { if (active) setRows(Array.isArray(res) ? res : res.rows ?? []) })
-      .catch((e) => { if (active) setError(e instanceof Error ? e.message : "members_load_failed") })
+      .catch((e) => { if (active) setError(friendlyError(e, "People could not be loaded. Try again.")) })
     return () => { active = false }
   }, [accessToken, company.id, tick])
 
@@ -48,7 +49,7 @@ export function CompanyDetail({ accessToken, company, onClose }: { accessToken: 
       setSaveError(null)
       load()
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "status_update_failed")
+      setSaveError(friendlyError(e, "The status change failed. Try again."))
     } finally {
       setBusyId(null)
     }
@@ -88,7 +89,9 @@ export function CompanyDetail({ accessToken, company, onClose }: { accessToken: 
                     <span className={`ux-badge platform-capitalize ${m.status === "active" ? "ux-badge-approved" : "ux-badge-returned"}`}>{m.status}</span>
                   </td>
                   <td>
-                    {busyId === m.id ? <LoaderCircle size={15} className="spin platform-muted" /> : m.status === "active" ? (
+                    {busyId === m.id ? <LoaderCircle size={15} className="spin platform-muted" /> : !canLifecycle ? (
+                      <span className="platform-muted">Managed by owner</span>
+                    ) : m.status === "active" ? (
                       <button type="button" onClick={() => { setPending({ member: m, status: "suspended" }); setReason(""); setSaveError(null) }} className="button-outline platform-warn">
                         <PauseCircle size={13} /> Suspend
                       </button>
