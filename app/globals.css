@@ -306,6 +306,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .platform-signout { width: 100%; margin-top: 10px; }
 .platform-login { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--page); }
 .platform-login-card { width: min(380px, 100%); }
+.platform-login .brand-mark { background: var(--navy); color: #FBFAF6; border-color: transparent; }
 .platform-login-brand { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 22px; text-align: center; }
 .platform-login-brand h1 { margin: 6px 0 0; color: #182338; font-size: 21px; font-weight: 650; letter-spacing: -.02em; }
 .platform-login-brand p { margin: 0; color: #718096; font-size: 13px; }
