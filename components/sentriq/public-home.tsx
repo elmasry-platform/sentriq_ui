@@ -28,8 +28,8 @@ const content = {
     groups: [
       { name: "Operate", state: "Working prototype", items: ["Inspections & forms", "Incidents & observations", "Permits to work"] },
       { name: "Control", state: "Working prototype", items: ["Risk assessments", "Audits & compliance", "Findings & actions"] },
-      { name: "Enable", state: "Demonstration", items: ["Documents & evidence", "Sites & organization", "People & equipment"] },
-      { name: "Understand", state: "Demonstration", items: ["Reports & analytics", "Management review", "Audit trail"] },
+      { name: "Enable", state: "Preview", items: ["Documents & evidence", "Sites & organization", "People & equipment"] },
+      { name: "Understand", state: "Preview", items: ["Reports & analytics", "Management review", "Audit trail"] },
     ],
     openModule: "Open module",
     capabilities: "Built for the realities of enterprise QHSE",
