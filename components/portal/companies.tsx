@@ -17,6 +17,8 @@ export function CompaniesPanel({ accessToken, allowLifecycle }: { accessToken: s
   const [error, setError] = useState<string | null>(null)
   const [denied, setDenied] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [pending, setPending] = useState<{ company: CompanyRow; status: "active" | "suspended" } | null>(null)
+  const [reason, setReason] = useState("")
   const [tick, setTick] = useState(0)
 
   const load = useCallback(() => setTick((t) => t + 1), [])
@@ -34,14 +36,14 @@ export function CompaniesPanel({ accessToken, allowLifecycle }: { accessToken: s
     return () => { active = false }
   }, [accessToken, tick])
 
-  async function setStatus(company: CompanyRow, status: "active" | "suspended") {
-    const reason = status === "suspended"
-      ? window.prompt(`Reason for suspending ${company.name} (min 3 chars):`)
-      : window.prompt(`Reason for reactivating ${company.name} (min 3 chars):`)
-    if (reason === null) return
+  async function confirmStatus() {
+    if (!pending || reason.trim().length < 3) return
+    const { company, status } = pending
     setBusyId(company.id)
     try {
-      await rpc("platform_set_tenant_status", { p_tenant_id: company.id, p_status: status, p_reason: reason }, accessToken)
+      await rpc("platform_set_tenant_status", { p_tenant_id: company.id, p_status: status, p_reason: reason.trim() }, accessToken)
+      setPending(null)
+      setReason("")
       load()
     } catch (e) {
       setError(e instanceof Error ? e.message : "status_update_failed")
@@ -82,11 +84,11 @@ export function CompaniesPanel({ accessToken, allowLifecycle }: { accessToken: s
               {allowLifecycle ? (
                 <td className="px-4 py-3 text-right">
                   {busyId === c.id ? <LoaderCircle className="ml-auto h-4 w-4 animate-spin text-slate-400" /> : c.status === "active" ? (
-                    <button onClick={() => setStatus(c, "suspended")} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50">
+                    <button onClick={() => { setPending({ company: c, status: "suspended" }); setReason("") }} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50">
                       <PauseCircle className="h-3.5 w-3.5" /> Suspend
                     </button>
                   ) : c.status === "suspended" ? (
-                    <button onClick={() => setStatus(c, "active")} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">
+                    <button onClick={() => { setPending({ company: c, status: "active" }); setReason("") }} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">
                       <PlayCircle className="h-3.5 w-3.5" /> Reactivate
                     </button>
                   ) : null}
@@ -96,6 +98,41 @@ export function CompaniesPanel({ accessToken, allowLifecycle }: { accessToken: s
           ))}
         </tbody>
       </table>
+      {pending ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-6">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-base font-semibold text-slate-900">
+              {pending.status === "suspended" ? "Suspend" : "Reactivate"} {pending.company.name}
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              {pending.status === "suspended"
+                ? "Members of this company immediately lose access until it is reactivated. This action is audited."
+                : "The company and its members regain access. This action is audited."}
+            </p>
+            <label className="mt-4 block text-xs font-semibold text-slate-700" htmlFor="reason">Reason (min 3 characters)</label>
+            <textarea
+              id="reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+              placeholder="e.g. Missed payment follow-up"
+            />
+            <div className="mt-4 flex justify-end gap-3">
+              <button onClick={() => setPending(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button
+                onClick={confirmStatus}
+                disabled={reason.trim().length < 3 || busyId !== null}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 ${pending.status === "suspended" ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
+              >
+                {busyId ? "Working..." : pending.status === "suspended" ? "Suspend company" : "Reactivate company"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

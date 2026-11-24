@@ -24,7 +24,8 @@ interface MembershipRow { id: string; membershipId: string; workspaceId: string;
  */
 export async function resolveIdentity(accessToken: string, userId: string): Promise<PortalIdentity> {
   try {
-    const roster = await rpc<OperatorRow[]>("platform_operator_roster", { p_limit: 100 }, accessToken)
+    const res = await rpc<{ rows?: OperatorRow[] } | OperatorRow[]>("platform_operator_roster", { p_limit: 100 }, accessToken)
+    const roster = Array.isArray(res) ? res : res.rows ?? []
     const mine = roster.find((r) => r.user_id === userId && r.active)
     if (mine) {
       return {

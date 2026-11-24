@@ -13,8 +13,8 @@ function RosterPanel({ accessToken }: { accessToken: string }) {
   const [rows, setRows] = useState<OperatorRow[] | null>(null)
   useEffect(() => {
     let active = true
-    rpc<OperatorRow[]>("platform_operator_roster", { p_limit: 100 }, accessToken)
-      .then((r) => { if (active) setRows(r) })
+    rpc<{ rows?: OperatorRow[] } | OperatorRow[]>("platform_operator_roster", { p_limit: 100 }, accessToken)
+      .then((r) => { if (active) setRows(Array.isArray(r) ? r : r.rows ?? []) })
       .catch(() => { if (active) setRows([]) })
     return () => { active = false }
   }, [accessToken])
