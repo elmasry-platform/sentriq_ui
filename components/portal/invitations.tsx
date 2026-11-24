@@ -114,7 +114,7 @@ function CreateInvitation({ accessToken, ownTenantId, companies, onClose, onCrea
   const [reason, setReason] = useState("")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const levels = ownTenantId ? ["employee"] : ["company_superadmin", "company_admin", "employee"]
+  const levels = ownTenantId ? ["company_admin", "employee"] : ["company_superadmin", "company_admin", "employee"]
   const decisions = useMemo(() => Object.entries(choices).filter(([, c]) => c !== "default").map(([permission_key, decision]) => ({ permission_key, decision })), [choices])
   const withAccess = level !== "company_superadmin"
   const valid = !!tenantId && /.+@.+\..+/.test(email.trim()) && name.trim().length > 0 && (!withAccess || decisions.length === 0 || reason.trim().length >= 3)
