@@ -1,150 +1,220 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { KeyRound, LoaderCircle, UserRound } from "lucide-react"
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
+import { ChevronDown, ChevronUp, LoaderCircle, UserRound } from "lucide-react"
 import { rpc, select } from "@/lib/portal/api"
-import { Dialog } from "@/components/sentriq/dialog"
-import { friendlyError } from "@/lib/portal/errors"
+import { dateLocale, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
 import { PortalEmpty, PortalError, PortalLoading } from "./states"
 
-const PERMISSION_KEYS = ["hse.dashboard", "hse.inspections", "hse.forms", "hse.actions", "hse.reports"]
+const PERMISSION_KEYS = ["hse.dashboard", "hse.inspections", "hse.forms", "hse.actions", "hse.reports"] as const
+type PermKey = (typeof PERMISSION_KEYS)[number]
 
 interface MemberRow { id: string; membershipId: string; role: string; status: string; displayName: string | null; email: string | null }
+interface DecisionRow { id: string; membership_id: string; permission_key: string; decision: "allow" | "deny"; reason: string | null; created_at: string }
 
-const LEVEL_LABEL: Record<string, string> = {
-  company_superadmin: "Superadmin",
-  company_admin: "Admin",
-  employee: "Employee",
-}
+type Choice = "default" | "allow" | "deny"
 
-export function MembersPanel({ accessToken, tenantId, selfUserId }: { accessToken: string; tenantId: string; selfUserId: string }) {
-  const [rows, setRows] = useState<MemberRow[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [tick, setTick] = useState(0)
-  const [grantFor, setGrantFor] = useState<MemberRow | null>(null)
-  const [permKey, setPermKey] = useState(PERMISSION_KEYS[1])
-  const [decision, setDecision] = useState<"allow" | "deny">("allow")
-  const [canRead, setCanRead] = useState(true)
-  const [canWrite, setCanWrite] = useState(false)
+/** Per-member access editor: every capability visible with its current state,
+ *  segmented Default/Allow/Deny, one audited reason per save. No dropdowns. */
+function AccessEditor({ accessToken, tenantId, member, decisions, onSaved }: {
+  accessToken: string; tenantId: string; member: MemberRow; decisions: DecisionRow[]; onSaved: () => void
+}) {
+  const t = useT()
+  const fe = useFriendlyError()
+  const lang = usePortalLang()
+  const current = useMemo(() => {
+    const map: Partial<Record<PermKey, DecisionRow>> = {}
+    for (const d of decisions) {
+      if (d.membership_id === member.membershipId && (PERMISSION_KEYS as readonly string[]).includes(d.permission_key)) {
+        map[d.permission_key as PermKey] = d
+      }
+    }
+    return map
+  }, [decisions, member.membershipId])
+  const [changes, setChanges] = useState<Partial<Record<PermKey, Choice>>>({})
   const [reason, setReason] = useState("")
   const [busy, setBusy] = useState(false)
-  const [grantError, setGrantError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  async function saveDecision() {
-    if (!grantFor || reason.trim().length < 3) return
+  const stateOf = (key: PermKey): Choice => changes[key] ?? (current[key]?.decision ?? "default")
+  const dirty = Object.keys(changes).length > 0
+
+  async function save() {
+    if (!dirty || reason.trim().length < 3) return
     setBusy(true)
-    setGrantError(null)
+    setError(null)
     try {
-      await rpc("set_member_permission_decision", {
-        p_tenant_id: tenantId,
-        p_membership_id: grantFor.membershipId,
-        p_permission_key: permKey,
-        p_decision: decision,
-        p_scope_kind: "tenant",
-        p_site_id: null,
-        p_org_unit_id: null,
-        p_task_kind: null,
-        p_task_id: null,
-        p_can_read: canRead,
-        p_can_write: canWrite,
-        p_ends_at: null,
-        p_exception_kind: null,
-        p_reason: reason.trim(),
-      }, accessToken)
-      setGrantFor(null)
+      for (const [key, choice] of Object.entries(changes) as [PermKey, Choice][]) {
+        if (choice === "default") {
+          await rpc("clear_member_permission_decision", {
+            p_tenant_id: tenantId, p_membership_id: member.membershipId, p_permission_key: key, p_reason: reason.trim(),
+          }, accessToken)
+        } else {
+          await rpc("set_member_permission_decision", {
+            p_tenant_id: tenantId, p_membership_id: member.membershipId, p_permission_key: key,
+            p_decision: choice, p_scope_kind: "tenant", p_site_id: null, p_org_unit_id: null,
+            p_task_kind: null, p_task_id: null,
+            p_can_read: choice === "allow", p_can_write: choice === "allow",
+            p_ends_at: null, p_exception_kind: null, p_reason: reason.trim(),
+          }, accessToken)
+        }
+      }
+      setChanges({})
       setReason("")
+      onSaved()
     } catch (e) {
-      setGrantError(friendlyError(e, "The permission change failed. Try again."))
+      setError(fe(e))
     } finally {
       setBusy(false)
     }
   }
 
+  return (
+    <div className="access-editor">
+      <div className="access-editor-title">{t("people.accessOf", { email: member.displayName ?? member.email ?? t("people.memberFallback") })}</div>
+      <p className="access-editor-hint">{t("people.accessHint")}</p>
+      {PERMISSION_KEYS.map((key) => {
+        const state = stateOf(key)
+        const live = current[key]
+        return (
+          <div key={key} className="access-row">
+            <div className="access-row-name">
+              <strong>{t(`perm.${key}` as CopyKey)}</strong>
+              <span>{t(`perm.${key}.desc` as CopyKey)}</span>
+            </div>
+            <div className="seg" role="group" aria-label={t(`perm.${key}` as CopyKey)}>
+              {(["default", "allow", "deny"] as Choice[]).map((c) => (
+                <button key={c} type="button"
+                  className={`seg-option${state === c ? ` seg-on-${c}` : ""}`}
+                  aria-pressed={state === c}
+                  onClick={() => setChanges((prev) => {
+                    const base = current[key]?.decision ?? "default"
+                    const next = { ...prev }
+                    if (c === base) delete next[key]; else next[key] = c
+                    return next
+                  })}>
+                  {t(`people.seg.${c}` as CopyKey)}{state === c ? " ✓" : ""}
+                </button>
+              ))}
+            </div>
+            <div className="access-row-state">
+              {state === "default" ? (
+                <span className="ux-badge b-grey">{t("people.state.default", { level: t(`level.${member.role}` as CopyKey) })}</span>
+              ) : state === "allow" ? (
+                <span className="ux-badge b-blue">{t("people.state.allowed", { date: live && changes[key] === undefined ? new Date(live.created_at).toLocaleDateString(dateLocale(lang)) : "—" })}</span>
+              ) : (
+                <span className="ux-badge b-red">{t("people.state.denied", { date: live && changes[key] === undefined ? new Date(live.created_at).toLocaleDateString(dateLocale(lang)) : "—", reason: live && changes[key] === undefined ? live.reason ?? "" : "" })}</span>
+              )}
+            </div>
+          </div>
+        )
+      })}
+      {dirty ? (
+        <div className="access-save-row">
+          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("perms.reason")} aria-label={t("perms.reason")} />
+          <button type="button" className="button-primary" onClick={save} disabled={reason.trim().length < 3 || busy}>
+            {busy ? <LoaderCircle size={14} className="spin" /> : null} {t("perms.save")}
+          </button>
+        </div>
+      ) : null}
+      {error ? <p className="inspection-alert" role="alert">{error}</p> : null}
+      <p className="access-audit-note">{t("perms.auditNote")}</p>
+    </div>
+  )
+}
+
+export function MembersPanel({ accessToken, tenantId, selfUserId }: { accessToken: string; tenantId: string; selfUserId: string }) {
+  const t = useT()
+  const fe = useFriendlyError()
+  const [rows, setRows] = useState<MemberRow[] | null>(null)
+  const [decisions, setDecisions] = useState<DecisionRow[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [tick, setTick] = useState(0)
+  const [openId, setOpenId] = useState<string | null>(null)
+  const load = useCallback(() => setTick((n) => n + 1), [])
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     let active = true
     setError(null)
-    select<MemberRow[]>("v_memberships", {
-      workspaceId: `eq.${tenantId}`,
-      select: "id,membershipId,role,status,displayName,email",
-      order: "role.asc",
-    }, accessToken)
-      .then((r) => { if (active) setRows(r.filter((m) => m.id !== selfUserId)) })
-      .catch((e) => { if (active) setError(friendlyError(e, "Members could not be loaded. Try again.")) })
+    Promise.all([
+      select<MemberRow[]>("v_memberships", {
+        workspaceId: `eq.${tenantId}`,
+        select: "id,membershipId,role,status,displayName,email",
+        order: "role.asc",
+      }, accessToken),
+      rpc<{ rows?: DecisionRow[] }>("company_member_permission_decisions", { p_tenant_id: tenantId }, accessToken),
+    ])
+      .then(([members, dec]) => {
+        if (!active) return
+        setRows(members.filter((m) => m.id !== selfUserId))
+        setDecisions(dec.rows ?? [])
+      })
+      .catch((e) => { if (active) setError(fe(e)) })
     return () => { active = false }
-  }, [accessToken, tenantId, tick])
+  }, [accessToken, tenantId, tick, selfUserId])
 
-  if (error) return <PortalError message={error} onRetry={() => setTick((t) => t + 1)} />
-  if (!rows) return <PortalLoading label="Loading members" />
-  if (rows.length === 0) return <PortalEmpty title="No members visible" hint="Members of this company will appear here." />
+  if (error) return <PortalError message={error} onRetry={load} />
+  if (!rows) return <PortalLoading label={t("people.loading")} />
+  if (rows.length === 0) return <PortalEmpty title={t("people.empty.title")} hint={t("people.empty.hint")} />
+
+  const summary = (m: MemberRow) => {
+    const mine = decisions.filter((d) => d.membership_id === m.membershipId && (PERMISSION_KEYS as readonly string[]).includes(d.permission_key))
+    const allowed = mine.filter((d) => d.decision === "allow").length
+    const denied = mine.filter((d) => d.decision === "deny").length
+    return { allowed, denied, rest: PERMISSION_KEYS.length - allowed - denied }
+  }
 
   return (
     <div className="panel platform-panel">
       <div className="panel-header">
         <div>
-          <h2>Members</h2>
-          <p>People in your company. Set permission decisions within your own authority; every decision is audited.</p>
+          <h2>{t("people.members")}</h2>
+          <p>{t("people.count", { count: rows.length })}</p>
         </div>
       </div>
       <table className="data-table">
         <thead>
-          <tr><th>Member</th><th>Level</th><th>Status</th><th>Access</th></tr>
+          <tr><th>{t("people.member")}</th><th>{t("people.level")}</th><th>{t("people.status")}</th><th>{t("people.accessSummary")}</th><th></th></tr>
         </thead>
         <tbody>
-          {rows.map((m) => (
-            <tr key={m.membershipId}>
-              <td>
-                <div className="platform-person">
-                  <span className="avatar" aria-hidden="true"><UserRound size={14} /></span>
-                  <strong className="platform-cell-strong">
-                    {m.displayName ?? m.email ?? "Member"}
-                  </strong>
-                </div>
-              </td>
-              <td>{LEVEL_LABEL[m.role] ?? m.role}</td>
-              <td>
-                <span className={`ux-badge platform-capitalize ${m.status === "active" ? "ux-badge-approved" : "ux-badge-returned"}`}>{m.status}</span>
-              </td>
-              <td>
-                <button type="button" onClick={() => { setGrantFor(m); setGrantError(null); setReason("") }} className="button-outline">
-                  <KeyRound size={13} /> Permissions
-                </button>
-              </td>
-            </tr>
-          ))}
+          {rows.map((m) => {
+            const s = summary(m)
+            const open = openId === m.membershipId
+            return (
+              <Fragment key={m.membershipId}>
+                <tr>
+                  <td>
+                    <div className="platform-person">
+                      <span className="avatar" aria-hidden="true"><UserRound size={14} /></span>
+                      <strong className="platform-cell-strong">{m.displayName ?? m.email ?? t("people.memberFallback")}</strong>
+                    </div>
+                  </td>
+                  <td>{t(`level.${m.role}` as CopyKey)}</td>
+                  <td><span className={`ux-badge platform-capitalize ${m.status === "active" ? "ux-badge-approved" : "ux-badge-returned"}`}>{t(`status.${m.status}` as CopyKey)}</span></td>
+                  <td>
+                    <span className="ux-badge b-grey">{t("people.summary.default", { count: s.rest })}</span>{" "}
+                    {s.allowed > 0 ? <span className="ux-badge b-blue">{t("people.summary.allowed", { count: s.allowed })}</span> : null}{" "}
+                    {s.denied > 0 ? <span className="ux-badge b-red">{t("people.summary.denied", { count: s.denied })}</span> : null}
+                  </td>
+                  <td>
+                    <button type="button" className="button-outline" onClick={() => setOpenId(open ? null : m.membershipId)} aria-expanded={open}>
+                      {open ? t("people.hideAccess") : t("people.viewAccess")} {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                    </button>
+                  </td>
+                </tr>
+                {open ? (
+                  <tr className="access-editor-row">
+                    <td colSpan={5}>
+                      <AccessEditor accessToken={accessToken} tenantId={tenantId} member={m} decisions={decisions} onSaved={load} />
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
+            )
+          })}
         </tbody>
       </table>
-      {grantFor ? (
-        <Dialog title="Set a permission decision" closeLabel="Cancel" onClose={() => setGrantFor(null)}>
-          <p className="ux-dialog-hint">
-            For {grantFor.displayName ?? grantFor.email ?? "member"} in your company. You can only grant within your own authority. Audited.
-          </p>
-          <label>Permission
-            <select value={permKey} onChange={(e) => setPermKey(e.target.value)}>
-              {PERMISSION_KEYS.map((k) => <option key={k} value={k}>{k}</option>)}
-            </select>
-          </label>
-          <label>Decision
-            <select value={decision} onChange={(e) => setDecision(e.target.value as "allow" | "deny")}>
-              <option value="allow">Allow</option>
-              <option value="deny">Deny</option>
-            </select>
-          </label>
-          <div className="platform-check-row">
-            <label className="platform-check"><input type="checkbox" checked={canRead} onChange={(e) => setCanRead(e.target.checked)} /> Read</label>
-            <label className="platform-check"><input type="checkbox" checked={canWrite} onChange={(e) => setCanWrite(e.target.checked)} /> Write</label>
-          </div>
-          <label>Reason (min 3 characters)
-            <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} />
-          </label>
-          {grantError ? <p className="inspection-alert">{grantError}</p> : null}
-          <div className="inspection-modal-actions">
-            <button type="button" className="button-outline" onClick={() => setGrantFor(null)}>Cancel</button>
-            <button type="button" className="button-primary" onClick={saveDecision} disabled={reason.trim().length < 3 || busy}>
-              {busy ? <LoaderCircle size={14} className="spin" /> : null} Save decision
-            </button>
-          </div>
-        </Dialog>
-      ) : null}
     </div>
   )
 }

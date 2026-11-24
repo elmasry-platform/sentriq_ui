@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react"
 import { CheckCircle2, XCircle } from "lucide-react"
 import { rpc } from "@/lib/portal/api"
+import { useT } from "@/lib/portal/i18n"
 import { PortalEmpty, PortalLoading } from "./states"
 
 interface EntitlementRow { entitlement_kind: string; entitlement_key: string; entitled: boolean }
 
 export function EntitlementsPanel({ accessToken, tenantId }: { accessToken: string; tenantId: string }) {
+  const t = useT()
   const [rows, setRows] = useState<EntitlementRow[] | null>(null)
   const [denied, setDenied] = useState(false)
 
@@ -19,21 +21,21 @@ export function EntitlementsPanel({ accessToken, tenantId }: { accessToken: stri
     return () => { active = false }
   }, [accessToken, tenantId])
 
-  if (denied) return <PortalEmpty title="Entitlements not visible" hint="Only an active company superadmin can view the entitlement list." />
-  if (!rows) return <PortalLoading label="Loading entitlements" />
-  if (rows.length === 0) return <PortalEmpty title="No entitlements" hint="Module and feature entitlements will appear here." />
+  if (denied) return <PortalEmpty titleKey="ent.denied.title" hintKey="ent.denied.hint" />
+  if (!rows) return <PortalLoading label={t("ent.loading")} />
+  if (rows.length === 0) return <PortalEmpty titleKey="ent.empty.title" hintKey="ent.empty.hint" />
 
   return (
     <div className="panel platform-panel">
       <div className="panel-header">
         <div>
-          <h2>Module & feature entitlements</h2>
-          <p>What this company is entitled to use.</p>
+          <h2>{t("ent.panel.title")}</h2>
+          <p>{t("ent.panel.subtitle")}</p>
         </div>
       </div>
       <table className="data-table">
         <thead>
-          <tr><th>Kind</th><th>Entitlement</th><th>State</th></tr>
+          <tr><th>{t("ent.kind")}</th><th>{t("ent.entitlement")}</th><th>{t("ent.state")}</th></tr>
         </thead>
         <tbody>
           {rows.map((e) => (
@@ -42,8 +44,8 @@ export function EntitlementsPanel({ accessToken, tenantId }: { accessToken: stri
               <td>{e.entitlement_key}</td>
               <td>
                 {e.entitled
-                  ? <span className="ux-badge ux-badge-approved"><CheckCircle2 size={13} /> Entitled</span>
-                  : <span className="ux-badge ux-badge-returned"><XCircle size={13} /> Not entitled</span>}
+                  ? <span className="ux-badge ux-badge-approved"><CheckCircle2 size={13} /> {t("ent.entitled")}</span>
+                  : <span className="ux-badge ux-badge-returned"><XCircle size={13} /> {t("ent.notEntitled")}</span>}
               </td>
             </tr>
           ))}

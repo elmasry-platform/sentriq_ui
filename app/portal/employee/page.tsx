@@ -6,15 +6,13 @@ import { PortalEmpty } from "@/components/portal/states"
 
 export default function EmployeeAccessPage() {
   return (
-    <PlatformShell expect="employee" route="/portal/employee" title="My access" subtitle="Your access profile and what you can do.">
+    <PlatformShell expect="employee" route="/portal/employee" titleKey="nav.myAccess" subtitleKey="emp.page.subtitle">
       {({ session, identity }) => {
         if (!identity.tenantId) {
           return (
             <PortalEmpty
-              title="No company membership"
-              hint={identity.operatorRole === "inactive"
-                ? "Your platform operator access is deactivated. Contact the platform owner."
-                : "Your account is not a member of any company yet. Ask your company administrator for an invitation."}
+              titleKey="emp.noMembership.title"
+              hintKey={identity.operatorRole === "inactive" ? "emp.noMembership.inactive.hint" : "emp.noMembership.hint"}
             />
           )
         }

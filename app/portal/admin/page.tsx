@@ -7,10 +7,10 @@ import { PortalEmpty } from "@/components/portal/states"
 
 export default function AdminTeamPage() {
   return (
-    <PlatformShell expect="admin" route="/portal/admin" title="Team" subtitle="Your live access profile and team directory.">
+    <PlatformShell expect="admin" route="/portal/admin" titleKey="nav.team" subtitleKey="admin.page.subtitle">
       {({ session, identity }) => {
         if (!identity.tenantId) {
-          return <PortalEmpty title="No active company membership" hint="Your account is not an active member of any company." />
+          return <PortalEmpty titleKey="noMembership.active.title" hintKey="noMembership.active.hint" />
         }
         return (
           <div className="platform-stack">

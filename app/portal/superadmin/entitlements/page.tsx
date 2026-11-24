@@ -6,10 +6,10 @@ import { PortalEmpty } from "@/components/portal/states"
 
 export default function SuperadminEntitlementsPage() {
   return (
-    <PlatformShell expect="superadmin" route="/portal/superadmin/entitlements" title="Entitlements" subtitle="Module and feature entitlements for your company.">
+    <PlatformShell expect="superadmin" route="/portal/superadmin/entitlements" titleKey="nav.entitlements" subtitleKey="ent.page.subtitle">
       {({ session, identity }) => {
         if (!identity.tenantId) {
-          return <PortalEmpty title="No active company membership" hint="Your account is not an active member of any company." />
+          return <PortalEmpty titleKey="noMembership.active.title" hintKey="noMembership.active.hint" />
         }
         return <EntitlementsPanel accessToken={session.accessToken} tenantId={identity.tenantId} />
       }}

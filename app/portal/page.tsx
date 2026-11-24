@@ -1,13 +1,22 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { usePortalSession } from "@/lib/portal/session"
 import { resolveIdentity } from "@/lib/portal/identity"
 import { PortalLoading, PortalError } from "@/components/portal/states"
-import { useState } from "react"
+import { PortalLangProvider, friendlyErrorLang, t, useStoredPortalLang } from "@/lib/portal/i18n"
 
 export default function PortalIndex() {
+  const [lang] = useStoredPortalLang()
+  return (
+    <PortalLangProvider value={lang}>
+      <PortalIndexInner lang={lang} />
+    </PortalLangProvider>
+  )
+}
+
+function PortalIndexInner({ lang }: { lang: "en" | "ar" }) {
   const router = useRouter()
   const { session, loading } = usePortalSession()
   const [error, setError] = useState<string | null>(null)
@@ -26,6 +35,6 @@ export default function PortalIndex() {
       .catch((e) => setError(e instanceof Error ? e.message : "identity_resolution_failed"))
   }, [session, loading, router])
 
-  if (error) return <PortalError message={error} onRetry={() => { setError(null); router.refresh() }} />
-  return <PortalLoading label="Opening your portal" />
+  if (error) return <PortalError message={friendlyErrorLang(lang, error)} onRetry={() => { setError(null); router.refresh() }} />
+  return <PortalLoading label={t(lang, "portal.opening")} />
 }

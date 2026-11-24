@@ -5,7 +5,7 @@ import { OperatorsPanel } from "@/components/platform/operators"
 
 export default function OwnerOperatorsPage() {
   return (
-    <PlatformShell expect="owner" route="/portal/owner/operators" title="Operators" subtitle="Platform operators. Sub-owners hold every platform power by default; withdraw any single power here.">
+    <PlatformShell expect="owner" route="/portal/owner/operators" titleKey="nav.operators" subtitleKey="operators.subtitle">
       {({ session }) => <OperatorsPanel accessToken={session.accessToken} selfUserId={session.userId} />}
     </PlatformShell>
   )
