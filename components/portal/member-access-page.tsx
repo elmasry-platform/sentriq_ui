@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { LoaderCircle, PauseCircle, PlayCircle, UserRound } from "lucide-react"
-import { rpc, ApiError } from "@/lib/portal/api"
+import { rpc, select, ApiError } from "@/lib/portal/api"
 import { useFriendlyError, useT, type CopyKey } from "@/lib/portal/i18n"
 import { Dialog } from "@/components/sentriq/dialog"
 import type { CompanyRow } from "./companies"
@@ -20,8 +20,10 @@ const LEVEL_KEY: Record<string, CopyKey> = {
 /** Operator page (Owner, Sub-owner): choose a company, find a person, change their access.
  *  Company-wide controls live on the Companies page. Which actions appear follows the
  *  caller's platform powers; the server still enforces every one. */
-export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissions = true, canEntitlements = true }: {
+export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissions = true, canEntitlements = true, ownCompany }: {
   accessToken: string; canLifecycle?: boolean; canPermissions?: boolean; canEntitlements?: boolean
+  /** Superadmin mode: one fixed company, company RPCs, own row excluded and locked. */
+  ownCompany?: { tenantId: string; selfUserId: string }
 }) {
   const t = useT()
   const fe = useFriendlyError()
@@ -39,7 +41,10 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
   const [busy, setBusy] = useState(false)
   const reload = useCallback(() => setTick((v) => v + 1), [])
 
+  const [everyone, setEveryone] = useState<{ id: string; membershipId: string; role: string; status: string }[]>([])
+
   useEffect(() => {
+    if (ownCompany) { setCompanies([{ id: ownCompany.tenantId, name: "", industry_label: null, status: "active", created_at: "" }]); setCompanyId(ownCompany.tenantId); return }
     let active = true
     rpc<{ rows: CompanyRow[] }>("platform_list_companies", { p_limit: 100 }, accessToken)
       .then((res) => {
@@ -59,8 +64,18 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
     if (!companyId) return
     let active = true
     setMembers(null); setError(null); setMemberId(null)
-    rpc<{ rows?: MemberRow[] } | MemberRow[]>("platform_read_company", { p_tenant_id: companyId, p_resource: "iam.memberships", p_limit: 100 }, accessToken)
-      .then((res) => { if (active) setMembers(Array.isArray(res) ? res : res.rows ?? []) })
+    const load: Promise<MemberRow[]> = ownCompany
+      ? select<{ id: string; membershipId: string; role: string; status: string; displayName: string | null; email: string | null }[]>("v_memberships", {
+          workspaceId: `eq.${ownCompany.tenantId}`, select: "id,membershipId,role,status,displayName,email", order: "role.asc",
+        }, accessToken).then((rows) => {
+          setEveryone(rows)
+          return rows.filter((m) => m.id !== ownCompany.selfUserId)
+            .map((m) => ({ id: m.membershipId, user_id: m.id, member_role: m.role, status: m.status, display_name: m.displayName, email: m.email }))
+        })
+      : rpc<{ rows?: MemberRow[] } | MemberRow[]>("platform_read_company", { p_tenant_id: companyId, p_resource: "iam.memberships", p_limit: 100 }, accessToken)
+          .then((res) => (Array.isArray(res) ? res : res.rows ?? []))
+    load
+      .then((rows) => { if (active) setMembers(rows) })
       .catch((e) => { if (active) { setMembers([]); setError(fe(e)) } })
     return () => { active = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -88,11 +103,12 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
   return (
     <div className="access-page" data-testid="member-access-page">
       <aside className="panel platform-panel access-people" aria-label={t("access.members")}>
+        {ownCompany ? null : (
         <label>{t("access.company")}
           <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} aria-label={t("access.company")}>
             {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-        </label>
+        </label>)}
         <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("access.search")} aria-label={t("access.search")} />
         <select value={level} onChange={(e) => setLevel(e.target.value)} aria-label={t("detail.level")}>
           <option value="">{t("access.role.all")}</option>
@@ -118,7 +134,7 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
           <>
             <div className="panel-header">
               <div><h2>{name(selected)}</h2><p>{selected.email ?? ""}</p></div>
-              {canLifecycle ? (
+              {ownCompany ? null : canLifecycle ? (
                 busy ? <LoaderCircle size={15} className="spin platform-muted" /> : selected.status === "active" ? (
                   <button type="button" className="button-outline platform-warn" onClick={() => { setPending({ member: selected, status: "suspended" }); setReason(""); setSaveError(null) }}><PauseCircle size={13} /> {t("detail.suspendMember")}</button>
                 ) : (
@@ -127,6 +143,7 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
               ) : <span className="platform-muted">{t("detail.managedByOwner")}</span>}
             </div>
             <PlatformMemberAccess key={`${companyId}:${selected.id}`} accessToken={accessToken} tenantId={companyId} canPermissions={canPermissions} canEntitlements={canEntitlements}
+              company={ownCompany ? { selfUserId: ownCompany.selfUserId, selfMembershipId: everyone.find((x) => x.id === ownCompany.selfUserId)?.membershipId ?? null, people: everyone.map((x) => ({ userId: x.id, role: x.role, status: x.status })) } : undefined}
               member={{ membershipId: selected.id, role: selected.member_role, status: selected.status, displayName: selected.display_name, email: selected.email }} />
           </>
         )}

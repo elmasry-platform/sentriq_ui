@@ -9,6 +9,14 @@ export type PortalLang = "en" | "ar"
  *  vocabulary instead of inventing their own. */
 const COPY = {
   en: {
+    "preset.title": "Start from a role",
+    "preset.viewer": "Viewer",
+    "preset.viewer.hint": "Can see forms, inspections, findings, actions, evidence and reports. Cannot change anything.",
+    "preset.inspector": "Inspector",
+    "preset.inspector.hint": "Viewer plus start inspections, upload evidence and update the actions assigned to them.",
+    "preset.manager": "Manager",
+    "preset.manager.hint": "Inspector plus manage forms, findings and actions, review inspections and read the audit trail.",
+    "preset.note": "A preset only stages changes. Blocks (Deny) and locked rows are never touched, and Allow stays limited to what the company plan includes. Nothing is saved until you give a reason.",
     "nav.access": "Member access",
     "module.hse": "Health, safety & environment",
     "module.core": "Company structure",
@@ -389,6 +397,14 @@ const COPY = {
     "err.capabilityLimit": "Your role does not allow this change.",
   },
   ar: {
+    "preset.title": "ابدأ من دور جاهز",
+    "preset.viewer": "مشاهد",
+    "preset.viewer.hint": "يرى النماذج والتفتيش والملاحظات والإجراءات والأدلة والتقارير. لا يغيّر شيئًا.",
+    "preset.inspector": "مفتش",
+    "preset.inspector.hint": "المشاهد بالإضافة إلى بدء التفتيش ورفع الأدلة وتحديث الإجراءات المسندة إليه.",
+    "preset.manager": "مدير",
+    "preset.manager.hint": "المفتش بالإضافة إلى إدارة النماذج والملاحظات والإجراءات ومراجعة التفتيش وقراءة سجل التدقيق.",
+    "preset.note": "القالب الجاهز يجهّز التغييرات فقط. الرفض والصفوف المقفلة لا تُمس أبدًا، والسماح يبقى محدودًا بما تشمله باقة الشركة. لا يُحفظ شيء قبل ذكر السبب.",
     "nav.access": "صلاحيات الأفراد",
     "module.hse": "الصحة والسلامة والبيئة",
     "module.core": "هيكل الشركة",

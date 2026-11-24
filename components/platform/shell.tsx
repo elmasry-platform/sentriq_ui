@@ -34,6 +34,7 @@ const platformNav: Record<PortalRole, NavItem[]> = {
   ],
   superadmin: [
     { labelKey: "nav.people", href: "/portal/superadmin", icon: UsersRound },
+    { labelKey: "nav.access", href: "/portal/superadmin/access", icon: KeyRound },
     { labelKey: "nav.entitlements", href: "/portal/superadmin/entitlements", icon: PackageCheck },
   ],
   admin: [{ labelKey: "nav.team", href: "/portal/admin", icon: UsersRound }],

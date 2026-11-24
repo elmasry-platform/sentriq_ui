@@ -384,3 +384,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .access-person small { display: block; color: #6b7a8f; }
 .access-person-list { display: flex; flex-direction: column; gap: 6px; max-height: 62vh; overflow: auto; }
 @media (max-width: 900px) { .access-page { grid-template-columns: 1fr; } }
+.access-presets { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.access-presets .access-audit-note { flex-basis: 100%; margin: 0; }
+.platform-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.platform-actions-cell { min-width: 160px; }

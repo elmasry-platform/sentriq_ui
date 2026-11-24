@@ -106,8 +106,8 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
               <td><CompanyStatusBadge status={c.status} /></td>
               <td>{new Date(c.created_at).toLocaleDateString(dateLocale(lang))}</td>
               {allowLifecycle || onOpen ? (
-                <td>
-                  {onOpen ? <button type="button" onClick={() => onOpen(c)} className="button-outline">{t(openLabelKey)}</button> : null}{" "}
+                <td className="platform-actions-cell"><div className="platform-actions">
+                  {onOpen ? <button type="button" onClick={() => onOpen(c)} className="button-outline">{t(openLabelKey)}</button> : null}
                   {busyId === c.id ? <LoaderCircle size={15} className="spin platform-muted" /> : allowLifecycle && canLifecycle && c.status === "active" ? (
                     <button type="button" onClick={() => { setPending({ company: c, status: "suspended" }); setReason(""); setSaveError(null) }} className="button-outline platform-warn">
                       <PauseCircle size={13} /> {t("companies.suspend")}
@@ -117,7 +117,7 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
                       <PlayCircle size={13} /> {t("companies.reactivate")}
                     </button>
                   ) : null}
-                </td>
+                </div></td>
               ) : null}
             </tr>
           ))}

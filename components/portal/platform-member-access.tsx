@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, LoaderCircle } from "lucide-react"
 import { rpc } from "@/lib/portal/api"
 import { dateLocale, tryCopy, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
 import { PortalError, PortalLoading } from "./states"
+import { ROLE_PRESETS, type RolePreset } from "@/lib/portal/presets"
 
 /** Everything below is rendered from the server's effective-access calculation.
  *  No module, feature or permission key is named here: groups, labels and
@@ -199,6 +200,19 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
     }
   }
 
+  const applyPreset = (preset: RolePreset) => {
+    const wanted = new Set(preset.keys)
+    const next: Record<string, Choice> = {}
+    for (const p of data.permissions) {
+      if (denyLocked(p) || p.decision.deny_id) continue
+      const cur = currentChoice(p)
+      const canAllow = p.entitlement_state === "company" || p.entitlement_state === "personal_exception"
+      const target: Choice | null = wanted.has(p.permission_key) ? (canAllow ? "allow" : null) : (p.module_key === "hse" && cur === "allow" ? "default" : null)
+      if (target && target !== cur) next[p.permission_key] = target
+    }
+    setChanges(next)
+  }
+
   const addEntitlement = () => run(async () => {
     await rpc("platform_set_member_entitlement", {
       p_tenant_id: tenantId, p_membership_id: member.membershipId,
@@ -325,6 +339,15 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
       <section aria-label={t("ea.perms.title")}>
         <h4>{t("ea.perms.title")}</h4>
         <p className="access-audit-note">{t("ea.perms.subtitle")}</p>
+        {canPermissions ? (
+          <div className="access-presets" role="group" aria-label={t("preset.title")}>
+            <strong>{t("preset.title")}</strong>
+            {ROLE_PRESETS.map((pr) => (
+              <button key={pr.id} type="button" className="button-outline" title={t(pr.hintKey)} data-preset={pr.id} onClick={() => applyPreset(pr)}>{t(pr.labelKey)}</button>
+            ))}
+            <span className="access-audit-note">{t("preset.note")}</span>
+          </div>
+        ) : null}
         <div className="access-toolbar">
           <input type="search" value={permQuery} onChange={(e) => setPermQuery(e.target.value)} placeholder={t("ea.perms.search")} aria-label={t("ea.perms.search")} />
           <div className="seg" role="group" aria-label={t("ea.perms.title")}>
