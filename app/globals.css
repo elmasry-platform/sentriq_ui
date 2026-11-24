@@ -354,3 +354,6 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   .access-save-row { flex-direction: column; align-items: stretch; }
 }
 .platform-login-lang { position: absolute; top: 18px; inset-inline-end: 18px; }
+
+/* (b) emails inside RTL: keep LTR direction so ellipsis truncates the end, not the start */
+.is-rtl .platform-person .platform-cell-strong, .is-rtl .platform-person .platform-link-button { direction: ltr; unicode-bidi: plaintext; }

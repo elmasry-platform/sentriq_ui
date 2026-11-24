@@ -74,7 +74,6 @@ function PermissionMatrix({ accessToken, userId }: { accessToken: string; userId
 
   return (
     <div className="access-editor">
-      <p className="access-editor-hint">{t("operators.subtitle")}</p>
       {rows.map((row) => {
         const state = changes[row.permission_key] ?? row.granted
         return (
@@ -144,7 +143,6 @@ export function OperatorsPanel({ accessToken, selfUserId }: { accessToken: strin
       <div className="panel-header">
         <div>
           <h2>{t("operators.title")}</h2>
-          <p>{t("operators.subtitle")}</p>
         </div>
       </div>
       <table className="data-table">
@@ -167,7 +165,7 @@ export function OperatorsPanel({ accessToken, selfUserId }: { accessToken: strin
                       </span>
                     </div>
                   </td>
-                  <td className="platform-capitalize">{o.operator_role === "subowner" ? t("role.subowner") : o.operator_role}</td>
+                  <td>{o.operator_role === "subowner" ? t("role.subowner") : o.operator_role}</td>
                   <td><span className={`ux-badge ${o.active ? "ux-badge-approved" : "ux-badge-returned"}`}>{o.active ? t("operators.state.active") : t("operators.state.inactive")}</span></td>
                   <td>
                     {manageable ? (
