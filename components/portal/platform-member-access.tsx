@@ -105,13 +105,26 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
     try { await fn(); after?.(); reload() } catch (e) { setActionError(fe(e)) } finally { setBusy(false) }
   }
 
-  const saveDecisions = () => run(async () => {
-    for (const [key, choice] of Object.entries(changes)) {
-      await rpc("platform_set_member_decision", {
-        p_tenant_id: tenantId, p_membership_id: member.membershipId, p_permission_key: key, p_choice: choice, p_reason: reason.trim(),
-      }, accessToken)
+  // The server applies one decision per call. On a partial failure we reload the
+  // real state (the form is rebuilt from the server) and say how many were saved.
+  const saveDecisions = async () => {
+    setBusy(true); setActionError(null)
+    const entries = Object.entries(changes)
+    let saved = 0
+    try {
+      for (const [key, choice] of entries) {
+        await rpc("platform_set_member_decision", {
+          p_tenant_id: tenantId, p_membership_id: member.membershipId, p_permission_key: key, p_choice: choice, p_reason: reason.trim(),
+        }, accessToken)
+        saved += 1
+      }
+      setReason("")
+    } catch (e) {
+      setActionError(`${fe(e)} (${saved}/${entries.length})`)
+    } finally {
+      setBusy(false); reload()
     }
-  }, () => setReason(""))
+  }
 
   const addEntitlement = () => run(async () => {
     await rpc("platform_set_member_entitlement", {
@@ -119,7 +132,7 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
       p_module_key: addScope === "module" ? addKey : null, p_feature_key: addScope === "feature" ? addKey : null,
       p_reason: addReason.trim(), p_can_use: addMode === "exception",
       p_can_delegate: addMode === "exception" && addDelegate,
-      p_expires_at: addExpires ? new Date(`${addExpires}T23:59:59`).toISOString() : null,
+      p_expires_at: addExpires ? new Date(`${addExpires}T23:59:59Z`).toISOString() : null,
     }, accessToken)
   }, () => { setAddReason(""); setAddKey(""); setAddExpires(""); setAddDelegate(false) })
 
