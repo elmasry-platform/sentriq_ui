@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { LoaderCircle } from "lucide-react"
+import { ChevronDown, ChevronRight, LoaderCircle } from "lucide-react"
 import { rpc } from "@/lib/portal/api"
 import { dateLocale, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
 import { PortalError, PortalLoading } from "./states"
@@ -64,6 +64,7 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
   const reload = useCallback(() => setTick((n) => n + 1), [])
 
   const [changes, setChanges] = useState<Record<string, Choice>>({})
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [reason, setReason] = useState("")
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -176,7 +177,7 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
                   <td>{g.permanent ? `${fmt(g.starts_at)} · ${t("ea.personal.permanent")}` : t("ea.personal.until", { from: fmt(g.starts_at), to: fmt(g.expires_at) })}</td>
                   <td>{g.can_delegate ? "✓" : "—"}</td>
                   <td><span className={`ux-badge ${badgeFor(g.status)}`}>{t(`ea.status.${g.status}` as CopyKey)}</span></td>
-                  <td>{g.status === "revoked" && g.revoke_reason ? `${g.reason} / ${g.revoke_reason}` : g.reason}</td>
+                  <td style={{ overflowWrap: "anywhere", paddingInlineEnd: 12 }}>{g.status === "revoked" && g.revoke_reason ? `${g.reason} / ${g.revoke_reason}` : g.reason}</td>
                   <td>
                     {canEntitlements && g.status === "live" && !g.delegated_from_grant_id ? (
                       revokeId === g.grant_id ? (
@@ -221,9 +222,30 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
       <section aria-label={t("ea.perms.title")}>
         <h4>{t("ea.perms.title")}</h4>
         <p className="access-audit-note">{t("ea.perms.subtitle")}</p>
-        {groups.map(([moduleKey, rows]) => (
+        {groups.map(([moduleKey, rows]) => {
+          const isOpen = openGroups[moduleKey] === true
+          const bodyId = `ea-group-${moduleKey}`
+          const denied = rows.filter((p) => p.functional_state === "deny").length
+          const restricted = rows.filter((p) => p.entitlement_state === "restricted").length
+          const exceptions = rows.filter((p) => p.entitlement_state === "personal_exception").length
+          const unsaved = rows.filter((p) => changes[p.permission_key] !== undefined).length
+          return (
           <div key={moduleKey} className="access-group">
-            <h5><code>{moduleKey}</code></h5>
+            <h5 className="access-group-head">
+              <button type="button" className="access-group-toggle" aria-expanded={isOpen} aria-controls={bodyId}
+                onClick={() => setOpenGroups((g) => ({ ...g, [moduleKey]: !isOpen }))}>
+                {isOpen ? <ChevronDown size={16} aria-hidden="true" className="access-chevron" /> : <ChevronRight size={16} aria-hidden="true" className="access-chevron" />}
+                <code>{moduleKey}</code>
+                <span className="access-group-summary">
+                  <span className="ux-badge b-grey">{t("ea.group.count", { count: rows.length })}</span>
+                  {denied > 0 ? <span className="ux-badge b-red">{t("ea.group.denied", { count: denied })}</span> : null}
+                  {restricted > 0 ? <span className="ux-badge b-red">{t("ea.group.restricted", { count: restricted })}</span> : null}
+                  {exceptions > 0 ? <span className="ux-badge b-blue">{t("ea.group.exceptions", { count: exceptions })}</span> : null}
+                  {unsaved > 0 ? <span className="ux-badge b-blue">{t("ea.group.unsaved", { count: unsaved })}</span> : null}
+                </span>
+              </button>
+            </h5>
+            <div id={bodyId} role="region" aria-label={moduleKey} hidden={!isOpen}>
             {rows.map((p) => {
               const choice = changes[p.permission_key] ?? currentChoice(p)
               const canAllow = p.entitlement_state === "company" || p.entitlement_state === "personal_exception"
@@ -259,8 +281,10 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
                 </div>
               )
             })}
+            </div>
           </div>
-        ))}
+          )
+        })}
         {canPermissions ? (pending > 0 ? (
           <div className="access-save-row">
             <span>{t("ea.perms.pending", { count: pending })}</span>

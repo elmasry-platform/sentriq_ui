@@ -339,6 +339,13 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .seg-on-allow { background: #e3f2e8 !important; color: #237a4b !important; }
 .seg-on-deny { background: #fbe7e2 !important; color: #b4442c !important; }
 .access-row-state { margin-inline-start: auto; font-size: 11.5px; }
+.access-group-head { margin: 0 0 8px; }
+.access-group-toggle { display: flex; align-items: center; gap: 10px; width: 100%; background: #fff; border: 1px solid #e9e4d8; border-radius: 10px; padding: 11px 14px; cursor: pointer; font: inherit; color: var(--text); text-align: start; }
+.access-group-toggle:hover { background: #faf7ef; }
+.access-group-toggle:focus-visible { outline: 2px solid #2c3a51; outline-offset: 2px; }
+.access-group-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-inline-start: auto; }
+.access-chevron { flex-shrink: 0; }
+.is-rtl .access-chevron { transform: scaleX(-1); }
 .access-save-row { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
 .access-save-row input { flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 12.5px; background: #fff; color: var(--text); }
 .access-audit-note { margin: 10px 0 0; color: #93a0b4; font-size: 11px; }
