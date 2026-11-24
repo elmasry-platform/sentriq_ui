@@ -26,7 +26,7 @@ const dict = {
     empty: "No corrective actions yet", emptyHint: "Actions appear here when a finding is turned into a corrective action.", noMatch: "No matching actions", clear: "Clear filters",
     noAccess: "You do not have access to corrective actions", noAccessHint: "Platform operators do not see company records. Open a company workspace with a company role.",
     siteAccess: "You do not have access to this site. Contact your Company Superadmin.", unavailable: "Actions could not be loaded.", retry: "Try again", notFound: "Action not found", reload: "Reload latest",
-    demo: "Demo data only — role simulation is not authorization.", created: "Action created", changed: "changed the status to", by: "by", due2: "Due", response: "Response due",
+    demo: "Preview data only — role preview is not authorization.", created: "Action created", changed: "changed the status to", by: "by", due2: "Due", response: "Response due",
   },
   ar: {
     title: "الملاحظات والإجراءات التصحيحية", subtitle: "كل ملاحظة تتحول إلى إجراء له مسؤول وموعد وأدلة وتحقق.", eyebrow: "SENTRIQ · الإجراءات",
@@ -40,7 +40,7 @@ const dict = {
     empty: "لا توجد إجراءات تصحيحية بعد", emptyHint: "تظهر الإجراءات هنا عندما تتحول ملاحظة إلى إجراء تصحيحي.", noMatch: "لا توجد إجراءات مطابقة", clear: "مسح التصفية",
     noAccess: "ليس لديك صلاحية الوصول إلى الإجراءات التصحيحية", noAccessHint: "مشغلو المنصة لا يرون سجلات الشركات. افتح مساحة شركة بدور شركة.",
     siteAccess: "ليس لديك حق الوصول إلى هذا الموقع. تواصل مع مسؤول الشركة.", unavailable: "تعذر تحميل الإجراءات.", retry: "إعادة المحاولة", notFound: "الإجراء غير موجود", reload: "إعادة تحميل الأحدث",
-    demo: "بيانات تجريبية فقط — محاكاة الأدوار لا تمثل صلاحيات فعلية.", created: "تم إنشاء الإجراء", changed: "غيّر الحالة إلى", by: "بواسطة", due2: "الاستحقاق", response: "موعد الاستجابة",
+    demo: "بيانات معاينة فقط — معاينة الأدوار لا تمثل صلاحيات فعلية.", created: "تم إنشاء الإجراء", changed: "غيّر الحالة إلى", by: "بواسطة", due2: "الاستحقاق", response: "موعد الاستجابة",
   },
 } as const
 type Dict = (typeof dict)[Language]

@@ -37,7 +37,7 @@ export const demoRoles: { value: DemoRole; en: string; ar: string }[] = [
   { value: "company_superadmin", en: "Company Superadmin", ar: "مدير الشركة الأعلى" },
   { value: "company_admin", en: "Company Admin", ar: "مدير الشركة" },
   { value: "employee", en: "Employee", ar: "موظف" },
-  { value: "platform_admin", en: "Platform Admin (legacy demo)", ar: "مدير المنصة" },
+  { value: "platform_admin", en: "Platform Admin (legacy)", ar: "مدير المنصة" },
   { value: "tenant_admin", en: "Tenant Admin", ar: "مدير المؤسسة" },
   { value: "form_designer", en: "Form Designer", ar: "مصمم النماذج" },
   { value: "inspector", en: "Inspector", ar: "مفتش" },
