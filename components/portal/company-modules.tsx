@@ -41,9 +41,9 @@ export function CompanyModules({ accessToken, company, canIssue = true, onClose 
     let active = true
     setError(null)
     Promise.all([
-      rpc<ModuleRow[]>("platform_read_company", { p_tenant_id: company.id, p_resource: "core.modules", p_limit: 100 }, accessToken),
-      rpc<GrantRow[]>("platform_read_company", { p_tenant_id: company.id, p_resource: "core.entitlement_grants", p_limit: 100 }, accessToken),
-    ]).then(([m, g]) => { if (active) { setModules((Array.isArray(m) ? m : []).filter((x) => x.enabled)); setGrants(Array.isArray(g) ? g : []) } })
+      rpc<{ rows: ModuleRow[] }>("platform_read_company", { p_tenant_id: company.id, p_resource: "core.modules", p_limit: 100 }, accessToken),
+      rpc<{ rows: GrantRow[] }>("platform_read_company", { p_tenant_id: company.id, p_resource: "core.entitlement_grants", p_limit: 100 }, accessToken),
+    ]).then(([m, g]) => { if (active) { setModules((m.rows ?? []).filter((x) => x.enabled)); setGrants(g.rows ?? []) } })
       .catch((e) => { if (active) setError(fe(e)) })
     return () => { active = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
