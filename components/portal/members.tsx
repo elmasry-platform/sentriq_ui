@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { KeyRound, LoaderCircle, UserRound } from "lucide-react"
 import { rpc, select } from "@/lib/portal/api"
 import { Dialog } from "@/components/sentriq/dialog"
+import { friendlyError } from "@/lib/portal/errors"
 import { PortalEmpty, PortalError, PortalLoading } from "./states"
 
 const PERMISSION_KEYS = ["hse.dashboard", "hse.inspections", "hse.forms", "hse.actions", "hse.reports"]
@@ -53,7 +54,7 @@ export function MembersPanel({ accessToken, tenantId, selfUserId }: { accessToke
       setGrantFor(null)
       setReason("")
     } catch (e) {
-      setGrantError(e instanceof Error ? e.message : "permission_update_failed")
+      setGrantError(friendlyError(e, "The permission change failed. Try again."))
     } finally {
       setBusy(false)
     }
@@ -68,7 +69,7 @@ export function MembersPanel({ accessToken, tenantId, selfUserId }: { accessToke
       order: "role.asc",
     }, accessToken)
       .then((r) => { if (active) setRows(r) })
-      .catch((e) => { if (active) setError(e instanceof Error ? e.message : "members_load_failed") })
+      .catch((e) => { if (active) setError(friendlyError(e, "Members could not be loaded. Try again.")) })
     return () => { active = false }
   }, [accessToken, tenantId, tick])
 

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Building2, ChevronRight, LoaderCircle, PauseCircle, PlayCircle } from "lucide-react"
 import { rpc, ApiError } from "@/lib/portal/api"
+import { friendlyError } from "@/lib/portal/errors"
 import { Dialog } from "@/components/sentriq/dialog"
 import { PortalEmpty, PortalError, PortalLoading } from "./states"
 
@@ -13,7 +14,7 @@ export function CompanyStatusBadge({ status }: { status: string }) {
   return <span className={`ux-badge ${tone} platform-capitalize`}>{status}</span>
 }
 
-export function CompaniesPanel({ accessToken, allowLifecycle, onOpen }: { accessToken: string; allowLifecycle: boolean; onOpen?: (company: CompanyRow) => void }) {
+export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = true, onOpen }: { accessToken: string; allowLifecycle: boolean; canLifecycle?: boolean; onOpen?: (company: CompanyRow) => void }) {
   const [rows, setRows] = useState<CompanyRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [denied, setDenied] = useState(false)
@@ -33,7 +34,7 @@ export function CompaniesPanel({ accessToken, allowLifecycle, onOpen }: { access
       .catch((e) => {
         if (!active) return
         if (e instanceof ApiError && e.status === 403) { setDenied(true); setRows([]) }
-        else setError(e instanceof Error ? e.message : "companies_load_failed")
+        else setError(friendlyError(e, "Companies could not be loaded. Try again."))
       })
     return () => { active = false }
   }, [accessToken, tick])
@@ -49,7 +50,7 @@ export function CompaniesPanel({ accessToken, allowLifecycle, onOpen }: { access
       setSaveError(null)
       load()
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "status_update_failed")
+      setSaveError(friendlyError(e, "The status change failed. Try again."))
     } finally {
       setBusyId(null)
     }
@@ -64,7 +65,7 @@ export function CompaniesPanel({ accessToken, allowLifecycle, onOpen }: { access
     <div className="panel platform-panel">
       <div className="panel-header">
         <div>
-          <h2>Companies</h2>
+          <h2>All companies</h2>
           <p>Every company on the platform. Lifecycle changes are audited.</p>
         </div>
       </div>
@@ -98,11 +99,11 @@ export function CompaniesPanel({ accessToken, allowLifecycle, onOpen }: { access
               <td>{new Date(c.created_at).toLocaleDateString()}</td>
               {allowLifecycle || onOpen ? (
                 <td>
-                  {busyId === c.id ? <LoaderCircle size={15} className="spin platform-muted" /> : allowLifecycle && c.status === "active" ? (
+                  {busyId === c.id ? <LoaderCircle size={15} className="spin platform-muted" /> : allowLifecycle && canLifecycle && c.status === "active" ? (
                     <button type="button" onClick={() => { setPending({ company: c, status: "suspended" }); setReason(""); setSaveError(null) }} className="button-outline platform-warn">
                       <PauseCircle size={13} /> Suspend
                     </button>
-                  ) : allowLifecycle && c.status === "suspended" ? (
+                  ) : allowLifecycle && canLifecycle && c.status === "suspended" ? (
                     <button type="button" onClick={() => { setPending({ company: c, status: "active" }); setReason(""); setSaveError(null) }} className="button-outline platform-ok">
                       <PlayCircle size={13} /> Reactivate
                     </button>

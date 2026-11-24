@@ -3,10 +3,11 @@
 import { Fragment, useCallback, useEffect, useState } from "react"
 import { ChevronDown, ChevronUp, KeyRound, LoaderCircle, UsersRound } from "lucide-react"
 import { rpc } from "@/lib/portal/api"
+import { friendlyError } from "@/lib/portal/errors"
 import { Dialog } from "@/components/sentriq/dialog"
 import { EmptyState, ErrorState, LoadingState } from "@/components/sentriq/states"
 
-interface OperatorRow { user_id: string; operator_role: string; active: boolean; created_at: string }
+interface OperatorRow { user_id: string; operator_role: string; active: boolean; created_at: string; email?: string | null }
 interface PermissionRow { permission_key: string; granted: boolean; explicit_row: { granted: boolean; reason: string; updated_at: string } | null }
 
 const PERMISSION_LABEL: Record<string, string> = {
@@ -44,7 +45,7 @@ function PermissionMatrix({ accessToken, userId }: { accessToken: string; userId
     let active = true
     rpc<{ rows?: PermissionRow[] } | PermissionRow[]>("platform_subowner_permissions", { p_user_id: userId }, accessToken)
       .then((res) => { if (active) setRows((Array.isArray(res) ? res : res.rows ?? []).slice().sort((a, b) => a.permission_key.localeCompare(b.permission_key))) })
-      .catch((e) => { if (active) setError(e instanceof Error ? e.message : "permissions_load_failed") })
+      .catch((e) => { if (active) setError(friendlyError(e, "Permissions could not be loaded. Try again.")) })
     return () => { active = false }
   }, [accessToken, userId, tick])
 
@@ -63,7 +64,7 @@ function PermissionMatrix({ accessToken, userId }: { accessToken: string; userId
       setReason("")
       load()
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "permission_update_failed")
+      setSaveError(friendlyError(e, "The permission change failed. Try again."))
     } finally {
       setBusy(false)
     }
@@ -135,7 +136,7 @@ export function OperatorsPanel({ accessToken, selfUserId }: { accessToken: strin
     setError(null)
     rpc<{ rows?: OperatorRow[] } | OperatorRow[]>("platform_operator_roster", { p_limit: 100 }, accessToken)
       .then((r) => { if (active) setRows(Array.isArray(r) ? r : r.rows ?? []) })
-      .catch((e) => { if (active) setError(e instanceof Error ? e.message : "operators_load_failed") })
+      .catch((e) => { if (active) setError(friendlyError(e, "Operators could not be loaded. Try again.")) })
     return () => { active = false }
   }, [accessToken, tick])
 
@@ -185,7 +186,10 @@ function FragmentRow({ operator: o, isSelf, manageable, open, onToggle, accessTo
         <td>
           <div className="platform-person">
             <span className="avatar" aria-hidden="true"><UsersRound size={14} /></span>
-            <span className="platform-person-id">{o.user_id.slice(0, 8)}…{isSelf ? <em> (you)</em> : null}</span>
+            <span>
+              <strong className="platform-cell-strong">{o.email ?? "Operator"}{isSelf ? <em> (you)</em> : null}</strong>
+              <span className="platform-perm-key">{o.user_id.slice(0, 8)}…</span>
+            </span>
           </div>
         </td>
         <td className="platform-capitalize">{o.operator_role}</td>

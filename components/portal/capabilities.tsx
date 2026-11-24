@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { CheckCircle2, XCircle } from "lucide-react"
 import { authorize, getCapabilities, type CapabilitiesProfile } from "@/lib/portal/api"
+import { friendlyError } from "@/lib/portal/errors"
 import { PortalError, PortalLoading } from "./states"
 import { LoadingState } from "@/components/sentriq/states"
 
@@ -35,7 +36,7 @@ export function CapabilitiesCard({ accessToken, tenantId }: { accessToken: strin
     setError(null)
     getCapabilities(accessToken, tenantId)
       .then((c) => { if (active) setCaps(c) })
-      .catch((e) => { if (active) setError(e instanceof Error ? e.message : "capabilities_load_failed") })
+      .catch((e) => { if (active) setError(friendlyError(e, "Capabilities could not be loaded. Try again.")) })
     return () => { active = false }
   }, [accessToken, tenantId, tick])
 
@@ -75,7 +76,7 @@ export function PermissionMatrix({ accessToken, tenantId }: { accessToken: strin
         if (!active) return
         setResults(Object.fromEntries(entries.map((e) => [e.id, e.allowed])))
       })
-      .catch((e) => { if (active) setError(e instanceof Error ? e.message : "authorize_failed") })
+      .catch((e) => { if (active) setError(friendlyError(e, "The check failed. Try again.")) })
     return () => { active = false }
   }, [accessToken, tenantId])
 
