@@ -175,7 +175,8 @@ function PlatformShellInner({
   const noCompany = identity.role === "employee" && !identity.tenantId && identity.membershipStatus === "none"
   const displayLabel = noCompany ? tt("role.none") : tt(ROLE_KEY[identity.role])
   const navLink = (item: NavItem) => {
-    const active = route === item.href || route.startsWith(`${item.href}/`)
+    const longer = platformItems.some((o) => o.href.length > item.href.length && o.href.startsWith(`${item.href}/`) && (route === o.href || route.startsWith(`${o.href}/`)))
+    const active = !longer && (route === item.href || route.startsWith(`${item.href}/`))
     const label = tt(item.labelKey)
     return (
       <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
