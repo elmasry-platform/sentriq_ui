@@ -388,3 +388,11 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .access-presets .access-audit-note { flex-basis: 100%; margin: 0; }
 .platform-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .platform-actions-cell { min-width: 160px; }
+
+/* ---- Invitations ---- */
+.invite-form { display: flex; flex-direction: column; gap: 12px; max-height: 70vh; overflow: auto; }
+.invite-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+.invite-form input, .invite-form select, .invite-link { border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 12.5px; background: #fff; color: var(--text); width: 100%; }
+.invite-access { border: 1px solid #e9e4d8; border-radius: 10px; padding: 10px 14px; }
+.invite-keys { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.invite-key-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; }

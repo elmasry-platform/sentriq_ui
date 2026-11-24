@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import {
-  Building2, ChevronLeft, ChevronRight, LogOut, Menu, ShieldCheck, UsersRound, X, KeyRound,
+  MailPlus, Building2, ChevronLeft, ChevronRight, LogOut, Menu, ShieldCheck, UsersRound, X, KeyRound,
   PackageCheck, Languages, type LucideIcon,
 } from "lucide-react"
 import { usePortalSession } from "@/lib/portal/session"
@@ -26,15 +26,18 @@ const platformNav: Record<PortalRole, NavItem[]> = {
   owner: [
     { labelKey: "nav.companies", href: "/portal/owner", icon: Building2 },
     { labelKey: "nav.access", href: "/portal/owner/access", icon: KeyRound },
+    { labelKey: "nav.invitations", href: "/portal/owner/invitations", icon: MailPlus },
     { labelKey: "nav.operators", href: "/portal/owner/operators", icon: UsersRound },
   ],
   subowner: [
     { labelKey: "nav.companies", href: "/portal/subowner", icon: Building2 },
     { labelKey: "nav.access", href: "/portal/subowner/access", icon: KeyRound },
+    { labelKey: "nav.invitations", href: "/portal/subowner/invitations", icon: MailPlus },
   ],
   superadmin: [
     { labelKey: "nav.people", href: "/portal/superadmin", icon: UsersRound },
     { labelKey: "nav.access", href: "/portal/superadmin/access", icon: KeyRound },
+    { labelKey: "nav.invitations", href: "/portal/superadmin/invitations", icon: MailPlus },
     { labelKey: "nav.entitlements", href: "/portal/superadmin/entitlements", icon: PackageCheck },
   ],
   admin: [{ labelKey: "nav.team", href: "/portal/admin", icon: UsersRound }],
