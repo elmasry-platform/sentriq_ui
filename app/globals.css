@@ -267,3 +267,53 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
    so the hand-written demo styles above stay untouched. */
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
+
+/* Platform area: the portal rendered inside the product shell. */
+.spin { animation: platform-spin 0.9s linear infinite; }
+@keyframes platform-spin { to { transform: rotate(360deg); } }
+.platform-boot { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+.platform-boot-inline { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 34px 0; }
+.platform-boot-signout { display: flex; justify-content: center; }
+.platform-stack { display: flex; flex-direction: column; gap: 18px; margin-top: 18px; }
+.platform-panel { padding: 0; overflow: hidden; }
+.platform-panel > .panel-header { padding: 14px 16px; }
+.platform-panel > .ux-state, .platform-panel > .platform-boot-inline { padding: 26px 16px; }
+.platform-role-pill { background: #e8efff; color: #3558aa; }
+.platform-person { display: flex; align-items: center; gap: 10px; }
+.platform-cell-strong { display: block; color: #2c3a51; font-weight: 600; }
+.platform-link-button { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; padding: 0; color: var(--blue); font: inherit; font-weight: 600; cursor: pointer; }
+.platform-link-button:hover { text-decoration: underline; }
+.platform-perm-name { display: block; color: #2c3a51; font-weight: 600; }
+.platform-perm-key { display: block; color: #93a0b4; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.platform-person-id { color: #4a5a70; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.platform-person-id em { font-style: normal; color: #93a0b4; }
+.platform-muted { color: #93a0b4; }
+.platform-capitalize { text-transform: capitalize; }
+.platform-warn { color: #a16207; border-color: #f2dfb8; }
+.platform-warn:hover { background: #fdf8ec; }
+.platform-ok { color: #047857; border-color: #c6e8d8; }
+.platform-ok:hover { background: #effaf5; }
+.platform-icon-button { width: 32px; height: 32px; padding: 0; }
+.platform-perms-row > td { background: #fafbfd; padding: 4px 12px 14px; }
+.platform-perms-row .data-table td { height: 44px; }
+.platform-check-row { display: flex; gap: 18px; }
+.platform-check { display: flex !important; flex-direction: row !important; align-items: center; gap: 7px !important; color: var(--text) !important; }
+.platform-check input { min-height: 0 !important; }
+.platform-metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.platform-metric { min-height: 0; gap: 3px; }
+.platform-metric-label { margin: 0; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.platform-metric strong { color: #243147; font-size: 15px; }
+.platform-signout { width: 100%; margin-top: 10px; }
+.platform-login { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--page); }
+.platform-login-card { width: min(380px, 100%); }
+.platform-login-brand { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 22px; text-align: center; }
+.platform-login-brand h1 { margin: 6px 0 0; color: #182338; font-size: 21px; font-weight: 650; letter-spacing: -.02em; }
+.platform-login-brand p { margin: 0; color: #718096; font-size: 13px; }
+.platform-login-form { display: flex; flex-direction: column; gap: 13px; padding: 20px; }
+.platform-login-form label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.platform-login-form input { min-height: 40px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 3px; background: #fff; color: var(--text); font: inherit; font-size: 13px; }
+.platform-login-submit { width: 100%; min-height: 40px; }
+.platform-login-back { margin-top: 18px; text-align: center; font-size: 12px; }
+.platform-login-back a { color: #718096; }
+.platform-login-back a:hover { color: var(--text); }
+@media (max-width: 720px) { .platform-metric-grid { grid-template-columns: 1fr; } .platform-role-pill { display: none; } }

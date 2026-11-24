@@ -49,6 +49,7 @@ const administration: NavigationItem[] = [
   { label: "Reports", ar: "التقارير", href: "/app/reports", icon: ChartNoAxesCombined },
   { label: "People", ar: "الأفراد", href: "/app/people", icon: UsersRound },
   { label: "Settings", ar: "الإعدادات", href: "/app/admin/workspace", icon: Settings2 },
+  { label: "Platform", ar: "المنصة", href: "/portal", icon: ShieldCheck },
 ]
 
 const modules = [

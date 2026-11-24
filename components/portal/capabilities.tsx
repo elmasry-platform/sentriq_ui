@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { KeyRound, CheckCircle2, XCircle, LoaderCircle } from "lucide-react"
+import { CheckCircle2, XCircle } from "lucide-react"
 import { authorize, getCapabilities, type CapabilitiesProfile } from "@/lib/portal/api"
 import { PortalError, PortalLoading } from "./states"
+import { LoadingState } from "@/components/sentriq/states"
 
 const LEVEL_LABEL: Record<string, string> = {
   company_superadmin: "Company Superadmin",
@@ -43,23 +44,21 @@ export function CapabilitiesCard({ accessToken, tenantId }: { accessToken: strin
   if (!caps.membership) return null
 
   return (
-    <div className="grid gap-4 sm:grid-cols-3">
-      <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Membership</p>
-        <p className="mt-1.5 text-sm font-semibold text-slate-900">{LEVEL_LABEL[caps.membership.level] ?? caps.membership.level}</p>
-        <p className="mt-0.5 text-xs capitalize text-slate-500">{caps.membership.status}</p>
+    <div className="platform-metric-grid">
+      <div className="metric-card platform-metric">
+        <p className="platform-metric-label">Membership</p>
+        <strong>{LEVEL_LABEL[caps.membership.level] ?? caps.membership.level}</strong>
+        <span className="platform-muted platform-capitalize">{caps.membership.status}</span>
       </div>
-      <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Site access</p>
-        <p className="mt-1.5 text-sm font-semibold text-slate-900">{caps.membership.siteIds.length === 0 ? "All sites" : `${caps.membership.siteIds.length} site(s)`}</p>
-        <p className="mt-0.5 text-xs text-slate-500">{caps.membership.displayName ?? ""}</p>
+      <div className="metric-card platform-metric">
+        <p className="platform-metric-label">Site access</p>
+        <strong>{caps.membership.siteIds.length === 0 ? "All sites" : `${caps.membership.siteIds.length} site(s)`}</strong>
+        <span className="platform-muted">{caps.membership.displayName ?? ""}</span>
       </div>
-      <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Entitlements</p>
-        <p className="mt-1.5 text-sm font-semibold text-slate-900">
-          {caps.entitlements ? `${caps.entitlements.filter((e) => e.entitled).length} active` : "n/a"}
-        </p>
-        <p className="mt-0.5 text-xs text-slate-500">module & feature access</p>
+      <div className="metric-card platform-metric">
+        <p className="platform-metric-label">Entitlements</p>
+        <strong>{caps.entitlements ? `${caps.entitlements.filter((e) => e.entitled).length} active` : "n/a"}</strong>
+        <span className="platform-muted">module & feature access</span>
       </div>
     </div>
   )
@@ -80,30 +79,34 @@ export function PermissionMatrix({ accessToken, tenantId }: { accessToken: strin
     return () => { active = false }
   }, [accessToken, tenantId])
 
-  if (error) return <p className="text-sm text-rose-600">{error}</p>
-  if (!results) return (
-    <div className="flex items-center gap-2 py-4 text-sm text-slate-400"><LoaderCircle className="h-4 w-4 animate-spin" /> Checking permissions...</div>
-  )
+  if (error) return <PortalError message={error} onRetry={() => setResults(null)} />
+  if (!results) return <LoadingState label="Checking permissions" />
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-3">
-        <KeyRound className="h-4 w-4 text-slate-400" />
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">What you can do (live from backend)</p>
+    <div className="panel platform-panel">
+      <div className="panel-header">
+        <div>
+          <h2>What you can do</h2>
+          <p>Live answers from the backend for your account.</p>
+        </div>
       </div>
-      <ul className="divide-y divide-slate-50">
-        {PROBE_PERMISSIONS.map((p) => {
-          const allowed = results[`${p.key}:${p.action}`]
-          return (
-            <li key={p.key + p.action} className="flex items-center justify-between px-4 py-2.5 text-sm">
-              <span className="text-slate-700">{p.label}</span>
-              {allowed
-                ? <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600"><CheckCircle2 className="h-4 w-4" /> Allowed</span>
-                : <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-400"><XCircle className="h-4 w-4" /> Not allowed</span>}
-            </li>
-          )
-        })}
-      </ul>
+      <table className="data-table">
+        <tbody>
+          {PROBE_PERMISSIONS.map((p) => {
+            const allowed = results[`${p.key}:${p.action}`]
+            return (
+              <tr key={p.key + p.action}>
+                <td>{p.label}</td>
+                <td>
+                  {allowed
+                    ? <span className="ux-badge ux-badge-approved"><CheckCircle2 size={13} /> Allowed</span>
+                    : <span className="ux-badge ux-badge-returned"><XCircle size={13} /> Not allowed</span>}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }

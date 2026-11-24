@@ -1,12 +1,12 @@
 "use client"
 
-import { PortalShell } from "@/components/portal/shell"
+import { PlatformShell } from "@/components/platform/shell"
 import { CapabilitiesCard, PermissionMatrix } from "@/components/portal/capabilities"
 import { PortalEmpty } from "@/components/portal/states"
 
-export default function EmployeePortal() {
+export default function EmployeeAccessPage() {
   return (
-    <PortalShell expect="employee" title="My workspace" subtitle="Your access profile and what you can do.">
+    <PlatformShell expect="employee" route="/portal/employee" title="My access" subtitle="Your access profile and what you can do.">
       {({ session, identity }) => {
         if (!identity.tenantId) {
           return (
@@ -19,15 +19,12 @@ export default function EmployeePortal() {
           )
         }
         return (
-          <div className="space-y-8">
+          <div className="platform-stack">
             <CapabilitiesCard accessToken={session.accessToken} tenantId={identity.tenantId} />
-            <section>
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Permissions</h2>
-              <PermissionMatrix accessToken={session.accessToken} tenantId={identity.tenantId} />
-            </section>
+            <PermissionMatrix accessToken={session.accessToken} tenantId={identity.tenantId} />
           </div>
         )
       }}
-    </PortalShell>
+    </PlatformShell>
   )
 }
