@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Building2, ChevronRight, LoaderCircle, PauseCircle, PlayCircle } from "lucide-react"
 import { rpc, ApiError } from "@/lib/portal/api"
-import { dateLocale, useFriendlyError, usePortalLang, useT } from "@/lib/portal/i18n"
+import { dateLocale, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
 import { Dialog } from "@/components/sentriq/dialog"
 import { PortalEmpty, PortalError, PortalLoading } from "./states"
 
@@ -16,7 +16,7 @@ export function CompanyStatusBadge({ status }: { status: string }) {
   return <span className={`ux-badge ${tone}`}>{label}</span>
 }
 
-export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = true, onOpen }: { accessToken: string; allowLifecycle: boolean; canLifecycle?: boolean; onOpen?: (company: CompanyRow) => void }) {
+export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = true, onOpen, openLabelKey = "companies.open" }: { accessToken: string; allowLifecycle: boolean; canLifecycle?: boolean; onOpen?: (company: CompanyRow) => void; openLabelKey?: CopyKey }) {
   const t = useT()
   const fe = useFriendlyError()
   const lang = usePortalLang()
@@ -107,6 +107,7 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
               <td>{new Date(c.created_at).toLocaleDateString(dateLocale(lang))}</td>
               {allowLifecycle || onOpen ? (
                 <td>
+                  {onOpen ? <button type="button" onClick={() => onOpen(c)} className="button-outline">{t(openLabelKey)}</button> : null}{" "}
                   {busyId === c.id ? <LoaderCircle size={15} className="spin platform-muted" /> : allowLifecycle && canLifecycle && c.status === "active" ? (
                     <button type="button" onClick={() => { setPending({ company: c, status: "suspended" }); setReason(""); setSaveError(null) }} className="button-outline platform-warn">
                       <PauseCircle size={13} /> {t("companies.suspend")}
@@ -115,8 +116,6 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
                     <button type="button" onClick={() => { setPending({ company: c, status: "active" }); setReason(""); setSaveError(null) }} className="button-outline platform-ok">
                       <PlayCircle size={13} /> {t("companies.reactivate")}
                     </button>
-                  ) : onOpen ? (
-                    <button type="button" onClick={() => onOpen(c)} className="button-outline">{t("companies.open")}</button>
                   ) : null}
                 </td>
               ) : null}

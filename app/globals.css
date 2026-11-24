@@ -346,8 +346,8 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .access-group-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-inline-start: auto; }
 .access-chevron { flex-shrink: 0; }
 .is-rtl .access-chevron { transform: scaleX(-1); }
-.access-save-row { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
-.access-save-row input { flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 12.5px; background: #fff; color: var(--text); }
+.access-save-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+.access-save-row input { flex: 1; min-width: 160px; border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 12.5px; background: #fff; color: var(--text); }
 .access-audit-note { margin: 10px 0 0; color: #93a0b4; font-size: 11px; }
 .ux-badge.b-grey { background: #eef0f3; color: #5f6f83; }
 .ux-badge.b-blue { background: #e8eefb; color: #2b57a7; }
@@ -364,3 +364,23 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 
 /* (b) emails inside RTL: keep LTR direction so ellipsis truncates the end, not the start */
 .is-rtl .platform-person .platform-cell-strong, .is-rtl .platform-person .platform-link-button { direction: ltr; unicode-bidi: plaintext; }
+
+/* ---- Member access page ---- */
+.access-summary { background: #fff; border: 1px solid #e9e4d8; border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+.access-summary h4 { margin: 0 0 4px; }
+.access-summary p { margin: 2px 0; }
+.access-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0 14px; }
+.access-toolbar input[type="search"] { flex: 1; min-width: 180px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font: inherit; font-size: 12.5px; background: #fff; color: var(--text); }
+.access-keys-toggle { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; }
+.access-review { background: #fff; border: 1px solid #e9e4d8; border-radius: 10px; padding: 12px 16px; margin-top: 14px; }
+.access-review h5 { margin: 0 0 6px; }
+.access-review ul { margin: 0 0 6px; padding-inline-start: 18px; font-size: 12.5px; }
+.access-page { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; align-items: start; }
+.access-people { display: flex; flex-direction: column; gap: 10px; }
+.access-people select, .access-people input { border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 12.5px; background: #fff; color: var(--text); }
+.access-person { display: flex; align-items: center; gap: 10px; width: 100%; background: #fff; border: 1px solid #e9e4d8; border-radius: 10px; padding: 10px 12px; cursor: pointer; font: inherit; color: var(--text); text-align: start; }
+.access-person:hover { background: #faf7ef; }
+.access-person[aria-current="true"] { border-color: #2c3a51; box-shadow: 0 0 0 1px #2c3a51 inset; }
+.access-person small { display: block; color: #6b7a8f; }
+.access-person-list { display: flex; flex-direction: column; gap: 6px; max-height: 62vh; overflow: auto; }
+@media (max-width: 900px) { .access-page { grid-template-columns: 1fr; } }

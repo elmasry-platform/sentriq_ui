@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ChevronDown, ChevronRight, LoaderCircle } from "lucide-react"
 import { rpc } from "@/lib/portal/api"
-import { dateLocale, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
+import { dateLocale, tryCopy, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
 import { PortalError, PortalLoading } from "./states"
 
 /** Everything below is rendered from the server's effective-access calculation.
@@ -81,6 +81,10 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
+  const [permQuery, setPermQuery] = useState("")
+  const [permFilter, setPermFilter] = useState<"all" | "allowed" | "blocked" | "changed">("all")
+  const [showKeys, setShowKeys] = useState(false)
+
   const [addMode, setAddMode] = useState<"exception" | "restriction">("exception")
   const [addScope, setAddScope] = useState<"module" | "feature">("feature")
   const [addKey, setAddKey] = useState("")
@@ -132,6 +136,26 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
   if (!data) return <PortalLoading label={t("people.loading")} />
 
   const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(dateLocale(lang)) : "")
+  const permLabel = (p: PermissionRow, moduleKey: string) => tryCopy(lang, `perm.${p.permission_key}`) ?? humanize(p.permission_key, moduleKey)
+  const sum = (() => {
+    const all = data.permissions
+    const blocked = all.filter((p) => p.functional_state === "deny" || p.entitlement_state === "restricted").length
+    const allowed = all.filter((p) => p.effective).length
+    return { total: all.length, allowed, blocked, unavailable: Math.max(0, all.length - allowed - blocked) }
+  })()
+  const q = permQuery.trim().toLowerCase()
+  const visibleGroups = groups
+    .map(([k, allRows]) => {
+      const rows = allRows.filter((p) => {
+        if (permFilter === "allowed" && !p.effective) return false
+        if (permFilter === "blocked" && !(p.functional_state === "deny" || p.entitlement_state === "restricted")) return false
+        if (permFilter === "changed" && changes[p.permission_key] === undefined) return false
+        if (!q) return true
+        return permLabel(p, k).toLowerCase().includes(q) || p.permission_key.toLowerCase().includes(q)
+      })
+      return [k, rows, allRows] as [string, PermissionRow[], PermissionRow[]]
+    })
+    .filter(([, rows]) => rows.length > 0)
   const pending = Object.keys(changes).length
   const targets = addScope === "module" ? data.modules.map((m) => m.module_key) : data.features.map((f) => f.feature_key)
 
@@ -200,6 +224,12 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
     <div className="access-editor" data-testid="effective-access">
       <h3>{t("ea.title", { name: member.displayName ?? member.email ?? "" })}</h3>
       <p className="access-audit-note">{t("ea.level")}: <strong>{t(`level.${data.membership.role}` as CopyKey)}</strong>. {t("ea.refresh")}</p>
+
+      <section aria-label={t("ea.summary.title")} className="access-summary" data-testid="access-summary">
+        <h4>{t("ea.summary.title")}</h4>
+        <p><strong>{t("ea.summary.line", { allowed: sum.allowed, total: sum.total, blocked: sum.blocked, unavailable: sum.unavailable })}</strong></p>
+        <p className="access-audit-note">{t("ea.summary.hint")}</p>
+      </section>
 
       <section aria-label={t("ea.company.title")}>
         <h4>{t("ea.company.title")}</h4>
@@ -295,22 +325,36 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
       <section aria-label={t("ea.perms.title")}>
         <h4>{t("ea.perms.title")}</h4>
         <p className="access-audit-note">{t("ea.perms.subtitle")}</p>
-        {groups.map(([moduleKey, rows]) => {
-          const isOpen = openGroups[moduleKey] === true
+        <div className="access-toolbar">
+          <input type="search" value={permQuery} onChange={(e) => setPermQuery(e.target.value)} placeholder={t("ea.perms.search")} aria-label={t("ea.perms.search")} />
+          <div className="seg" role="group" aria-label={t("ea.perms.title")}>
+            {(["all", "allowed", "blocked", "changed"] as const).map((f) => (
+              <button key={f} type="button" aria-pressed={permFilter === f} className={`seg-option${permFilter === f ? " seg-on-default" : ""}`} onClick={() => setPermFilter(f)}>{t(`ea.perms.filter.${f}` as CopyKey)}</button>
+            ))}
+          </div>
+          <label className="access-keys-toggle"><input type="checkbox" checked={showKeys} onChange={(e) => setShowKeys(e.target.checked)} /> {t("ea.perms.showKeys")}</label>
+          <button type="button" className="button-outline" onClick={() => setOpenGroups(Object.fromEntries(groups.map(([k]) => [k, true])))}>{t("ea.perms.expandAll")}</button>
+          <button type="button" className="button-outline" onClick={() => setOpenGroups({})}>{t("ea.perms.collapseAll")}</button>
+        </div>
+        {visibleGroups.length === 0 ? <p className="platform-muted">{t("ea.perms.noMatch")}</p> : null}
+        {visibleGroups.map(([moduleKey, rows, allRows]) => {
+          const searching = permQuery.trim() !== "" || permFilter !== "all"
+          const isOpen = searching || openGroups[moduleKey] === true
           const bodyId = `ea-group-${moduleKey}`
-          const denied = rows.filter((p) => p.functional_state === "deny").length
-          const restricted = rows.filter((p) => p.entitlement_state === "restricted").length
-          const exceptions = rows.filter((p) => p.entitlement_state === "personal_exception").length
-          const unsaved = rows.filter((p) => changes[p.permission_key] !== undefined).length
+          const denied = allRows.filter((p) => p.functional_state === "deny").length
+          const restricted = allRows.filter((p) => p.entitlement_state === "restricted").length
+          const exceptions = allRows.filter((p) => p.entitlement_state === "personal_exception").length
+          const unsaved = allRows.filter((p) => changes[p.permission_key] !== undefined).length
           return (
           <div key={moduleKey} className="access-group">
             <h5 className="access-group-head">
               <button type="button" className="access-group-toggle" aria-expanded={isOpen} aria-controls={bodyId}
-                onClick={() => setOpenGroups((g) => ({ ...g, [moduleKey]: !isOpen }))}>
+                onClick={() => setOpenGroups((g) => ({ ...g, [moduleKey]: !(searching || g[moduleKey] === true) }))}>
                 {isOpen ? <ChevronDown size={16} aria-hidden="true" className="access-chevron" /> : <ChevronRight size={16} aria-hidden="true" className="access-chevron" />}
-                <code>{moduleKey}</code>
+                <strong>{tryCopy(lang, `module.${moduleKey}`) ?? moduleKey}</strong>
+                {showKeys ? <code>{moduleKey}</code> : null}
                 <span className="access-group-summary">
-                  <span className="ux-badge b-grey">{t("ea.group.count", { count: rows.length })}</span>
+                  <span className="ux-badge b-grey">{t("ea.group.count", { count: allRows.length })}</span>
                   {denied > 0 ? <span className="ux-badge b-red">{t("ea.group.denied", { count: denied })}</span> : null}
                   {restricted > 0 ? <span className="ux-badge b-red">{t("ea.group.restricted", { count: restricted })}</span> : null}
                   {exceptions > 0 ? <span className="ux-badge b-blue">{t("ea.group.exceptions", { count: exceptions })}</span> : null}
@@ -318,14 +362,25 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
                 </span>
               </button>
             </h5>
-            <div id={bodyId} role="region" aria-label={moduleKey} hidden={!isOpen}>
+            <div id={bodyId} role="region" aria-label={tryCopy(lang, `module.${moduleKey}`) ?? moduleKey} hidden={!isOpen}>
             {rows.map((p) => {
               const choice = changes[p.permission_key] ?? currentChoice(p)
               const canAllow = p.entitlement_state === "company" || p.entitlement_state === "personal_exception"
+              const locked = denyLocked(p)
+              const opts: { v: Choice; label: string; disabled: boolean }[] = [
+                { v: "default", label: t("ea.perms.choice.default"), disabled: locked },
+                { v: "allow", label: t("ea.perms.choice.allow"), disabled: locked || (!canAllow && choice !== "allow") },
+                { v: "deny", label: t("ea.perms.choice.deny"), disabled: locked },
+              ]
+              const setChoice = (v: Choice) => setChanges((c) => {
+                const next = { ...c }
+                if (v === currentChoice(p)) delete next[p.permission_key]; else next[p.permission_key] = v
+                return next
+              })
               return (
                 <div key={p.permission_key} className="access-row" data-permission={p.permission_key}>
                   <div>
-                    <strong>{humanize(p.permission_key, moduleKey)}</strong> <code className="platform-muted">{p.permission_key}</code>
+                    <strong>{permLabel(p, moduleKey)}</strong>{showKeys ? <> <code className="platform-muted">{p.permission_key}</code></> : null}
                     <div>
                       <span className={`ux-badge ${badgeFor(p.entitlement_state)}`}>{t(`ea.ent.${p.entitlement_state}` as CopyKey)}</span>{" "}
                       <span className={`ux-badge ${badgeFor(p.functional_state)}`}>{t(`ea.fn.${p.functional_state}` as CopyKey)}</span>{" "}
@@ -338,20 +393,14 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
                   </div>
                   {canPermissions ? (
                     <div>
-                    <select value={choice} aria-label={p.permission_key} disabled={denyLocked(p)}
-                      onChange={(e) => {
-                        const v = e.target.value as Choice
-                        setChanges((c) => {
-                          const next = { ...c }
-                          if (v === currentChoice(p)) delete next[p.permission_key]; else next[p.permission_key] = v
-                          return next
-                        })
-                      }}>
-                      <option value="default">{t("ea.perms.choice.default")}</option>
-                      <option value="allow" disabled={!canAllow && choice !== "allow"} title={!canAllow ? t("ea.perms.notEntitled") : undefined}>{t("ea.perms.choice.allow")}</option>
-                      <option value="deny">{t("ea.perms.choice.deny")}</option>
-                    </select>
-                    {denyLocked(p) ? <div className="platform-muted" role="note">{t("ea.lock.deny")}</div> : null}
+                      <div className="seg" role="radiogroup" aria-label={permLabel(p, moduleKey)} data-permission-choice={p.permission_key}>
+                        {opts.map((o) => (
+                          <button key={o.v} type="button" role="radio" aria-checked={choice === o.v} disabled={o.disabled}
+                            title={o.v === "allow" && !canAllow ? t("ea.perms.notEntitled") : undefined}
+                            className={`seg-option${choice === o.v ? ` seg-on-${o.v}` : ""}`} onClick={() => setChoice(o.v)}>{o.label}</button>
+                        ))}
+                      </div>
+                      {locked ? <div className="platform-muted" role="note">{t("ea.lock.deny")}</div> : null}
                     </div>
                   ) : null}
                 </div>
@@ -362,12 +411,22 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
           )
         })}
         {canPermissions ? (pending > 0 ? (
-          <div className="access-save-row">
-            <span>{t("ea.perms.pending", { count: pending })}</span>
-            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("ea.perms.reason")} aria-label={t("ea.perms.reason")} />
-            <button type="button" className="button-primary" disabled={busy || reason.trim().length < 3} onClick={saveDecisions}>
-              {busy ? <LoaderCircle size={14} className="spin" /> : null} {t("ea.perms.save")}
-            </button>
+          <div className="access-review" data-testid="access-review">
+            <h5>{t("ea.perms.review.title")}</h5>
+            <ul>
+              {Object.entries(changes).map(([key, to]) => {
+                const p = data.permissions.find((x) => x.permission_key === key)
+                return p ? <li key={key}>{t("ea.perms.review.line", { label: permLabel(p, p.module_key), from: t(`ea.perms.choice.${currentChoice(p)}` as CopyKey), to: t(`ea.perms.choice.${to}` as CopyKey) })}</li> : null
+              })}
+            </ul>
+            <div className="access-save-row">
+              <span>{t("ea.perms.pending", { count: pending })}</span>
+              <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("ea.perms.reason")} aria-label={t("ea.perms.reason")} />
+              <button type="button" className="button-outline" disabled={busy} onClick={() => setChanges({})}>{t("ea.perms.discard")}</button>
+              <button type="button" className="button-primary" disabled={busy || reason.trim().length < 3} onClick={saveDecisions}>
+                {busy ? <LoaderCircle size={14} className="spin" /> : null} {t("ea.perms.save")}
+              </button>
+            </div>
           </div>
         ) : null) : <p className="platform-muted">{t("ea.noPower.permissions")}</p>}
       </section>

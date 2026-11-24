@@ -25,9 +25,13 @@ type NavItem = { labelKey: CopyKey; href: string; icon: LucideIcon }
 const platformNav: Record<PortalRole, NavItem[]> = {
   owner: [
     { labelKey: "nav.companies", href: "/portal/owner", icon: Building2 },
+    { labelKey: "nav.access", href: "/portal/owner/access", icon: KeyRound },
     { labelKey: "nav.operators", href: "/portal/owner/operators", icon: UsersRound },
   ],
-  subowner: [{ labelKey: "nav.companies", href: "/portal/subowner", icon: Building2 }],
+  subowner: [
+    { labelKey: "nav.companies", href: "/portal/subowner", icon: Building2 },
+    { labelKey: "nav.access", href: "/portal/subowner/access", icon: KeyRound },
+  ],
   superadmin: [
     { labelKey: "nav.people", href: "/portal/superadmin", icon: UsersRound },
     { labelKey: "nav.entitlements", href: "/portal/superadmin/entitlements", icon: PackageCheck },
