@@ -5,6 +5,7 @@ import { Building2, ChevronRight, LoaderCircle, PauseCircle, PlayCircle } from "
 import { rpc, ApiError } from "@/lib/portal/api"
 import { dateLocale, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
 import { Dialog } from "@/components/sentriq/dialog"
+import { CompanyModules } from "./company-modules"
 import { PortalEmpty, PortalError, PortalLoading } from "./states"
 
 export interface CompanyRow { id: string; name: string; industry_label: string | null; status: string; created_at: string; member_count?: number }
@@ -16,7 +17,7 @@ export function CompanyStatusBadge({ status }: { status: string }) {
   return <span className={`ux-badge ${tone}`}>{label}</span>
 }
 
-export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = true, onOpen, openLabelKey = "companies.open" }: { accessToken: string; allowLifecycle: boolean; canLifecycle?: boolean; onOpen?: (company: CompanyRow) => void; openLabelKey?: CopyKey }) {
+export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = true, onOpen, openLabelKey = "companies.open", canModules, onInviteSuperadmin }: { accessToken: string; allowLifecycle: boolean; canLifecycle?: boolean; onOpen?: (company: CompanyRow) => void; openLabelKey?: CopyKey; canModules?: boolean; onInviteSuperadmin?: (company: { id: string; name: string }) => void }) {
   const t = useT()
   const fe = useFriendlyError()
   const lang = usePortalLang()
@@ -28,6 +29,13 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
   const [reason, setReason] = useState("")
   const [saveError, setSaveError] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
+  const [adding, setAdding] = useState(false)
+  const [newName, setNewName] = useState("")
+  const [newIndustry, setNewIndustry] = useState("")
+  const [addBusy, setAddBusy] = useState(false)
+  const [addErr, setAddErr] = useState<string | null>(null)
+  const [addedCo, setAddedCo] = useState<{ id: string; name: string } | null>(null)
+  const [modulesFor, setModulesFor] = useState<CompanyRow | null>(null)
 
   const load = useCallback(() => setTick((v) => v + 1), [])
 
@@ -62,6 +70,15 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
     }
   }
 
+  async function addCompany() {
+    setAddBusy(true); setAddErr(null)
+    try {
+      const id = await rpc<string>("platform_create_company", { p_name: newName.trim(), p_industry_label: newIndustry.trim() || null }, accessToken)
+      setAddedCo({ id: String(id), name: newName.trim() }); load()
+    } catch (e) { setAddErr(fe(e)) } finally { setAddBusy(false) }
+  }
+  function closeAdd() { setAdding(false); setAddedCo(null); setNewName(""); setNewIndustry(""); setAddErr(null) }
+
   if (error) return <PortalError message={error} onRetry={load} />
   if (!rows) return <PortalLoading label={t("companies.loading")} />
   if (denied) return <PortalEmpty titleKey="companies.denied.title" hintKey="companies.denied.hint" />
@@ -74,6 +91,7 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
           <h2>{t("companies.title")}</h2>
           <p>{t("companies.subtitle")}</p>
         </div>
+        {onInviteSuperadmin ? <button type="button" className="button-primary" onClick={() => setAdding(true)}>{t("companies.add")}</button> : null}
       </div>
       <table className="data-table">
         <thead>
@@ -108,6 +126,7 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
               {allowLifecycle || onOpen ? (
                 <td className="platform-actions-cell"><div className="platform-actions">
                   {onOpen ? <button type="button" onClick={() => onOpen(c)} className="button-outline">{t(openLabelKey)}</button> : null}
+                  {canModules !== undefined && c.status === "active" ? <button type="button" className="button-outline" onClick={() => setModulesFor(c)}>{t("modules.button")}</button> : null}
                   {busyId === c.id ? <LoaderCircle size={15} className="spin platform-muted" /> : allowLifecycle && canLifecycle && c.status === "active" ? (
                     <button type="button" onClick={() => { setPending({ company: c, status: "suspended" }); setReason(""); setSaveError(null) }} className="button-outline platform-warn">
                       <PauseCircle size={13} /> {t("companies.suspend")}
@@ -123,6 +142,34 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
           ))}
         </tbody>
       </table>
+      {adding ? (
+        <Dialog title={t("companies.add.title")} closeLabel={t("companies.cancel")} onClose={closeAdd}>
+          {addedCo ? (
+            <div className="invite-form">
+              <p><strong>{t("companies.add.done", { name: addedCo.name })}</strong></p>
+              <p className="ux-dialog-hint">{t("companies.add.next")}</p>
+              <div className="inspection-modal-actions">
+                <button type="button" className="button-outline" onClick={closeAdd}>{t("companies.add.later")}</button>
+                <button type="button" className="button-primary" onClick={() => onInviteSuperadmin?.(addedCo)}>{t("companies.add.invite")}</button>
+              </div>
+            </div>
+          ) : (
+            <div className="invite-form">
+              <p className="ux-dialog-hint">{t("companies.add.hint")}</p>
+              <label>{t("companies.add.name")}<input value={newName} onChange={(e) => setNewName(e.target.value)} data-autofocus /></label>
+              <label>{t("companies.add.industry")}<input value={newIndustry} onChange={(e) => setNewIndustry(e.target.value)} /></label>
+              {addErr ? <p className="inspection-alert" role="alert">{addErr}</p> : null}
+              <div className="inspection-modal-actions">
+                <button type="button" className="button-outline" onClick={closeAdd}>{t("companies.cancel")}</button>
+                <button type="button" className="button-primary" disabled={addBusy || newName.trim().length < 2} onClick={addCompany}>
+                  {addBusy ? <LoaderCircle size={14} className="spin" /> : null} {t("companies.add.submit")}
+                </button>
+              </div>
+            </div>
+          )}
+        </Dialog>
+      ) : null}
+      {modulesFor ? <CompanyModules accessToken={accessToken} company={modulesFor} canIssue={canModules} onClose={() => setModulesFor(null)} /> : null}
       {pending ? (
         <Dialog
           title={pending.status === "suspended" ? t("companies.suspend.title", { name: pending.company.name }) : t("companies.reactivate.title", { name: pending.company.name })}
