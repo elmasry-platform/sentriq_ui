@@ -20,6 +20,11 @@ export function friendlyError(error: unknown, fallback = "Something went wrong. 
   const raw = error instanceof Error ? error.message : typeof error === "string" ? error : ""
   if (!raw) return fallback
   if (ERROR_COPY[raw]) return ERROR_COPY[raw]
+  // Any *_not_authorized denial in the platform area means the owner withdrew
+  // the power from this sub-owner (owners and company roles never reach these).
+  if (/^[a-z0-9_]+_not_authorized$/.test(raw)) {
+    return "The owner has withdrawn this power from your sub-owner role. Ask the owner to restore it."
+  }
   // Unknown raw code: never show snake_case internals to a person.
   if (/^[a-z0-9_]+$/.test(raw)) return fallback
   return raw
