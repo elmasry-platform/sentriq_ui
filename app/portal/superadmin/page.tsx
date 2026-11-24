@@ -7,10 +7,10 @@ import { PortalEmpty } from "@/components/portal/states"
 
 export default function SuperadminPeoplePage() {
   return (
-    <PlatformShell expect="superadmin" route="/portal/superadmin" title="People & access" subtitle="Your company's members and their live access. Use Permissions on any member to control what they can do.">
+    <PlatformShell expect="superadmin" route="/portal/superadmin" titleKey="nav.people" subtitleKey="superadmin.page.subtitle">
       {({ session, identity }) => {
         if (!identity.tenantId) {
-          return <PortalEmpty title="No active company membership" hint="Your account is not an active member of any company." />
+          return <PortalEmpty titleKey="noMembership.active.title" hintKey="noMembership.active.hint" />
         }
         return (
           <div className="platform-stack">

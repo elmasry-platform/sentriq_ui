@@ -321,3 +321,36 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 @media (max-width: 720px) { .platform-metric-grid { grid-template-columns: 1fr; } .platform-role-pill { display: none; } }
 .platform-person { max-width: 100%; }
 .platform-person .platform-cell-strong, .platform-person .platform-link-button { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- Permissions redesign: per-member access editor & operator matrix ---- */
+.access-editor-row > td { background: #fafbf7; padding: 0 !important; }
+.access-editor { padding: 18px 28px 22px; }
+.access-editor-title { color: #2c3a51; font-size: 12.5px; font-weight: 650; margin-bottom: 2px; }
+.access-editor-hint { margin: 0 0 14px; color: #6b7a8f; font-size: 11.5px; max-width: 640px; }
+.access-row { display: flex; align-items: center; gap: 14px; background: #fff; border: 1px solid #e9e4d8; border-radius: 10px; padding: 11px 16px; margin-bottom: 8px; }
+.access-row-name { width: 220px; flex-shrink: 0; }
+.access-row-name strong { display: block; color: #2c3a51; font-size: 13px; font-weight: 600; }
+.access-row-name span { color: #93a0b4; font-size: 11px; }
+.seg { display: flex; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+.seg-option { border: 0; border-inline-end: 1px solid #eee9dd; background: #fff; padding: 6px 16px; color: #7e8ea0; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.seg-option:last-child { border-inline-end: 0; }
+.seg-option:hover { background: #f6f4ee; }
+.seg-on-default { background: #eef0f3 !important; color: #2c3a51 !important; }
+.seg-on-allow { background: #e3f2e8 !important; color: #237a4b !important; }
+.seg-on-deny { background: #fbe7e2 !important; color: #b4442c !important; }
+.access-row-state { margin-inline-start: auto; font-size: 11.5px; }
+.access-save-row { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+.access-save-row input { flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 12.5px; background: #fff; color: var(--text); }
+.access-audit-note { margin: 10px 0 0; color: #93a0b4; font-size: 11px; }
+.ux-badge.b-grey { background: #eef0f3; color: #5f6f83; }
+.ux-badge.b-blue { background: #e8eefb; color: #2b57a7; }
+.ux-badge.b-red { background: #fbe7e2; color: #b4442c; }
+.is-rtl .access-row-name strong, .is-rtl .access-editor-title { letter-spacing: 0; }
+@media (max-width: 720px) {
+  .access-editor { padding: 14px; }
+  .access-row { flex-wrap: wrap; }
+  .access-row-name { width: 100%; }
+  .access-row-state { margin-inline-start: 0; }
+  .access-save-row { flex-direction: column; align-items: stretch; }
+}
+.platform-login-lang { position: absolute; top: 18px; inset-inline-end: 18px; }
