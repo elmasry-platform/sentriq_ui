@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, LoaderCircle, UserRound } from "lucide-react"
 import { rpc, select } from "@/lib/portal/api"
 import { dateLocale, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
 import { PortalEmpty, PortalError, PortalLoading } from "./states"
+import { PlatformMemberAccess } from "./platform-member-access"
 
 /** Capabilities shown in the access editor, mapped to the enabled iam.permission_catalog
  *  keys they control. A decision on a capability writes one audited decision per
@@ -141,10 +142,11 @@ function AccessEditor({ accessToken, tenantId, member, decisions, onSaved }: {
   )
 }
 
-export function MembersPanel({ accessToken, tenantId, selfUserId }: { accessToken: string; tenantId: string; selfUserId: string }) {
+export function MembersPanel({ accessToken, tenantId, selfUserId, moduleEditor = false }: { accessToken: string; tenantId: string; selfUserId: string; moduleEditor?: boolean }) {
   const t = useT()
   const fe = useFriendlyError()
   const [rows, setRows] = useState<MemberRow[] | null>(null)
+  const [everyone, setEveryone] = useState<MemberRow[]>([])
   const [decisions, setDecisions] = useState<DecisionRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
@@ -165,6 +167,7 @@ export function MembersPanel({ accessToken, tenantId, selfUserId }: { accessToke
     ])
       .then(([members, dec]) => {
         if (!active) return
+        setEveryone(members)
         setRows(members.filter((m) => m.id !== selfUserId))
         setDecisions(dec.rows ?? [])
       })
@@ -230,7 +233,13 @@ export function MembersPanel({ accessToken, tenantId, selfUserId }: { accessToke
                 {open ? (
                   <tr className="access-editor-row">
                     <td colSpan={5}>
-                      <AccessEditor accessToken={accessToken} tenantId={tenantId} member={m} decisions={decisions} onSaved={load} />
+                      {moduleEditor ? (
+                        <PlatformMemberAccess accessToken={accessToken} tenantId={tenantId}
+                          member={{ membershipId: m.membershipId, role: m.role, status: m.status, displayName: m.displayName, email: m.email }}
+                          company={{ selfUserId, selfMembershipId: everyone.find((x) => x.id === selfUserId)?.membershipId ?? null, people: everyone.map((x) => ({ userId: x.id, role: x.role, status: x.status })) }} />
+                      ) : (
+                        <AccessEditor accessToken={accessToken} tenantId={tenantId} member={m} decisions={decisions} onSaved={load} />
+                      )}
                     </td>
                   </tr>
                 ) : null}
