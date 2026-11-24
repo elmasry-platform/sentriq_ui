@@ -20,6 +20,7 @@ export function CompaniesPanel({ accessToken, allowLifecycle, onOpen }: { access
   const [busyId, setBusyId] = useState<string | null>(null)
   const [pending, setPending] = useState<{ company: CompanyRow; status: "active" | "suspended" } | null>(null)
   const [reason, setReason] = useState("")
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
 
   const load = useCallback(() => setTick((t) => t + 1), [])
@@ -45,9 +46,10 @@ export function CompaniesPanel({ accessToken, allowLifecycle, onOpen }: { access
       await rpc("platform_set_tenant_status", { p_tenant_id: company.id, p_status: status, p_reason: reason.trim() }, accessToken)
       setPending(null)
       setReason("")
+      setSaveError(null)
       load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "status_update_failed")
+      setSaveError(e instanceof Error ? e.message : "status_update_failed")
     } finally {
       setBusyId(null)
     }
@@ -97,11 +99,11 @@ export function CompaniesPanel({ accessToken, allowLifecycle, onOpen }: { access
               {allowLifecycle || onOpen ? (
                 <td>
                   {busyId === c.id ? <LoaderCircle size={15} className="spin platform-muted" /> : allowLifecycle && c.status === "active" ? (
-                    <button type="button" onClick={() => { setPending({ company: c, status: "suspended" }); setReason("") }} className="button-outline platform-warn">
+                    <button type="button" onClick={() => { setPending({ company: c, status: "suspended" }); setReason(""); setSaveError(null) }} className="button-outline platform-warn">
                       <PauseCircle size={13} /> Suspend
                     </button>
                   ) : allowLifecycle && c.status === "suspended" ? (
-                    <button type="button" onClick={() => { setPending({ company: c, status: "active" }); setReason("") }} className="button-outline platform-ok">
+                    <button type="button" onClick={() => { setPending({ company: c, status: "active" }); setReason(""); setSaveError(null) }} className="button-outline platform-ok">
                       <PlayCircle size={13} /> Reactivate
                     </button>
                   ) : onOpen ? (
@@ -123,6 +125,7 @@ export function CompaniesPanel({ accessToken, allowLifecycle, onOpen }: { access
           <label>Reason (min 3 characters)
             <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="e.g. Missed payment follow-up" data-autofocus />
           </label>
+          {saveError ? <p className="inspection-alert" role="alert">{saveError}</p> : null}
           <div className="inspection-modal-actions">
             <button type="button" className="button-outline" onClick={() => setPending(null)}>Cancel</button>
             <button type="button" onClick={confirmStatus} disabled={reason.trim().length < 3 || busyId !== null} className="button-primary">

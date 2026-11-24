@@ -22,6 +22,7 @@ export function CompanyDetail({ accessToken, company, onClose }: { accessToken: 
   const [tick, setTick] = useState(0)
   const [pending, setPending] = useState<{ member: CompanyMemberRow; status: "active" | "suspended" } | null>(null)
   const [reason, setReason] = useState("")
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const load = useCallback(() => setTick((t) => t + 1), [])
@@ -44,9 +45,10 @@ export function CompanyDetail({ accessToken, company, onClose }: { accessToken: 
       await rpc("platform_set_membership_status", { p_tenant_id: company.id, p_membership_id: member.id, p_status: status, p_reason: reason.trim() }, accessToken)
       setPending(null)
       setReason("")
+      setSaveError(null)
       load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "status_update_failed")
+      setSaveError(e instanceof Error ? e.message : "status_update_failed")
     } finally {
       setBusyId(null)
     }
@@ -87,11 +89,11 @@ export function CompanyDetail({ accessToken, company, onClose }: { accessToken: 
                   </td>
                   <td>
                     {busyId === m.id ? <LoaderCircle size={15} className="spin platform-muted" /> : m.status === "active" ? (
-                      <button type="button" onClick={() => { setPending({ member: m, status: "suspended" }); setReason("") }} className="button-outline platform-warn">
+                      <button type="button" onClick={() => { setPending({ member: m, status: "suspended" }); setReason(""); setSaveError(null) }} className="button-outline platform-warn">
                         <PauseCircle size={13} /> Suspend
                       </button>
                     ) : (
-                      <button type="button" onClick={() => { setPending({ member: m, status: "active" }); setReason("") }} className="button-outline platform-ok">
+                      <button type="button" onClick={() => { setPending({ member: m, status: "active" }); setReason(""); setSaveError(null) }} className="button-outline platform-ok">
                         <PlayCircle size={13} /> Reactivate
                       </button>
                     )}
@@ -111,6 +113,7 @@ export function CompanyDetail({ accessToken, company, onClose }: { accessToken: 
           <label>Reason (min 3 characters)
             <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} data-autofocus />
           </label>
+          {saveError ? <p className="inspection-alert" role="alert">{saveError}</p> : null}
           <div className="inspection-modal-actions">
             <button type="button" className="button-outline" onClick={() => setPending(null)}>Cancel</button>
             <button type="button" className="button-primary" onClick={confirmStatus} disabled={reason.trim().length < 3 || busyId !== null}>
