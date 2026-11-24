@@ -8,7 +8,7 @@ import { PortalEmpty } from "@/components/portal/states"
 
 export default function SuperadminPortal() {
   return (
-    <PortalShell expect="superadmin" title="Company administration" subtitle="Your company's members, entitlements, and live access profile.">
+    <PortalShell expect="superadmin" title="Company administration" subtitle="Your company's members, entitlements, and live access profile. Use Permissions on any member to control their access.">
       {({ session, identity }) => {
         if (!identity.tenantId) {
           return <PortalEmpty title="No active company membership" hint="Your account is not an active member of any company." />
