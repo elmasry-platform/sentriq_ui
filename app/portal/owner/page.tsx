@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react"
 import { UsersRound } from "lucide-react"
 import { PortalShell } from "@/components/portal/shell"
-import { CompaniesPanel } from "@/components/portal/companies"
+import { CompaniesPanel, type CompanyRow } from "@/components/portal/companies"
+import { CompanyDetail } from "@/components/portal/company-detail"
 import { PortalEmpty, PortalLoading } from "@/components/portal/states"
 import { rpc } from "@/lib/portal/api"
 
@@ -52,14 +53,16 @@ function RosterPanel({ accessToken }: { accessToken: string }) {
 }
 
 export default function OwnerPortal() {
+  const [selected, setSelected] = useState<CompanyRow | null>(null)
   return (
-    <PortalShell expect="owner" title="Platform overview" subtitle="Companies, operators, and lifecycle controls across the platform.">
+    <PortalShell expect="owner" title="Platform overview" subtitle="Companies, operators, and lifecycle controls across the platform. Open a company to manage its people.">
       {({ session }) => (
         <div className="space-y-8">
           <section>
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Companies</h2>
-            <CompaniesPanel accessToken={session.accessToken} allowLifecycle />
+            <CompaniesPanel accessToken={session.accessToken} allowLifecycle onOpen={(c) => setSelected(c)} />
           </section>
+          {selected ? <CompanyDetail accessToken={session.accessToken} company={selected} onClose={() => setSelected(null)} /> : null}
           <section>
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Platform operators</h2>
             <RosterPanel accessToken={session.accessToken} />

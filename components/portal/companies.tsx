@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Building2, PauseCircle, PlayCircle, LoaderCircle } from "lucide-react"
+import { Building2, PauseCircle, PlayCircle, LoaderCircle, ChevronRight } from "lucide-react"
 import { rpc, ApiError } from "@/lib/portal/api"
 import { PortalEmpty, PortalError, PortalLoading } from "./states"
 
@@ -12,7 +12,7 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ${tone}`}>{status}</span>
 }
 
-export function CompaniesPanel({ accessToken, allowLifecycle }: { accessToken: string; allowLifecycle: boolean }) {
+export function CompaniesPanel({ accessToken, allowLifecycle, onOpen }: { accessToken: string; allowLifecycle: boolean; onOpen?: (company: CompanyRow) => void }) {
   const [rows, setRows] = useState<CompanyRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [denied, setDenied] = useState(false)
@@ -75,7 +75,13 @@ export function CompaniesPanel({ accessToken, allowLifecycle }: { accessToken: s
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2.5">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500"><Building2 className="h-4 w-4" /></div>
-                  <span className="font-medium text-slate-800">{c.name}</span>
+                  {onOpen ? (
+                    <button onClick={() => onOpen(c)} className="inline-flex items-center gap-1 font-medium text-slate-800 hover:text-slate-950 hover:underline">
+                      {c.name}<ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                    </button>
+                  ) : (
+                    <span className="font-medium text-slate-800">{c.name}</span>
+                  )}
                 </div>
               </td>
               <td className="px-4 py-3 text-slate-500">{c.industry_label ?? "-"}</td>
