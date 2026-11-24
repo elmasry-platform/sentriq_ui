@@ -110,11 +110,14 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
   }, [accessToken, tenantId, member.membershipId, tick])
 
   // A Deny is locked for this person when someone else placed it and that someone is
-  // a Superadmin, no longer active, or not in this company. The server enforces the same rule.
+  // a Superadmin, no longer active, or not in this company. The server enforces the same
+  // rule; this is a hint inferred from the setter's membership in the loaded member list,
+  // and it fails closed: a Deny with an unknown setter is shown as locked.
   const denyLocked = (p: PermissionRow): boolean => {
     if (!company || !p.decision.deny_id) return false
     const by = p.decision.granted_by
-    if (!by || by === company.selfUserId) return false
+    if (!by) return true
+    if (by === company.selfUserId) return false
     const setter = company.people.find((x) => x.userId === by)
     return !(setter && setter.status === "active" && setter.role !== "company_superadmin")
   }
@@ -248,14 +251,14 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
         {company ? (
           <div role="group" aria-label={t("ea.delegate.title")}>
             <p className="access-audit-note">{t("ea.company.noException")}</p>
-            {mine.length === 0 ? <p className="platform-muted">{t("ea.delegate.none")}</p> : (
+            {member.status !== "active" ? <p className="platform-muted">{t("ea.delegate.inactive")}</p> : mine.length === 0 ? <p className="platform-muted">{t("ea.delegate.none")}</p> : (
               <div className="access-save-row">
                 <strong>{t("ea.delegate.title")}</strong>
                 <select value={delSource} onChange={(e) => setDelSource(e.target.value)} aria-label={t("ea.delegate.source")}>
                   <option value="">—</option>
                   {mine.map((g) => <option key={g.grant_id} value={g.grant_id}>{g.feature_key ?? g.module_key}</option>)}
                 </select>
-                <label>{t("ea.add.expires")} <input type="date" value={delExpires} onChange={(e) => setDelExpires(e.target.value)} /></label>
+                <label>{t("ea.add.expires")} <input type="date" min={new Date().toISOString().slice(0, 10)} value={delExpires} onChange={(e) => setDelExpires(e.target.value)} /></label>
                 <input value={delReason} onChange={(e) => setDelReason(e.target.value)} placeholder={t("ea.personal.reason")} aria-label={t("ea.personal.reason")} />
                 <button type="button" className="button-primary" disabled={busy || !delSource || delReason.trim().length < 3} onClick={delegate}>
                   {busy ? <LoaderCircle size={14} className="spin" /> : null} {t("ea.delegate.submit")}
@@ -277,7 +280,7 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
               <option value="">—</option>
               {targets.map((k) => <option key={k} value={k}>{k}</option>)}
             </select>
-            <label>{t("ea.add.expires")} <input type="date" value={addExpires} onChange={(e) => setAddExpires(e.target.value)} /></label>
+            <label>{t("ea.add.expires")} <input type="date" min={new Date().toISOString().slice(0, 10)} value={addExpires} onChange={(e) => setAddExpires(e.target.value)} /></label>
             {addMode === "exception" ? (
               <label><input type="checkbox" checked={addDelegate} onChange={(e) => setAddDelegate(e.target.checked)} /> {t("ea.add.delegate")}</label>
             ) : null}
