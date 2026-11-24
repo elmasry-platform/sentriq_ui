@@ -23,6 +23,7 @@ const PROBE_PERMISSIONS: { key: string; action: string; labelKey: CopyKey }[] = 
   { key: "hse.forms.read", action: "read", labelKey: "probe.hse.forms.read" },
   { key: "hse.forms.manage", action: "write", labelKey: "probe.hse.forms.manage" },
   { key: "hse.evidence.upload", action: "write", labelKey: "probe.hse.evidence.upload" },
+  { key: "hse.reports.read", action: "read", labelKey: "probe.hse.reports.read" },
   { key: "core.structure.manage", action: "write", labelKey: "probe.core.structure.manage" },
 ]
 

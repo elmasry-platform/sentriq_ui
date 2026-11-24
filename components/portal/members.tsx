@@ -14,7 +14,7 @@ const CAPABILITIES: { key: string; catalogKeys: string[] }[] = [
   { key: "hse.inspections", catalogKeys: ["hse.inspections.read", "hse.inspections.create", "hse.inspections.review"] },
   { key: "hse.forms", catalogKeys: ["hse.forms.read", "hse.forms.manage"] },
   { key: "hse.actions", catalogKeys: ["hse.actions.read", "hse.actions.manage"] },
-  { key: "hse.reports", catalogKeys: ["hse.findings.read", "hse.audit.read"] },
+  { key: "hse.reports", catalogKeys: ["hse.reports.read"] },
 ]
 type PermKey = string
 
