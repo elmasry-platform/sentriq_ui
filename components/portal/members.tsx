@@ -68,7 +68,7 @@ export function MembersPanel({ accessToken, tenantId, selfUserId }: { accessToke
       select: "id,membershipId,role,status,displayName,email",
       order: "role.asc",
     }, accessToken)
-      .then((r) => { if (active) setRows(r) })
+      .then((r) => { if (active) setRows(r.filter((m) => m.id !== selfUserId)) })
       .catch((e) => { if (active) setError(friendlyError(e, "Members could not be loaded. Try again.")) })
     return () => { active = false }
   }, [accessToken, tenantId, tick])
@@ -96,7 +96,7 @@ export function MembersPanel({ accessToken, tenantId, selfUserId }: { accessToke
                 <div className="platform-person">
                   <span className="avatar" aria-hidden="true"><UserRound size={14} /></span>
                   <strong className="platform-cell-strong">
-                    {m.displayName ?? m.email ?? "Member"}{m.id === selfUserId ? <em className="platform-muted"> (you)</em> : null}
+                    {m.displayName ?? m.email ?? "Member"}
                   </strong>
                 </div>
               </td>

@@ -135,7 +135,7 @@ export function OperatorsPanel({ accessToken, selfUserId }: { accessToken: strin
     let active = true
     setError(null)
     rpc<{ rows?: OperatorRow[] } | OperatorRow[]>("platform_operator_roster", { p_limit: 100 }, accessToken)
-      .then((r) => { if (active) setRows(Array.isArray(r) ? r : r.rows ?? []) })
+      .then((r) => { if (active) setRows((Array.isArray(r) ? r : r.rows ?? []).filter((o) => o.user_id !== selfUserId)) })
       .catch((e) => { if (active) setError(friendlyError(e, "Operators could not be loaded. Try again.")) })
     return () => { active = false }
   }, [accessToken, tick])
@@ -158,8 +158,8 @@ export function OperatorsPanel({ accessToken, selfUserId }: { accessToken: strin
         </thead>
         <tbody>
           {rows.map((o) => {
-            const isSelf = o.user_id === selfUserId
-            const manageable = o.operator_role === "subowner" && !isSelf
+            const isSelf = false
+            const manageable = o.operator_role === "subowner"
             const open = openId === o.user_id
             return (
               <FragmentRow
@@ -187,7 +187,7 @@ function FragmentRow({ operator: o, isSelf, manageable, open, onToggle, accessTo
           <div className="platform-person">
             <span className="avatar" aria-hidden="true"><UsersRound size={14} /></span>
             <span>
-              <strong className="platform-cell-strong">{o.email ?? "Operator"}{isSelf ? <em> (you)</em> : null}</strong>
+              <strong className="platform-cell-strong">{o.email ?? "Operator"}</strong>
               <span className="platform-perm-key">{o.user_id.slice(0, 8)}…</span>
             </span>
           </div>
@@ -199,7 +199,7 @@ function FragmentRow({ operator: o, isSelf, manageable, open, onToggle, accessTo
             <button type="button" className="button-outline" onClick={onToggle} aria-expanded={open}>
               <KeyRound size={13} /> Permissions {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
             </button>
-          ) : <span className="platform-muted">{isSelf ? "Your account" : "Owner only"}</span>}
+          ) : <span className="platform-muted">Owner only</span>}
         </td>
       </tr>
       {open ? (
