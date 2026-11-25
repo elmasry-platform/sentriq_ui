@@ -1,18 +1,18 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { PlatformShell } from "@/components/platform/shell"
-import { CompaniesPanel, type CompanyRow } from "@/components/portal/companies"
-import { CompanyDetail } from "@/components/portal/company-detail"
+import { CompaniesPanel } from "@/components/portal/companies"
 import { rpc } from "@/lib/portal/api"
 
 /**
- * Sub-owner companies view. Withdrawn powers hide their actions up front
- * (the server still enforces every withdrawal); if the permission read
- * itself fails we show the actions and let the audited RPC decide.
+ * Sub-owner companies view: company-wide control only. People are managed on the
+ * Member access page. Withdrawn powers hide their actions up front (the server
+ * still enforces every withdrawal).
  */
 function SubownerPanels({ accessToken }: { accessToken: string }) {
-  const [selected, setSelected] = useState<CompanyRow | null>(null)
+  const router = useRouter()
   const [perms, setPerms] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
@@ -34,18 +34,10 @@ function SubownerPanels({ accessToken }: { accessToken: string }) {
         accessToken={accessToken}
         allowLifecycle
         canLifecycle={perms["company.lifecycle"] !== false}
-        onOpen={(c) => setSelected(c)}
+        canModules={perms["entitlement.issue"] !== false}
+        onInviteSuperadmin={perms["company.create"] !== false && perms["superadmin.invite"] !== false ? (c) => router.push(`/portal/subowner/invitations?company=${c.id}&level=company_superadmin`) : undefined} openLabelKey="companies.openAccess"
+        onOpen={(c) => router.push(`/portal/subowner/access?company=${c.id}`)}
       />
-      {selected ? (
-        <CompanyDetail
-          accessToken={accessToken}
-          company={selected}
-          canLifecycle={perms["membership.lifecycle"] !== false}
-          canPermissions={perms["member.permissions"] === true}
-          canEntitlements={perms["member.entitlements"] === true}
-          onClose={() => setSelected(null)}
-        />
-      ) : null}
     </div>
   )
 }
