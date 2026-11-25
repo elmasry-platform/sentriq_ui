@@ -1,6 +1,7 @@
 /** Portal copy registry (EN and AR). Plain data so tests can load it. */
 export const COPY = {
   en: {
+    "shell.company": "Company",
     "ea.help.title": "How this works",
     "ea.advanced.title": "Company subscription and exceptions",
     "more.details": "Details",
@@ -519,6 +520,7 @@ export const COPY = {
     "err.capabilityLimit": "Your role does not allow this change.",
   },
   ar: {
+    "shell.company": "الشركة",
     "ea.help.title": "كيف يعمل هذا",
     "ea.advanced.title": "اشتراك الشركة والاستثناءات",
     "more.details": "التفاصيل",

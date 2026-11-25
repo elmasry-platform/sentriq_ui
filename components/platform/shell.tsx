@@ -165,6 +165,7 @@ function PlatformShellInner({
 
   const platformItems = platformNav[identity.role]
   const noCompany = identity.role === "employee" && !identity.tenantId && identity.membershipStatus === "none"
+  const areaLabel = identity.role === "owner" || identity.role === "subowner" ? tt("shell.platform") : tt("shell.company")
   const displayLabel = noCompany ? tt("role.none") : tt(ROLE_KEY[identity.role])
   const navLink = (item: NavItem) => {
     const longer = platformItems.some((o) => o.href.length > item.href.length && o.href.startsWith(`${item.href}/`) && (route === o.href || route.startsWith(`${o.href}/`)))
@@ -190,8 +191,8 @@ function PlatformShellInner({
           {!collapsed && <span className="brand-name">SENTRIQ<span className="brand-period">.</span></span>}
         </Link>
         {mobileOpen && <button type="button" className="sidebar-close" aria-label={tt("shell.closeNav")} onClick={() => { setMobileOpen(false); menuButtonRef.current?.focus() }}><X size={19} /></button>}
-        {!collapsed && <div className="workspace-label">{tt("shell.platform").toUpperCase()} · {displayLabel.toUpperCase()}</div>}
-        <nav className="side-nav side-nav-admin" aria-label={tt("shell.platform")}>
+        {!collapsed && <div className="workspace-label">{areaLabel.toUpperCase()} · {displayLabel.toUpperCase()}</div>}
+        <nav className="side-nav side-nav-admin" aria-label={areaLabel}>
           {platformItems.map((item) => navLink(item))}
         </nav>
         <div className="sidebar-bottom sq-sidebar-bottom">
@@ -202,7 +203,7 @@ function PlatformShellInner({
       <div className="main-column">
         <header className="topbar">
           <button ref={menuButtonRef} type="button" className="mobile-menu-button" aria-label={tt("shell.openNav")} aria-expanded={mobileOpen} aria-controls="primary-navigation" onClick={() => setMobileOpen(true)}><Menu size={20} /></button>
-          <div className="breadcrumbs"><span>{tt("shell.platform")}</span><ChevronRight size={14} /><strong>{title}</strong></div>
+          <div className="breadcrumbs"><span>{areaLabel}</span><ChevronRight size={14} /><strong>{title}</strong></div>
           <div className="topbar-actions">
             <button type="button" className="language-button" onClick={() => onLangChange(rtl ? "en" : "ar")} aria-label={rtl ? "Switch to English" : "التغيير إلى العربية"}><Languages size={16} /><span>{tt("lang.toggle")}</span></button>
             <span className="status-pill platform-role-pill"><ShieldCheck size={13} />{displayLabel}</span>
@@ -219,7 +220,7 @@ function PlatformShellInner({
         <main className="main-content" id="main-content" tabIndex={-1}>
           <div className="page-heading-row">
             <div>
-              <p className="eyebrow">SENTRIQ {tt("shell.platform").toUpperCase()}</p>
+              <p className="eyebrow">SENTRIQ {areaLabel.toUpperCase()}</p>
               <h1>{title}</h1>
               {subtitle ? <p className="page-subtitle">{subtitle}</p> : null}
             </div>

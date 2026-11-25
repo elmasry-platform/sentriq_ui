@@ -89,7 +89,6 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
       <div className="panel-header">
         <div>
           <h2>{t("companies.title")}</h2>
-          <p>{t("companies.subtitle")}</p>
         </div>
         {onInviteSuperadmin ? <button type="button" className="button-primary" onClick={() => setAdding(true)}>{t("companies.add")}</button> : null}
       </div>
