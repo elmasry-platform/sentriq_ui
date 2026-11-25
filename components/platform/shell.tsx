@@ -8,6 +8,7 @@ import {
   PackageCheck, Languages, type LucideIcon,
 } from "lucide-react"
 import { usePortalSession } from "@/lib/portal/session"
+import { select } from "@/lib/portal/api"
 import { resolveIdentity, type PortalIdentity, type PortalRole } from "@/lib/portal/identity"
 import { LoadingState, ErrorState, PermissionDenied } from "@/components/sentriq/states"
 import { PortalLangProvider, t, useStoredPortalLang, type CopyKey, type PortalLang } from "@/lib/portal/i18n"
@@ -105,6 +106,18 @@ function PlatformShellInner({
   const menuButtonRef = useRef<HTMLButtonElement>(null)
 
   const reload = useCallback(() => setTick((t) => t + 1), [])
+  const [companyName, setCompanyName] = useState<string | null>(null)
+  const nameTenant = identity && identity.role !== "owner" && identity.role !== "subowner" ? identity.tenantId : undefined
+  const nameToken = session?.accessToken
+  useEffect(() => {
+    setCompanyName(null)
+    if (!nameTenant || !nameToken) return
+    let active = true
+    select<{ name?: string }[]>("v_workspaces", { workspaceId: `eq.${nameTenant}`, select: "name" }, nameToken)
+      .then((rows) => { if (active && rows?.[0]?.name) setCompanyName(rows[0].name) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [nameTenant, nameToken])
 
   useEffect(() => {
     if (loading) return
@@ -165,7 +178,7 @@ function PlatformShellInner({
 
   const platformItems = platformNav[identity.role]
   const noCompany = identity.role === "employee" && !identity.tenantId && identity.membershipStatus === "none"
-  const areaLabel = identity.role === "owner" || identity.role === "subowner" ? tt("shell.platform") : tt("shell.company")
+  const areaLabel = identity.role === "owner" || identity.role === "subowner" ? tt("shell.platform") : (companyName ?? tt("shell.company"))
   const displayLabel = noCompany ? tt("role.none") : tt(ROLE_KEY[identity.role])
   const navLink = (item: NavItem) => {
     const longer = platformItems.some((o) => o.href.length > item.href.length && o.href.startsWith(`${item.href}/`) && (route === o.href || route.startsWith(`${o.href}/`)))
@@ -209,7 +222,7 @@ function PlatformShellInner({
             <span className="status-pill platform-role-pill"><ShieldCheck size={13} />{displayLabel}</span>
             <div className="topbar-divider profile-divider" />
             <div className="avatar-menu" ref={profileRef}>
-              <button type="button" ref={profileButtonRef} className="avatar avatar-menu-trigger" aria-haspopup="dialog" aria-expanded={profileOpen} aria-controls="avatar-menu-panel" aria-label={tt("shell.account")} onClick={() => setProfileOpen(!profileOpen)}>{initials(session.email)}</button>
+              <button type="button" ref={profileButtonRef} className="avatar avatar-menu-trigger" aria-haspopup="dialog" aria-expanded={profileOpen} aria-controls="avatar-menu-panel" aria-label={tt("shell.account")} title={session.email} onClick={() => setProfileOpen(!profileOpen)}>{initials(session.email)}</button>
               {profileOpen && <div id="avatar-menu-panel" className="avatar-menu-panel" role="dialog" aria-label={tt("shell.account")}>
                 <div className="avatar-menu-head"><span className="avatar" aria-hidden="true">{initials(session.email)}</span><div><strong>{session.email}</strong><small>{displayLabel}</small></div></div>
                 <button type="button" className="button-outline platform-signout" onClick={handleSignOut}><LogOut size={14} /> {tt("shell.signout")}</button>

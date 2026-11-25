@@ -425,3 +425,14 @@ html[data-portal-pending] body { visibility: hidden; }
 @media (max-width: 720px) { .data-table tbody td { height: auto; } .data-table td.cell-wrap { max-width: none; } }
 .platform-metric-grid > *, .platform-metric > * { min-width: 0; }
 .platform-metric strong, .platform-metric span { overflow-wrap: anywhere; }
+
+.platform-muted { color: #5a6678; }
+.platform-login-form label { color: #3f4a5c; }
+.platform-login-form .platform-muted, .platform-login-form > .platform-muted { color: #3f4a5c; }
+.cell-stack { min-width: 0; }
+@media (max-width: 760px) {
+  .invite-key-row { flex-direction: column; align-items: stretch; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .invite-key-row .seg { width: 100%; }
+  .invite-key-row .seg-option { flex: 1 1 0; min-width: 0; padding: 7px 4px; }
+}
+.workspace-label { overflow-wrap: anywhere; line-height: 1.3; }
