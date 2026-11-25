@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Copy, LoaderCircle, Plus } from "lucide-react"
 import { rpc } from "@/lib/portal/api"
 import { dateLocale, tryCopy, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
+import { permissionLabel } from "@/lib/portal/perm-label"
 import { ROLE_PRESETS, isOperational, presetKeys, type CatalogKey, type PresetId } from "@/lib/portal/presets"
 import { Dialog } from "@/components/sentriq/dialog"
 import type { CompanyRow } from "./companies"
@@ -17,11 +18,6 @@ interface InvitationRow {
 type Choice = "default" | "allow" | "deny"
 const LEVEL_KEY: Record<string, CopyKey> = {
   company_superadmin: "level.company_superadmin", company_admin: "level.company_admin", employee: "level.employee",
-}
-/** Readable fallback for a permission key with no copy yet: "hse.create_edit" -> "Create edit". */
-function humanizeKey(key: string): string {
-  const last = key.split(".").slice(-2).join(" ").replace(/_/g, " ")
-  return last.charAt(0).toUpperCase() + last.slice(1)
 }
 const STATUS_TONE: Record<string, string> = { pending: "b-blue", accepted: "ux-badge-approved", expired: "b-grey", revoked: "ux-badge-returned" }
 
@@ -175,7 +171,7 @@ function CreateInvitation({ accessToken, ownTenantId, companies, onClose, onCrea
               <div className="invite-keys">
                 {allKeys.map((k) => {
                   const c = choices[k] ?? "default"
-                  const label = tryCopy(lang, `perm.${k}`) ?? humanizeKey(k)
+                  const label = permissionLabel(k, (ck) => tryCopy(lang, ck))
                   return (
                     <div key={k} className="invite-key-row">
                       <span>{label}</span>
