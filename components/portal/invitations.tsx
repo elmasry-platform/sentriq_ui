@@ -18,6 +18,11 @@ type Choice = "default" | "allow" | "deny"
 const LEVEL_KEY: Record<string, CopyKey> = {
   company_superadmin: "level.company_superadmin", company_admin: "level.company_admin", employee: "level.employee",
 }
+/** Readable fallback for a permission key with no copy yet: "hse.create_edit" -> "Create edit". */
+function humanizeKey(key: string): string {
+  const last = key.split(".").slice(-2).join(" ").replace(/_/g, " ")
+  return last.charAt(0).toUpperCase() + last.slice(1)
+}
 const STATUS_TONE: Record<string, string> = { pending: "b-blue", accepted: "ux-badge-approved", expired: "b-grey", revoked: "ux-badge-returned" }
 
 /** Operator mode (Owner, Sub-owner): any company, any level. Company mode (Superadmin): own company, Admins and Employees (never Superadmin).
@@ -57,7 +62,7 @@ export function InvitationsPage({ accessToken, ownTenantId }: { accessToken: str
   return (
     <div className="panel platform-panel" data-testid="invitations">
       <div className="panel-header">
-        <div><h2>{t("invites.title")}</h2><p>{t("invites.subtitle")}</p></div>
+        <div><h2>{t("invites.title")}</h2></div>
         <button type="button" className="button-primary" onClick={() => setCreating(true)}><Plus size={14} /> {t("invites.new")}</button>
       </div>
       {error ? <PortalError message={error} onRetry={reload} /> : !rows ? <PortalLoading label={t("companies.loading")} />
@@ -70,9 +75,9 @@ export function InvitationsPage({ accessToken, ownTenantId }: { accessToken: str
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <td><strong className="platform-cell-strong">{r.invitee_name ?? r.email}</strong>{r.invitee_name ? <div className="platform-muted">{r.email}</div> : null}
+                  <td className="cell-wrap"><strong className="platform-cell-strong">{r.invitee_name ?? r.email}</strong>{r.invitee_name ? <div className="platform-muted">{r.email}</div> : null}
                     <div className="platform-muted">{LEVEL_KEY[r.intended_level] ? t(LEVEL_KEY[r.intended_level]) : r.intended_level} · {r.decision_count > 0 ? t("invites.access.count", { count: r.decision_count }) : t("invites.access.none")}</div></td>
-                  {ownTenantId ? null : <td>{r.company_name}</td>}
+                  {ownTenantId ? null : <td className="cell-wrap">{r.company_name}</td>}
                   <td><span className={`ux-badge ${STATUS_TONE[r.status]}`}>{t(`invites.status.${r.status}` as CopyKey)}</span>{r.revoke_reason && r.status === "revoked" ? <div className="platform-muted">{r.revoke_reason}</div> : null}</td>
                   <td>{fmt(r.expires_at)}</td>
                   <td>{r.status === "pending" ? <button type="button" className="button-outline platform-warn" onClick={() => setRevoking(r)}>{t("invites.revoke")}</button> : null}</td>
@@ -170,7 +175,7 @@ function CreateInvitation({ accessToken, ownTenantId, companies, onClose, onCrea
               <div className="invite-keys">
                 {allKeys.map((k) => {
                   const c = choices[k] ?? "default"
-                  const label = tryCopy(lang, `perm.${k}`) ?? k
+                  const label = tryCopy(lang, `perm.${k}`) ?? humanizeKey(k)
                   return (
                     <div key={k} className="invite-key-row">
                       <span>{label}</span>
@@ -188,10 +193,12 @@ function CreateInvitation({ accessToken, ownTenantId, companies, onClose, onCrea
           )}
         </fieldset>
         </details>
-        {err ? <p className="inspection-alert" role="alert">{err}</p> : null}
-        <div className="inspection-modal-actions">
-          <button type="button" className="button-outline" onClick={onClose}>{t("companies.cancel")}</button>
-          <button type="button" className="button-primary" disabled={!valid || busy} onClick={submit}>{busy ? <LoaderCircle size={14} className="spin" /> : null} {t("invites.form.submit")}</button>
+        <div className="invite-sticky">
+          {err ? <p className="inspection-alert" role="alert">{err}</p> : null}
+          <div className="inspection-modal-actions">
+            <button type="button" className="button-outline" onClick={onClose}>{t("companies.cancel")}</button>
+            <button type="button" className="button-primary" disabled={!valid || busy} onClick={submit}>{busy ? <LoaderCircle size={14} className="spin" /> : null} {t("invites.form.submit")}</button>
+          </div>
         </div>
       </div>
     </Dialog>

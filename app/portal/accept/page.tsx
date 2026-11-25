@@ -117,7 +117,7 @@ export default function AcceptInvitationPage() {
                       <input id="pw2" type={showPw ? "text" : "password"} autoComplete="new-password" minLength={10} required value={pw2} onChange={e => setPw2(e.target.value)} />
                     </label>
                     <label className="platform-check" htmlFor="showpw"><input id="showpw" type="checkbox" checked={showPw} onChange={e => setShowPw(e.target.checked)} />{tt("accept.showPasswords")}</label>
-                    {error ? <p className="inspection-alert" role="alert">{error}</p> : null}
+                    <div className="form-error-slot">{error ? <p className="inspection-alert" role="alert">{error}</p> : null}</div>
                     <button type="submit" className="button-primary platform-login-submit" disabled={busy}>{busy ? tt("accept.creating") : tt("accept.create")}</button>
                   </form>
                   <Link className="platform-muted" href="/portal/login">{tt("accept.haveAccount")}</Link>
