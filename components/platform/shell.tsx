@@ -204,7 +204,7 @@ function PlatformShellInner({
           {!collapsed && <span className="brand-name">SENTRIQ<span className="brand-period">.</span></span>}
         </Link>
         {mobileOpen && <button type="button" className="sidebar-close" aria-label={tt("shell.closeNav")} onClick={() => { setMobileOpen(false); menuButtonRef.current?.focus() }}><X size={19} /></button>}
-        {!collapsed && <div className="workspace-label">{areaLabel.toUpperCase()} · {displayLabel.toUpperCase()}</div>}
+        {!collapsed && <div className="workspace-label" title={`${areaLabel} · ${displayLabel}`}>{areaLabel.toUpperCase()} · {displayLabel.toUpperCase()}</div>}
         <nav className="side-nav side-nav-admin" aria-label={areaLabel}>
           {platformItems.map((item) => navLink(item))}
         </nav>
