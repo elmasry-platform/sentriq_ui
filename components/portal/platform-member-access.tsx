@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { ChevronDown, ChevronRight, LoaderCircle, MoreHorizontal } from "lucide-react"
 import { rpc } from "@/lib/portal/api"
 import { dateLocale, tryCopy, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
+import { permissionLabel } from "@/lib/portal/perm-label"
 import { PortalError, PortalLoading } from "./states"
 import { ROLE_PRESETS, isOperational, presetKeys, type RolePreset } from "@/lib/portal/presets"
 
@@ -36,13 +37,6 @@ function badgeFor(kind: string): string {
   if (["default_superadmin", "allow", "allow_scoped", "personal_exception", "live"].includes(kind)) return "b-blue"
   if (["company", "inherited", "inherited_scoped"].includes(kind)) return "ux-badge-approved"
   return "b-grey"
-}
-
-/** "hse.forms.manage" -> "Forms manage" (display only; the key stays visible). */
-function humanize(key: string, moduleKey: string): string {
-  const parts = key.split(".").filter((p) => p !== moduleKey)
-  const s = (parts.length ? parts : [key]).join(" ").replace(/_/g, " ")
-  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 function currentChoice(p: PermissionRow): Choice {
@@ -147,7 +141,7 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
   if (!data) return <PortalLoading label={t("people.loading")} />
 
   const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(dateLocale(lang)) : "")
-  const permLabel = (p: PermissionRow, moduleKey: string) => tryCopy(lang, `perm.${p.permission_key}`) ?? humanize(p.permission_key, moduleKey)
+  const permLabel = (p: PermissionRow, _moduleKey: string) => permissionLabel(p.permission_key, (ck) => tryCopy(lang, ck))
   const sum = (() => {
     const all = data.permissions
     const blocked = all.filter((p) => p.functional_state === "deny" || p.entitlement_state === "restricted").length
