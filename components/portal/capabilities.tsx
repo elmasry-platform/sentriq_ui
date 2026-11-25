@@ -91,7 +91,7 @@ export function PermissionMatrix({ accessToken, tenantId }: { accessToken: strin
   return (
     <details className="panel platform-panel platform-fold" open>
       <summary>{t("caps.matrix.title")}</summary>
-      <table className="data-table">
+      <table className="data-table matrix-table">
         <tbody>
           {PROBE_PERMISSIONS.map((p) => {
             const allowed = results[`${p.key}:${p.action}`]
