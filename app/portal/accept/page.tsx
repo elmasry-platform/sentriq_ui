@@ -40,6 +40,27 @@ export default function AcceptInvitationPage() {
     return () => { active = false }
   }, [token])
 
+  /** Map a signup failure to one distinct message. The hook's own rejection is the invalid-link message. */
+  function signupMessage(err: { message?: string; status?: number; code?: string; name?: string }): string {
+    const code = err.code ?? ""
+    const msg = err.message ?? ""
+    if (code === "weak_password" || /password/i.test(msg) && /(weak|short|least|characters)/i.test(msg)) return tt("accept.pwWeak")
+    if (err.status === 429 || /rate.?limit/i.test(code) || /rate limit/i.test(msg)) return tt("accept.rate")
+    if (code === "user_already_exists" || /already (been )?registered|already exists/i.test(msg)) return tt("accept.exists")
+    if (err.status === 403 || /signup_requires_valid_invitation/.test(msg)) return tt("accept.invalid")
+    if (err.status === 0 || err.status === undefined || /fetch|network|retryable/i.test(`${err.name} ${msg}`)) return tt("accept.network")
+    return tt("accept.generic")
+  }
+
+  /** Accept with the signed-in token. A failure leaves the user signed in, so the button below retries it. */
+  async function finishAccept(accessToken: string) {
+    await rpc("accept_my_invitation", { p_token: token }, accessToken)
+    window.history.replaceState(null, "", window.location.pathname)
+    setDone(true)
+    // Best effort: the token is spent, so drop it from the user's own metadata through the Auth API (as the user).
+    getSupabase().auth.updateUser({ data: { invitation_token: null } }).catch(() => undefined)
+  }
+
   /** Create the account with the invited email. The database gate rejects anything without a valid invitation. */
   async function register() {
     if (!token || !preview || preview === "invalid") return
@@ -50,16 +71,25 @@ export default function AcceptInvitationPage() {
       const { data, error: err } = await getSupabase().auth.signUp({
         email: preview.invited_email, password: pw, options: { data: { invitation_token: token } },
       })
-      if (err) {
-        setError(/already/i.test(err.message) ? tt("accept.exists") : tt("err.inv.invalid"))
-        return
+      if (err) { setError(signupMessage(err)); return }
+      // An address that already has an account comes back without identities and without a session.
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) { setError(tt("accept.exists")); return }
+      let accessToken = data.session?.access_token ?? null
+      if (!accessToken) {
+        // No session: either mailbox confirmation is on, or the sign-up did not take. Ask the server, do not guess.
+        const signed = await getSupabase().auth.signInWithPassword({ email: preview.invited_email, password: pw })
+        if (signed.error) {
+          if (signed.error.code === "email_not_confirmed") setCheckInbox(true)
+          else setError(signupMessage(signed.error))
+          return
+        }
+        accessToken = signed.data.session?.access_token ?? null
       }
-      if (!data.session) { setCheckInbox(true); return }   // mailbox confirmation is on: finish after the link in the email
-      await rpc("accept_my_invitation", { p_token: token }, data.session.access_token)
-      window.history.replaceState(null, "", window.location.pathname)
-      setDone(true)
+      if (!accessToken) { setError(tt("accept.generic")); return }
+      try { await finishAccept(accessToken) }
+      catch (e) { setError(`${friendlyErrorLang(lang, e)} ${tt("accept.retryHint")}`) }
     } catch (e) {
-      setError(friendlyErrorLang(lang, e))
+      setError(signupMessage(e as { message?: string; name?: string }))
     } finally { setBusy(false) }
   }
 
@@ -67,9 +97,7 @@ export default function AcceptInvitationPage() {
     if (!session || !token) return
     setBusy(true); setError(null)
     try {
-      await rpc("accept_my_invitation", { p_token: token }, session.accessToken)
-      window.history.replaceState(null, "", window.location.pathname)
-      setDone(true)
+      await finishAccept(session.accessToken)
     } catch (e) {
       setError(friendlyErrorLang(lang, e))
     } finally { setBusy(false) }
