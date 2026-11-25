@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Building2, ChevronRight, LoaderCircle, PauseCircle, PlayCircle } from "lucide-react"
+import { Building2, ChevronRight, LoaderCircle, MoreHorizontal, PauseCircle, PlayCircle } from "lucide-react"
 import { rpc, ApiError } from "@/lib/portal/api"
 import { dateLocale, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
 import { Dialog } from "@/components/sentriq/dialog"
@@ -89,7 +89,6 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
       <div className="panel-header">
         <div>
           <h2>{t("companies.title")}</h2>
-          <p>{t("companies.subtitle")}</p>
         </div>
         {onInviteSuperadmin ? <button type="button" className="button-primary" onClick={() => setAdding(true)}>{t("companies.add")}</button> : null}
       </div>
@@ -97,17 +96,16 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
         <thead>
           <tr>
             <th>{t("companies.company")}</th>
-            <th>{t("companies.industry")}</th>
             <th>{t("companies.members")}</th>
             <th>{t("companies.status")}</th>
-            <th>{t("companies.created")}</th>
             {allowLifecycle || onOpen ? <th>{t("companies.actions")}</th> : null}
           </tr>
         </thead>
         <tbody>
           {rows.map((c) => (
             <tr key={c.id}>
-              <td>
+              <td data-label={t("companies.company")}>
+                <div className="cell-stack">
                 <div className="platform-person">
                   <span className="avatar" aria-hidden="true"><Building2 size={14} /></span>
                   {onOpen ? (
@@ -118,14 +116,18 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
                     <strong className="platform-cell-strong">{c.name}</strong>
                   )}
                 </div>
+                <div className="platform-muted">{[c.industry_label, new Date(c.created_at).toLocaleDateString(dateLocale(lang))].filter(Boolean).join(" · ")}</div>
+                </div>
               </td>
-              <td>{c.industry_label ?? "—"}</td>
-              <td>{c.member_count ?? "—"}</td>
-              <td><CompanyStatusBadge status={c.status} /></td>
-              <td>{new Date(c.created_at).toLocaleDateString(dateLocale(lang))}</td>
+              <td data-label={t("companies.members")}>{c.member_count ?? "—"}</td>
+              <td data-label={t("companies.status")}><CompanyStatusBadge status={c.status} /></td>
               {allowLifecycle || onOpen ? (
                 <td className="platform-actions-cell"><div className="platform-actions">
                   {onOpen ? <button type="button" onClick={() => onOpen(c)} className="button-outline">{t(openLabelKey)}</button> : null}
+                  {(canModules !== undefined && c.status === "active") || (allowLifecycle && canLifecycle && c.status !== "closed") ? (
+                    <details className="row-menu">
+                      <summary aria-label={t("more.options")}><MoreHorizontal size={16} aria-hidden="true" /></summary>
+                      <div className="row-menu-list" onClick={(e) => { (e.currentTarget.parentElement as HTMLDetailsElement).open = false }}>
                   {canModules !== undefined && c.status === "active" ? <button type="button" className="button-outline" onClick={() => setModulesFor(c)}>{t("modules.button")}</button> : null}
                   {busyId === c.id ? <LoaderCircle size={15} className="spin platform-muted" /> : allowLifecycle && canLifecycle && c.status === "active" ? (
                     <button type="button" onClick={() => { setPending({ company: c, status: "suspended" }); setReason(""); setSaveError(null) }} className="button-outline platform-warn">
@@ -135,6 +137,9 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
                     <button type="button" onClick={() => { setPending({ company: c, status: "active" }); setReason(""); setSaveError(null) }} className="button-outline platform-ok">
                       <PlayCircle size={13} /> {t("companies.reactivate")}
                     </button>
+                  ) : null}
+                      </div>
+                    </details>
                   ) : null}
                 </div></td>
               ) : null}
@@ -157,7 +162,9 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
             <div className="invite-form">
               <p className="ux-dialog-hint">{t("companies.add.hint")}</p>
               <label>{t("companies.add.name")}<input value={newName} onChange={(e) => setNewName(e.target.value)} data-autofocus /></label>
-              <label>{t("companies.add.industry")}<input value={newIndustry} onChange={(e) => setNewIndustry(e.target.value)} /></label>
+              <details className="more-options"><summary>{t("more.options")}</summary>
+                <label>{t("companies.add.industry")}<input value={newIndustry} onChange={(e) => setNewIndustry(e.target.value)} /></label>
+              </details>
               {addErr ? <p className="inspection-alert" role="alert">{addErr}</p> : null}
               <div className="inspection-modal-actions">
                 <button type="button" className="button-outline" onClick={closeAdd}>{t("companies.cancel")}</button>

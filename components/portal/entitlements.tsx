@@ -30,7 +30,6 @@ export function EntitlementsPanel({ accessToken, tenantId }: { accessToken: stri
       <div className="panel-header">
         <div>
           <h2>{t("ent.panel.title")}</h2>
-          <p>{t("ent.panel.subtitle")}</p>
         </div>
       </div>
       <table className="data-table">

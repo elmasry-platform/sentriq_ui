@@ -8,9 +8,10 @@ import {
   PackageCheck, Languages, type LucideIcon,
 } from "lucide-react"
 import { usePortalSession } from "@/lib/portal/session"
+import { select } from "@/lib/portal/api"
 import { resolveIdentity, type PortalIdentity, type PortalRole } from "@/lib/portal/identity"
 import { LoadingState, ErrorState, PermissionDenied } from "@/components/sentriq/states"
-import { PortalLangProvider, t, type CopyKey, type PortalLang } from "@/lib/portal/i18n"
+import { PortalLangProvider, t, useStoredPortalLang, type CopyKey, type PortalLang } from "@/lib/portal/i18n"
 
 export const ROLE_KEY: Record<PortalRole, CopyKey> = {
   owner: "role.owner",
@@ -47,7 +48,7 @@ const platformNav: Record<PortalRole, NavItem[]> = {
 function initials(email: string) {
   const base = email.split("@")[0].replace(/[^a-zA-Z]/g, " ").trim().split(/\s+/)
   const letters = base.map((part) => part.charAt(0).toUpperCase()).join("")
-  return (letters || email.charAt(0).toUpperCase()).slice(0, 2) || "S"
+  return letters.slice(0, 2) || "U"
 }
 
 /**
@@ -62,15 +63,7 @@ export function PlatformShell(props: {
   subtitleKey?: CopyKey
   children: (ctx: { session: { accessToken: string; userId: string; email: string }; identity: PortalIdentity; reload: () => void }) => ReactNode
 }) {
-  const [lang, setLang] = useState<PortalLang>("en")
-  useEffect(() => {
-    const saved = window.localStorage.getItem("sentriq-portal-lang")
-    if (saved === "ar" || saved === "en") setLang(saved)
-  }, [])
-  const changeLang = (next: PortalLang) => {
-    setLang(next)
-    window.localStorage.setItem("sentriq-portal-lang", next)
-  }
+  const [lang, changeLang] = useStoredPortalLang()
   return (
     <PortalLangProvider value={lang}>
       <PlatformShellInner {...props} lang={lang} onLangChange={changeLang} />
@@ -113,6 +106,18 @@ function PlatformShellInner({
   const menuButtonRef = useRef<HTMLButtonElement>(null)
 
   const reload = useCallback(() => setTick((t) => t + 1), [])
+  const [companyName, setCompanyName] = useState<string | null>(null)
+  const nameTenant = identity && identity.role !== "owner" && identity.role !== "subowner" ? identity.tenantId : undefined
+  const nameToken = session?.accessToken
+  useEffect(() => {
+    setCompanyName(null)
+    if (!nameTenant || !nameToken) return
+    let active = true
+    select<{ name?: string }[]>("v_workspaces", { workspaceId: `eq.${nameTenant}`, select: "name" }, nameToken)
+      .then((rows) => { if (active && rows?.[0]?.name) setCompanyName(rows[0].name) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [nameTenant, nameToken])
 
   useEffect(() => {
     if (loading) return
@@ -173,6 +178,7 @@ function PlatformShellInner({
 
   const platformItems = platformNav[identity.role]
   const noCompany = identity.role === "employee" && !identity.tenantId && identity.membershipStatus === "none"
+  const areaLabel = identity.role === "owner" || identity.role === "subowner" ? tt("shell.platform") : (companyName ?? tt("shell.company"))
   const displayLabel = noCompany ? tt("role.none") : tt(ROLE_KEY[identity.role])
   const navLink = (item: NavItem) => {
     const longer = platformItems.some((o) => o.href.length > item.href.length && o.href.startsWith(`${item.href}/`) && (route === o.href || route.startsWith(`${o.href}/`)))
@@ -198,8 +204,8 @@ function PlatformShellInner({
           {!collapsed && <span className="brand-name">SENTRIQ<span className="brand-period">.</span></span>}
         </Link>
         {mobileOpen && <button type="button" className="sidebar-close" aria-label={tt("shell.closeNav")} onClick={() => { setMobileOpen(false); menuButtonRef.current?.focus() }}><X size={19} /></button>}
-        {!collapsed && <div className="workspace-label">{tt("shell.platform").toUpperCase()} · {displayLabel.toUpperCase()}</div>}
-        <nav className="side-nav side-nav-admin" aria-label={tt("shell.platform")}>
+        {!collapsed && <div className="workspace-label" title={`${areaLabel} · ${displayLabel}`}>{areaLabel.toUpperCase()} · {displayLabel.toUpperCase()}</div>}
+        <nav className="side-nav side-nav-admin" aria-label={areaLabel}>
           {platformItems.map((item) => navLink(item))}
         </nav>
         <div className="sidebar-bottom sq-sidebar-bottom">
@@ -210,13 +216,13 @@ function PlatformShellInner({
       <div className="main-column">
         <header className="topbar">
           <button ref={menuButtonRef} type="button" className="mobile-menu-button" aria-label={tt("shell.openNav")} aria-expanded={mobileOpen} aria-controls="primary-navigation" onClick={() => setMobileOpen(true)}><Menu size={20} /></button>
-          <div className="breadcrumbs"><span>{tt("shell.platform")}</span><ChevronRight size={14} /><strong>{title}</strong></div>
+          <div className="breadcrumbs"><span>{areaLabel}</span><ChevronRight size={14} /><strong>{title}</strong></div>
           <div className="topbar-actions">
             <button type="button" className="language-button" onClick={() => onLangChange(rtl ? "en" : "ar")} aria-label={rtl ? "Switch to English" : "التغيير إلى العربية"}><Languages size={16} /><span>{tt("lang.toggle")}</span></button>
             <span className="status-pill platform-role-pill"><ShieldCheck size={13} />{displayLabel}</span>
             <div className="topbar-divider profile-divider" />
             <div className="avatar-menu" ref={profileRef}>
-              <button type="button" ref={profileButtonRef} className="avatar avatar-menu-trigger" aria-haspopup="dialog" aria-expanded={profileOpen} aria-controls="avatar-menu-panel" aria-label={tt("shell.account")} onClick={() => setProfileOpen(!profileOpen)}>{initials(session.email)}</button>
+              <button type="button" ref={profileButtonRef} className="avatar avatar-menu-trigger" aria-haspopup="dialog" aria-expanded={profileOpen} aria-controls="avatar-menu-panel" aria-label={tt("shell.account")} title={session.email} onClick={() => setProfileOpen(!profileOpen)}>{initials(session.email)}</button>
               {profileOpen && <div id="avatar-menu-panel" className="avatar-menu-panel" role="dialog" aria-label={tt("shell.account")}>
                 <div className="avatar-menu-head"><span className="avatar" aria-hidden="true">{initials(session.email)}</span><div><strong>{session.email}</strong><small>{displayLabel}</small></div></div>
                 <button type="button" className="button-outline platform-signout" onClick={handleSignOut}><LogOut size={14} /> {tt("shell.signout")}</button>
@@ -227,7 +233,7 @@ function PlatformShellInner({
         <main className="main-content" id="main-content" tabIndex={-1}>
           <div className="page-heading-row">
             <div>
-              <p className="eyebrow">SENTRIQ {tt("shell.platform").toUpperCase()}</p>
+              <p className="eyebrow">SENTRIQ {areaLabel.toUpperCase()}</p>
               <h1>{title}</h1>
               {subtitle ? <p className="page-subtitle">{subtitle}</p> : null}
             </div>
