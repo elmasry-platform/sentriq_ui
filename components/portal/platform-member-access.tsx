@@ -265,7 +265,7 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
           <tbody>
             {data.modules.map((m) => (
               <tr key={m.module_key}>
-                <td><code>{m.module_key}</code></td>
+                <td><code>{tryCopy(lang, `module.${m.module_key}`) ?? m.module_key}</code></td>
                 <td>{m.company_entitled ? t("ea.company.entitled") : t("ea.company.notEntitled")}</td>
                 <td><span className={`ux-badge ${badgeFor(m.state)}`}>{t(`ea.ent.${m.state}` as CopyKey)}</span></td>
               </tr>
