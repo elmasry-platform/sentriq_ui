@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ChevronDown, ChevronRight, LoaderCircle } from "lucide-react"
+import { ChevronDown, ChevronRight, LoaderCircle, MoreHorizontal } from "lucide-react"
 import { rpc } from "@/lib/portal/api"
 import { dateLocale, tryCopy, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
 import { PortalError, PortalLoading } from "./states"
@@ -249,115 +249,28 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
   return (
     <div className="access-editor" data-testid="effective-access">
       <h3>{t("ea.title", { name: member.displayName ?? member.email ?? "" })}</h3>
-      <p className="access-audit-note">{t("ea.level")}: <strong>{t(`level.${data.membership.role}` as CopyKey)}</strong>. {t("ea.refresh")}</p>
+      <p className="access-audit-note">{t("ea.level")}: <strong>{t(`level.${data.membership.role}` as CopyKey)}</strong></p>
 
       <section aria-label={t("ea.summary.title")} className="access-summary" data-testid="access-summary">
         <h4>{t("ea.summary.title")}</h4>
         <p><strong>{t("ea.summary.line", { allowed: sum.allowed, total: sum.total, blocked: sum.blocked, notGranted: sum.notGranted, notInPlan: sum.notInPlan })}</strong></p>
-        <p className="access-audit-note">{t("ea.summary.hint")}</p>
-      </section>
-
-      <section aria-label={t("ea.company.title")}>
-        <h4>{t("ea.company.title")}</h4>
-        <p className="access-audit-note">{t("ea.company.subtitle")}</p>
-        <table className="data-table">
-          <thead><tr><th>{t("ea.module")}</th><th>{t("ea.company.entitled")}</th><th>{t("ea.ent.company")}</th></tr></thead>
-          <tbody>
-            {data.modules.map((m) => (
-              <tr key={m.module_key}>
-                <td><code>{tryCopy(lang, `module.${m.module_key}`) ?? m.module_key}</code></td>
-                <td>{m.company_entitled ? t("ea.company.entitled") : t("ea.company.notEntitled")}</td>
-                <td><span className={`ux-badge ${badgeFor(m.state)}`}>{t(`ea.ent.${m.state}` as CopyKey)}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      <section aria-label={t("ea.personal.title")}>
-        <h4>{t("ea.personal.title")}</h4>
-        <p className="access-audit-note">{t("ea.personal.subtitle")}</p>
-        {data.entitlement_grants.length === 0 ? <p className="platform-muted">{t("ea.personal.empty")}</p> : (
-          <table className="data-table">
-            <thead><tr><th>{t("ea.personal.kind")}</th><th>{t("ea.personal.target")}</th><th>{t("ea.personal.window")}</th><th>{t("ea.personal.delegate")}</th><th>{t("ea.personal.status")}</th><th>{t("ea.personal.reason")}</th><th></th></tr></thead>
-            <tbody>
-              {data.entitlement_grants.map((g) => (
-                <tr key={g.grant_id}>
-                  <td><span className={`ux-badge ${g.can_use ? "b-blue" : "b-red"}`}>{g.can_use ? t("ea.kind.exception") : t("ea.kind.restriction")}</span></td>
-                  <td><code>{g.feature_key ?? g.module_key}</code>{g.delegated_from_grant_id ? <div className="platform-muted">{t("ea.personal.delegated")}</div> : null}</td>
-                  <td>{g.permanent ? `${fmt(g.starts_at)} · ${t("ea.personal.permanent")}` : t("ea.personal.until", { from: fmt(g.starts_at), to: fmt(g.expires_at) })}</td>
-                  <td>{g.can_delegate ? "✓" : "—"}</td>
-                  <td><span className={`ux-badge ${badgeFor(g.status)}`}>{t(`ea.status.${g.status}` as CopyKey)}</span></td>
-                  <td style={{ overflowWrap: "anywhere", paddingInlineEnd: 12 }}>{g.status === "revoked" && g.revoke_reason ? `${g.reason} / ${g.revoke_reason}` : g.reason}</td>
-                  <td>
-                    {(company ? (g.status === "live" && !!g.delegated_from_grant_id && g.delegated_by === company.selfUserId) : (canEntitlements && g.status === "live" && !g.delegated_from_grant_id)) ? (
-                      revokeId === g.grant_id ? (
-                        <span className="access-save-row">
-                          <input value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} placeholder={t("ea.personal.revokeReason")} aria-label={t("ea.personal.revokeReason")} />
-                          <button type="button" className="button-primary" disabled={busy || revokeReason.trim().length < 3} onClick={revoke}>{t("ea.personal.revoke")}</button>
-                        </span>
-                      ) : <button type="button" className="button-outline" onClick={() => setRevokeId(g.grant_id)}>{t("ea.personal.revoke")}</button>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        {company ? (
-          <div role="group" aria-label={t("ea.delegate.title")}>
-            <p className="access-audit-note">{t("ea.company.noException")}</p>
-            {member.status !== "active" ? <p className="platform-muted">{t("ea.delegate.inactive")}</p> : mine.length === 0 ? <p className="platform-muted">{t("ea.delegate.none")}</p> : (
-              <div className="access-save-row">
-                <strong>{t("ea.delegate.title")}</strong>
-                <select value={delSource} onChange={(e) => setDelSource(e.target.value)} aria-label={t("ea.delegate.source")}>
-                  <option value="">—</option>
-                  {mine.map((g) => <option key={g.grant_id} value={g.grant_id}>{g.feature_key ?? g.module_key}</option>)}
-                </select>
-                <label>{t("ea.add.expires")} <input type="date" min={new Date().toISOString().slice(0, 10)} value={delExpires} onChange={(e) => setDelExpires(e.target.value)} /></label>
-                <input value={delReason} onChange={(e) => setDelReason(e.target.value)} placeholder={t("ea.personal.reason")} aria-label={t("ea.personal.reason")} />
-                <button type="button" className="button-primary" disabled={busy || !delSource || delReason.trim().length < 3} onClick={delegate}>
-                  {busy ? <LoaderCircle size={14} className="spin" /> : null} {t("ea.delegate.submit")}
-                </button>
-              </div>
-            )}
-          </div>
-        ) : canEntitlements ? (
-          <div className="access-save-row" role="group" aria-label={t(addMode === "exception" ? "ea.add.exception" : "ea.add.restriction")}>
-            <select value={addMode} onChange={(e) => setAddMode(e.target.value as "exception" | "restriction")} aria-label={t("ea.personal.kind")}>
-              <option value="exception">{t("ea.add.exception")}</option>
-              <option value="restriction">{t("ea.add.restriction")}</option>
-            </select>
-            <select value={addScope} onChange={(e) => { setAddScope(e.target.value as "module" | "feature"); setAddKey("") }} aria-label={t("ea.personal.target")}>
-              <option value="feature">{t("ea.add.scope.feature")}</option>
-              <option value="module">{t("ea.add.scope.module")}</option>
-            </select>
-            <select value={addKey} onChange={(e) => setAddKey(e.target.value)} aria-label={t("ea.personal.target")}>
-              <option value="">—</option>
-              {targets.map((k) => <option key={k} value={k}>{k}</option>)}
-            </select>
-            <label>{t("ea.add.expires")} <input type="date" min={new Date().toISOString().slice(0, 10)} value={addExpires} onChange={(e) => setAddExpires(e.target.value)} /></label>
-            {addMode === "exception" ? (
-              <label><input type="checkbox" checked={addDelegate} onChange={(e) => setAddDelegate(e.target.checked)} /> {t("ea.add.delegate")}</label>
-            ) : null}
-            <input value={addReason} onChange={(e) => setAddReason(e.target.value)} placeholder={t("ea.personal.reason")} aria-label={t("ea.personal.reason")} />
-            <button type="button" className="button-primary" disabled={busy || !addKey || addReason.trim().length < 3} onClick={addEntitlement}>
-              {busy ? <LoaderCircle size={14} className="spin" /> : null} {t("ea.add.submit")}
-            </button>
-          </div>
-        ) : <p className="platform-muted">{t("ea.noPower.entitlements")}</p>}
+        <details className="more-options"><summary>{t("ea.help.title")}</summary>
+          <p className="access-audit-note">{t("ea.refresh")}</p>
+          <p className="access-audit-note">{t("ea.summary.hint")}</p>
+          <p className="access-audit-note">{t("ea.perms.subtitle")}</p>
+          <p className="access-audit-note">{t("preset.note")}</p>
+          <p className="access-audit-note">{t("ea.personal.subtitle")}</p>
+        </details>
       </section>
 
       <section aria-label={t("ea.perms.title")}>
         <h4>{t("ea.perms.title")}</h4>
-        <p className="access-audit-note">{t("ea.perms.subtitle")}</p>
         {canPermissions ? (
           <div className="access-presets" role="group" aria-label={t("preset.title")}>
             <strong>{t("preset.title")}</strong>
             {ROLE_PRESETS.map((pr) => (
               <button key={pr.id} type="button" className="button-outline" title={t(pr.hintKey)} data-preset={pr.id} onClick={() => applyPreset(pr)}>{t(pr.labelKey)}</button>
             ))}
-            <span className="access-audit-note">{t("preset.note")}</span>
           </div>
         ) : null}
         <div className="access-toolbar">
@@ -367,9 +280,14 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
               <button key={f} type="button" aria-pressed={permFilter === f} className={`seg-option${permFilter === f ? " seg-on-default" : ""}`} onClick={() => setPermFilter(f)}>{t(`ea.perms.filter.${f}` as CopyKey)}</button>
             ))}
           </div>
-          <label className="access-keys-toggle"><input type="checkbox" checked={showKeys} onChange={(e) => setShowKeys(e.target.checked)} /> {t("ea.perms.showKeys")}</label>
-          <button type="button" className="button-outline" onClick={() => setOpenGroups(Object.fromEntries(groups.map(([k]) => [k, true])))}>{t("ea.perms.expandAll")}</button>
-          <button type="button" className="button-outline" onClick={() => setOpenGroups({})}>{t("ea.perms.collapseAll")}</button>
+          <details className="row-menu">
+            <summary aria-label={t("more.options")}><MoreHorizontal size={16} aria-hidden="true" /></summary>
+            <div className="row-menu-list">
+              <label className="access-keys-toggle"><input type="checkbox" checked={showKeys} onChange={(e) => setShowKeys(e.target.checked)} /> {t("ea.perms.showKeys")}</label>
+              <button type="button" className="button-outline" onClick={() => setOpenGroups(Object.fromEntries(groups.map(([k]) => [k, true])))}>{t("ea.perms.expandAll")}</button>
+              <button type="button" className="button-outline" onClick={() => setOpenGroups({})}>{t("ea.perms.collapseAll")}</button>
+            </div>
+          </details>
         </div>
         {visibleGroups.length === 0 ? <p className="platform-muted">{t("ea.perms.noMatch")}</p> : null}
         {visibleGroups.map(([moduleKey, rows, allRows]) => {
@@ -465,6 +383,98 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
           </div>
         ) : null) : <p className="platform-muted">{t("ea.noPower.permissions")}</p>}
       </section>
+      <details className="platform-fold" data-testid="access-advanced">
+        <summary>{t("ea.advanced.title")}</summary>
+      <section aria-label={t("ea.company.title")}>
+        <h4>{t("ea.company.title")}</h4>
+        <table className="data-table">
+          <thead><tr><th>{t("ea.module")}</th><th>{t("ea.company.entitled")}</th><th>{t("ea.ent.company")}</th></tr></thead>
+          <tbody>
+            {data.modules.map((m) => (
+              <tr key={m.module_key}>
+                <td><code>{tryCopy(lang, `module.${m.module_key}`) ?? m.module_key}</code></td>
+                <td>{m.company_entitled ? t("ea.company.entitled") : t("ea.company.notEntitled")}</td>
+                <td><span className={`ux-badge ${badgeFor(m.state)}`}>{t(`ea.ent.${m.state}` as CopyKey)}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-label={t("ea.personal.title")}>
+        <h4>{t("ea.personal.title")}</h4>
+        {data.entitlement_grants.length === 0 ? <p className="platform-muted">{t("ea.personal.empty")}</p> : (
+          <table className="data-table">
+            <thead><tr><th>{t("ea.personal.kind")}</th><th>{t("ea.personal.target")}</th><th>{t("ea.personal.window")}</th><th>{t("ea.personal.delegate")}</th><th>{t("ea.personal.status")}</th><th>{t("ea.personal.reason")}</th><th></th></tr></thead>
+            <tbody>
+              {data.entitlement_grants.map((g) => (
+                <tr key={g.grant_id}>
+                  <td><span className={`ux-badge ${g.can_use ? "b-blue" : "b-red"}`}>{g.can_use ? t("ea.kind.exception") : t("ea.kind.restriction")}</span></td>
+                  <td><code>{g.feature_key ?? g.module_key}</code>{g.delegated_from_grant_id ? <div className="platform-muted">{t("ea.personal.delegated")}</div> : null}</td>
+                  <td>{g.permanent ? `${fmt(g.starts_at)} · ${t("ea.personal.permanent")}` : t("ea.personal.until", { from: fmt(g.starts_at), to: fmt(g.expires_at) })}</td>
+                  <td>{g.can_delegate ? "✓" : "—"}</td>
+                  <td><span className={`ux-badge ${badgeFor(g.status)}`}>{t(`ea.status.${g.status}` as CopyKey)}</span></td>
+                  <td style={{ overflowWrap: "anywhere", paddingInlineEnd: 12 }}>{g.status === "revoked" && g.revoke_reason ? `${g.reason} / ${g.revoke_reason}` : g.reason}</td>
+                  <td>
+                    {(company ? (g.status === "live" && !!g.delegated_from_grant_id && g.delegated_by === company.selfUserId) : (canEntitlements && g.status === "live" && !g.delegated_from_grant_id)) ? (
+                      revokeId === g.grant_id ? (
+                        <span className="access-save-row">
+                          <input value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} placeholder={t("ea.personal.revokeReason")} aria-label={t("ea.personal.revokeReason")} />
+                          <button type="button" className="button-primary" disabled={busy || revokeReason.trim().length < 3} onClick={revoke}>{t("ea.personal.revoke")}</button>
+                        </span>
+                      ) : <button type="button" className="button-outline" onClick={() => setRevokeId(g.grant_id)}>{t("ea.personal.revoke")}</button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {company ? (
+          <div role="group" aria-label={t("ea.delegate.title")}>
+            <p className="access-audit-note">{t("ea.company.noException")}</p>
+            {member.status !== "active" ? <p className="platform-muted">{t("ea.delegate.inactive")}</p> : mine.length === 0 ? <p className="platform-muted">{t("ea.delegate.none")}</p> : (
+              <div className="access-save-row">
+                <strong>{t("ea.delegate.title")}</strong>
+                <select value={delSource} onChange={(e) => setDelSource(e.target.value)} aria-label={t("ea.delegate.source")}>
+                  <option value="">—</option>
+                  {mine.map((g) => <option key={g.grant_id} value={g.grant_id}>{g.feature_key ?? g.module_key}</option>)}
+                </select>
+                <label>{t("ea.add.expires")} <input type="date" min={new Date().toISOString().slice(0, 10)} value={delExpires} onChange={(e) => setDelExpires(e.target.value)} /></label>
+                <input value={delReason} onChange={(e) => setDelReason(e.target.value)} placeholder={t("ea.personal.reason")} aria-label={t("ea.personal.reason")} />
+                <button type="button" className="button-primary" disabled={busy || !delSource || delReason.trim().length < 3} onClick={delegate}>
+                  {busy ? <LoaderCircle size={14} className="spin" /> : null} {t("ea.delegate.submit")}
+                </button>
+              </div>
+            )}
+          </div>
+        ) : canEntitlements ? (
+          <div className="access-save-row" role="group" aria-label={t(addMode === "exception" ? "ea.add.exception" : "ea.add.restriction")}>
+            <select value={addMode} onChange={(e) => setAddMode(e.target.value as "exception" | "restriction")} aria-label={t("ea.personal.kind")}>
+              <option value="exception">{t("ea.add.exception")}</option>
+              <option value="restriction">{t("ea.add.restriction")}</option>
+            </select>
+            <select value={addScope} onChange={(e) => { setAddScope(e.target.value as "module" | "feature"); setAddKey("") }} aria-label={t("ea.personal.target")}>
+              <option value="feature">{t("ea.add.scope.feature")}</option>
+              <option value="module">{t("ea.add.scope.module")}</option>
+            </select>
+            <select value={addKey} onChange={(e) => setAddKey(e.target.value)} aria-label={t("ea.personal.target")}>
+              <option value="">—</option>
+              {targets.map((k) => <option key={k} value={k}>{k}</option>)}
+            </select>
+            <label>{t("ea.add.expires")} <input type="date" min={new Date().toISOString().slice(0, 10)} value={addExpires} onChange={(e) => setAddExpires(e.target.value)} /></label>
+            {addMode === "exception" ? (
+              <label><input type="checkbox" checked={addDelegate} onChange={(e) => setAddDelegate(e.target.checked)} /> {t("ea.add.delegate")}</label>
+            ) : null}
+            <input value={addReason} onChange={(e) => setAddReason(e.target.value)} placeholder={t("ea.personal.reason")} aria-label={t("ea.personal.reason")} />
+            <button type="button" className="button-primary" disabled={busy || !addKey || addReason.trim().length < 3} onClick={addEntitlement}>
+              {busy ? <LoaderCircle size={14} className="spin" /> : null} {t("ea.add.submit")}
+            </button>
+          </div>
+        ) : <p className="platform-muted">{t("ea.noPower.entitlements")}</p>}
+      </section>
+
+      </details>
       {actionError ? <p className="inspection-alert" role="alert">{actionError}</p> : null}
     </div>
   )

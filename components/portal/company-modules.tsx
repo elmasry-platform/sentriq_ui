@@ -108,6 +108,7 @@ export function CompanyModules({ accessToken, company, canIssue = true, onClose 
           <p className="ux-dialog-hint">{t(acting.on ? "modules.enable.hint" : "modules.disable.hint")}</p>
           <div className="invite-form">
             {acting.on ? (<>
+              <details className="more-options" open={needsPrice || undefined}><summary>{t("more.options")}</summary>
               <label>{t("modules.field.treatment")}
                 <select value={treatment} onChange={(e) => setTreatment(e.target.value as Treatment)}>
                   {(["complimentary", "platform_absorbed", "tenant_billable"] as Treatment[]).map((x) => <option key={x} value={x}>{t(`modules.treatment.${x}` as CopyKey)}</option>)}
@@ -119,6 +120,7 @@ export function CompanyModules({ accessToken, company, canIssue = true, onClose 
                 <label>{t("modules.field.currency")}<input value={currency} maxLength={3} onChange={(e) => setCurrency(e.target.value)} dir="ltr" /></label>
                 <label>{t("modules.field.price")}<input type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} dir="ltr" /></label>
               </>) : null}
+              </details>
             </>) : null}
             <label>{t("modules.reason")}<textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} data-autofocus /></label>
             {err ? <p className="inspection-alert" role="alert">{err}</p> : null}

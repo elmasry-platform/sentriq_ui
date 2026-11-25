@@ -65,16 +65,14 @@ export function InvitationsPage({ accessToken, ownTenantId }: { accessToken: str
         : (
           <table className="data-table">
             <thead><tr>
-              <th>{t("invites.col.person")}</th>{ownTenantId ? null : <th>{t("invites.col.company")}</th>}<th>{t("invites.col.level")}</th>
-              <th>{t("invites.col.access")}</th><th>{t("invites.col.status")}</th><th>{t("invites.col.expires")}</th><th>{t("invites.col.actions")}</th>
+              <th>{t("invites.col.person")}</th>{ownTenantId ? null : <th>{t("invites.col.company")}</th>}<th>{t("invites.col.status")}</th><th>{t("invites.col.expires")}</th><th>{t("invites.col.actions")}</th>
             </tr></thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <td><strong className="platform-cell-strong">{r.invitee_name ?? r.email}</strong>{r.invitee_name ? <div className="platform-muted">{r.email}</div> : null}</td>
+                  <td><strong className="platform-cell-strong">{r.invitee_name ?? r.email}</strong>{r.invitee_name ? <div className="platform-muted">{r.email}</div> : null}
+                    <div className="platform-muted">{LEVEL_KEY[r.intended_level] ? t(LEVEL_KEY[r.intended_level]) : r.intended_level} · {r.decision_count > 0 ? t("invites.access.count", { count: r.decision_count }) : t("invites.access.none")}</div></td>
                   {ownTenantId ? null : <td>{r.company_name}</td>}
-                  <td>{LEVEL_KEY[r.intended_level] ? t(LEVEL_KEY[r.intended_level]) : r.intended_level}</td>
-                  <td>{r.decision_count > 0 ? t("invites.access.count", { count: r.decision_count }) : t("invites.access.none")}</td>
                   <td><span className={`ux-badge ${STATUS_TONE[r.status]}`}>{t(`invites.status.${r.status}` as CopyKey)}</span>{r.revoke_reason && r.status === "revoked" ? <div className="platform-muted">{r.revoke_reason}</div> : null}</td>
                   <td>{fmt(r.expires_at)}</td>
                   <td>{r.status === "pending" ? <button type="button" className="button-outline platform-warn" onClick={() => setRevoking(r)}>{t("invites.revoke")}</button> : null}</td>
@@ -112,6 +110,7 @@ function CreateInvitation({ accessToken, ownTenantId, companies, onClose, onCrea
   const allKeys = useMemo(() => catalog.filter(isOperational).map((k) => k.permission_key), [catalog])
   const [choices, setChoices] = useState<Record<string, Choice>>({})
   const [reason, setReason] = useState("")
+  const [moreOpen, setMoreOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const levels = ownTenantId ? ["company_admin", "employee"] : ["company_superadmin", "company_admin", "employee"]
@@ -156,6 +155,8 @@ function CreateInvitation({ accessToken, ownTenantId, companies, onClose, onCrea
             {levels.map((l) => <option key={l} value={l}>{t(LEVEL_KEY[l])}</option>)}
           </select>
         </label>
+        <details className="more-options" open={moreOpen || decisions.length > 0} onToggle={(e) => setMoreOpen(e.currentTarget.open)}>
+        <summary>{t("more.options")}</summary>
         <label>{t("invites.form.days")}<input type="number" min={1} max={30} value={days} onChange={(e) => setDays(Number(e.target.value) || 7)} /></label>
         <fieldset className="invite-access">
           <legend>{t("invites.form.access")}</legend>
@@ -186,6 +187,7 @@ function CreateInvitation({ accessToken, ownTenantId, companies, onClose, onCrea
             </>
           )}
         </fieldset>
+        </details>
         {err ? <p className="inspection-alert" role="alert">{err}</p> : null}
         <div className="inspection-modal-actions">
           <button type="button" className="button-outline" onClick={onClose}>{t("companies.cancel")}</button>
