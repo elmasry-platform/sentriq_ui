@@ -422,3 +422,4 @@ html[data-portal-pending] body { visibility: hidden; }
 .form-error-slot:empty { min-height: 44px; }
 .invite-sticky { position: sticky; bottom: 0; background: var(--surface, #fbfaf6); padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
 .access-summary, .access-editor { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 720px) { .data-table tbody td { height: auto; } .data-table td.cell-wrap { max-width: none; } }

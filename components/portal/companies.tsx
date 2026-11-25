@@ -104,7 +104,7 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
         <tbody>
           {rows.map((c) => (
             <tr key={c.id}>
-              <td>
+              <td data-label={t("companies.company")}>
                 <div className="platform-person">
                   <span className="avatar" aria-hidden="true"><Building2 size={14} /></span>
                   {onOpen ? (
@@ -117,8 +117,8 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
                 </div>
                 <div className="platform-muted">{[c.industry_label, new Date(c.created_at).toLocaleDateString(dateLocale(lang))].filter(Boolean).join(" · ")}</div>
               </td>
-              <td>{c.member_count ?? "—"}</td>
-              <td><CompanyStatusBadge status={c.status} /></td>
+              <td data-label={t("companies.members")}>{c.member_count ?? "—"}</td>
+              <td data-label={t("companies.status")}><CompanyStatusBadge status={c.status} /></td>
               {allowLifecycle || onOpen ? (
                 <td className="platform-actions-cell"><div className="platform-actions">
                   {onOpen ? <button type="button" onClick={() => onOpen(c)} className="button-outline">{t(openLabelKey)}</button> : null}
