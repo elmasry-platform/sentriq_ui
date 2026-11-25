@@ -47,7 +47,7 @@ const platformNav: Record<PortalRole, NavItem[]> = {
 function initials(email: string) {
   const base = email.split("@")[0].replace(/[^a-zA-Z]/g, " ").trim().split(/\s+/)
   const letters = base.map((part) => part.charAt(0).toUpperCase()).join("")
-  return (letters || email.charAt(0).toUpperCase()).slice(0, 2) || "S"
+  return letters.slice(0, 2) || "U"
 }
 
 /**

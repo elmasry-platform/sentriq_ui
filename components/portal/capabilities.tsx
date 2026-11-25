@@ -58,7 +58,6 @@ export function CapabilitiesCard({ accessToken, tenantId }: { accessToken: strin
       <div className="metric-card platform-metric">
         <p className="platform-metric-label">{t("caps.sites")}</p>
         <strong>{caps.membership.siteIds.length === 0 ? t("caps.allSites") : t("caps.siteCount", { count: caps.membership.siteIds.length })}</strong>
-        <span className="platform-muted">{caps.membership.displayName ?? ""}</span>
       </div>
       <div className="metric-card platform-metric">
         <p className="platform-metric-label">{t("caps.entitlements")}</p>
@@ -90,7 +89,7 @@ export function PermissionMatrix({ accessToken, tenantId }: { accessToken: strin
   if (!results) return <LoadingState label={t("caps.checking")} />
 
   return (
-    <details className="panel platform-panel platform-fold">
+    <details className="panel platform-panel platform-fold" open>
       <summary>{t("caps.matrix.title")}</summary>
       <table className="data-table">
         <tbody>
