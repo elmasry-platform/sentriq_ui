@@ -402,3 +402,4 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .platform-login-form .platform-check input { min-height: 0; width: 16px; height: 16px; }
 .platform-login-form > .platform-muted { font-size: 12px; }
 html[data-portal-pending] body { visibility: hidden; }
+.platform-login-form p { margin: 0; }
