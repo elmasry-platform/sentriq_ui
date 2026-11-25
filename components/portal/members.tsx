@@ -91,7 +91,6 @@ function AccessEditor({ accessToken, tenantId, member, decisions, onSaved }: {
   return (
     <div className="access-editor">
       <div className="access-editor-title">{t("people.accessOf", { email: member.displayName ?? member.email ?? t("people.memberFallback") })}</div>
-      <p className="access-editor-hint">{t("people.accessHint")}</p>
       {CAPABILITY_KEYS.map((key) => {
         const state = stateOf(key)
         const live = current[key]
@@ -137,7 +136,10 @@ function AccessEditor({ accessToken, tenantId, member, decisions, onSaved }: {
         </div>
       ) : null}
       {error ? <p className="inspection-alert" role="alert">{error}</p> : null}
-      <p className="access-audit-note">{t("perms.auditNote")}</p>
+      <details className="more-options"><summary>{t("more.details")}</summary>
+        <p className="access-audit-note">{t("people.accessHint")}</p>
+        <p className="access-audit-note">{t("perms.auditNote")}</p>
+      </details>
     </div>
   )
 }
@@ -202,7 +204,7 @@ export function MembersPanel({ accessToken, tenantId, selfUserId, moduleEditor =
       </div>
       <table className="data-table">
         <thead>
-          <tr><th>{t("people.member")}</th><th>{t("people.level")}</th><th>{t("people.status")}</th><th>{t("people.accessSummary")}</th><th></th></tr>
+          <tr><th>{t("people.member")}</th><th>{t("people.status")}</th><th>{t("people.accessSummary")}</th><th></th></tr>
         </thead>
         <tbody>
           {rows.map((m) => {
@@ -211,16 +213,16 @@ export function MembersPanel({ accessToken, tenantId, selfUserId, moduleEditor =
             return (
               <Fragment key={m.membershipId}>
                 <tr>
-                  <td>
+                  <td className="cell-wrap" data-label={t("people.member")}>
                     <div className="platform-person">
                       <span className="avatar" aria-hidden="true"><UserRound size={14} /></span>
                       <strong className="platform-cell-strong">{m.displayName ?? m.email ?? t("people.memberFallback")}</strong>
                     </div>
+                    <div className="platform-muted">{t(`level.${m.role}` as CopyKey)}</div>
                   </td>
-                  <td>{t(`level.${m.role}` as CopyKey)}</td>
-                  <td><span className={`ux-badge platform-capitalize ${m.status === "active" ? "ux-badge-approved" : "ux-badge-returned"}`}>{t(`status.${m.status}` as CopyKey)}</span></td>
-                  <td>
-                    <span className="ux-badge b-grey">{t("people.summary.default", { count: s.rest })}</span>{" "}
+                  <td data-label={t("people.status")}><span className={`ux-badge platform-capitalize ${m.status === "active" ? "ux-badge-approved" : "ux-badge-returned"}`}>{t(`status.${m.status}` as CopyKey)}</span></td>
+                  <td data-label={t("people.accessSummary")}>
+                    {s.allowed === 0 && s.denied === 0 ? <span className="ux-badge b-grey">{t("people.summary.default", { count: s.rest })}</span> : null}{" "}
                     {s.allowed > 0 ? <span className="ux-badge b-blue">{t("people.summary.allowed", { count: s.allowed })}</span> : null}{" "}
                     {s.denied > 0 ? <span className="ux-badge b-red">{t("people.summary.denied", { count: s.denied })}</span> : null}
                   </td>
@@ -232,7 +234,7 @@ export function MembersPanel({ accessToken, tenantId, selfUserId, moduleEditor =
                 </tr>
                 {open ? (
                   <tr className="access-editor-row">
-                    <td colSpan={5}>
+                    <td colSpan={4}>
                       {moduleEditor ? (
                         <PlatformMemberAccess accessToken={accessToken} tenantId={tenantId}
                           member={{ membershipId: m.membershipId, role: m.role, status: m.status, displayName: m.displayName, email: m.email }}
