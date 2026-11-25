@@ -6,7 +6,7 @@ import { X } from "lucide-react"
 const focusable = 'a[href],button:not([disabled]),textarea,input:not([disabled]),select,[tabindex]:not([tabindex="-1"])'
 
 /**
- * Accessible modal: labelled, focus moves in, Tab is trapped, Esc closes,
+ * Modal with better keyboard support: labelled, focus moves in, Tab is trapped, Esc closes,
  * focus returns to whatever opened it, and the page behind does not scroll.
  */
 export function Dialog({ title, closeLabel, onClose, children, wide = false }: { title: string; closeLabel: string; onClose: () => void; children: ReactNode; wide?: boolean }) {

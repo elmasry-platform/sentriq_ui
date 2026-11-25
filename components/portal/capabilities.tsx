@@ -58,12 +58,10 @@ export function CapabilitiesCard({ accessToken, tenantId }: { accessToken: strin
       <div className="metric-card platform-metric">
         <p className="platform-metric-label">{t("caps.sites")}</p>
         <strong>{caps.membership.siteIds.length === 0 ? t("caps.allSites") : t("caps.siteCount", { count: caps.membership.siteIds.length })}</strong>
-        <span className="platform-muted">{caps.membership.displayName ?? ""}</span>
       </div>
       <div className="metric-card platform-metric">
         <p className="platform-metric-label">{t("caps.entitlements")}</p>
         <strong>{caps.entitlements ? t("caps.activeCount", { count: caps.entitlements.filter((e) => e.entitled).length }) : t("caps.na")}</strong>
-        <span className="platform-muted">{t("caps.entitlementsSub")}</span>
       </div>
     </div>
   )
@@ -91,14 +89,9 @@ export function PermissionMatrix({ accessToken, tenantId }: { accessToken: strin
   if (!results) return <LoadingState label={t("caps.checking")} />
 
   return (
-    <div className="panel platform-panel">
-      <div className="panel-header">
-        <div>
-          <h2>{t("caps.matrix.title")}</h2>
-          <p>{t("caps.matrix.subtitle")}</p>
-        </div>
-      </div>
-      <table className="data-table">
+    <details className="panel platform-panel platform-fold" open>
+      <summary>{t("caps.matrix.title")}</summary>
+      <table className="data-table matrix-table">
         <tbody>
           {PROBE_PERMISSIONS.map((p) => {
             const allowed = results[`${p.key}:${p.action}`]
@@ -115,6 +108,6 @@ export function PermissionMatrix({ accessToken, tenantId }: { accessToken: strin
           })}
         </tbody>
       </table>
-    </div>
+    </details>
   )
 }
