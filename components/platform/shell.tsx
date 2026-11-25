@@ -10,7 +10,7 @@ import {
 import { usePortalSession } from "@/lib/portal/session"
 import { resolveIdentity, type PortalIdentity, type PortalRole } from "@/lib/portal/identity"
 import { LoadingState, ErrorState, PermissionDenied } from "@/components/sentriq/states"
-import { PortalLangProvider, t, type CopyKey, type PortalLang } from "@/lib/portal/i18n"
+import { PortalLangProvider, t, useStoredPortalLang, type CopyKey, type PortalLang } from "@/lib/portal/i18n"
 
 export const ROLE_KEY: Record<PortalRole, CopyKey> = {
   owner: "role.owner",
@@ -62,15 +62,7 @@ export function PlatformShell(props: {
   subtitleKey?: CopyKey
   children: (ctx: { session: { accessToken: string; userId: string; email: string }; identity: PortalIdentity; reload: () => void }) => ReactNode
 }) {
-  const [lang, setLang] = useState<PortalLang>("en")
-  useEffect(() => {
-    const saved = window.localStorage.getItem("sentriq-portal-lang")
-    if (saved === "ar" || saved === "en") setLang(saved)
-  }, [])
-  const changeLang = (next: PortalLang) => {
-    setLang(next)
-    window.localStorage.setItem("sentriq-portal-lang", next)
-  }
+  const [lang, changeLang] = useStoredPortalLang()
   return (
     <PortalLangProvider value={lang}>
       <PlatformShellInner {...props} lang={lang} onLangChange={changeLang} />

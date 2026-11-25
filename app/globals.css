@@ -397,3 +397,8 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .invite-access { border: 1px solid #e9e4d8; border-radius: 10px; padding: 10px 14px; }
 .invite-keys { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
 .invite-key-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; }
+.platform-login-form-inner { display: flex; flex-direction: column; gap: 13px; }
+.platform-login-form .platform-check { flex-direction: row; align-items: center; gap: 8px; font-weight: 500; }
+.platform-login-form .platform-check input { min-height: 0; width: 16px; height: 16px; }
+.platform-login-form > .platform-muted { font-size: 12px; }
+html[data-portal-pending] body { visibility: hidden; }
