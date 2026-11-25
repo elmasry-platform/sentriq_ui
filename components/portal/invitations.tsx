@@ -71,7 +71,7 @@ export function InvitationsPage({ accessToken, ownTenantId }: { accessToken: str
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <td><strong className="platform-cell-strong">{r.invitee_name ?? r.email}</strong>{r.invitee_name ? <div className="platform-muted">{r.email}</div> : null}</td>
+                  <td className="cell-wrap"><strong className="platform-cell-strong">{r.invitee_name ?? r.email}</strong>{r.invitee_name ? <div className="platform-muted">{r.email}</div> : null}</td>
                   {ownTenantId ? null : <td>{r.company_name}</td>}
                   <td>{LEVEL_KEY[r.intended_level] ? t(LEVEL_KEY[r.intended_level]) : r.intended_level}</td>
                   <td>{r.decision_count > 0 ? t("invites.access.count", { count: r.decision_count }) : t("invites.access.none")}</td>

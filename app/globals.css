@@ -181,6 +181,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .data-table th:last-child, .data-table td:last-child { padding-inline-end: 12px; }
 .data-table td { height: 57px; padding: 7px 9px; border-top: 1px solid #f0f2f6; color: #59677b; font-size: 12px; white-space: nowrap; }
 .data-table tbody tr:hover { background: #fafbfd; }
+.data-table td.cell-wrap { max-width: 260px; white-space: normal; overflow-wrap: anywhere; }
 .record-id { display: block; color: #3156b8; font-size: 12px; font-weight: 650; }
 .record-id:hover { text-decoration: underline; }
 .record-name { display: block; max-width: 150px; margin-top: 3px; overflow: hidden; color: var(--muted); text-overflow: ellipsis; font-size: 12px; }
