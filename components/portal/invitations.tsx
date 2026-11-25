@@ -75,11 +75,11 @@ export function InvitationsPage({ accessToken, ownTenantId }: { accessToken: str
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <td className="cell-wrap"><strong className="platform-cell-strong">{r.invitee_name ?? r.email}</strong>{r.invitee_name ? <div className="platform-muted">{r.email}</div> : null}
+                  <td className="cell-wrap" data-label={t("invites.col.person")}><strong className="platform-cell-strong">{r.invitee_name ?? r.email}</strong>{r.invitee_name ? <div className="platform-muted">{r.email}</div> : null}
                     <div className="platform-muted">{LEVEL_KEY[r.intended_level] ? t(LEVEL_KEY[r.intended_level]) : r.intended_level} · {r.decision_count > 0 ? t("invites.access.count", { count: r.decision_count }) : t("invites.access.none")}</div></td>
-                  {ownTenantId ? null : <td className="cell-wrap">{r.company_name}</td>}
-                  <td><span className={`ux-badge ${STATUS_TONE[r.status]}`}>{t(`invites.status.${r.status}` as CopyKey)}</span>{r.revoke_reason && r.status === "revoked" ? <div className="platform-muted">{r.revoke_reason}</div> : null}</td>
-                  <td>{fmt(r.expires_at)}</td>
+                  {ownTenantId ? null : <td className="cell-wrap" data-label={t("invites.col.company")}>{r.company_name}</td>}
+                  <td data-label={t("invites.col.status")}><span className={`ux-badge ${STATUS_TONE[r.status]}`}>{t(`invites.status.${r.status}` as CopyKey)}</span>{r.revoke_reason && r.status === "revoked" ? <div className="platform-muted">{r.revoke_reason}</div> : null}</td>
+                  <td data-label={t("invites.col.expires")}>{fmt(r.expires_at)}</td>
                   <td>{r.status === "pending" ? <button type="button" className="button-outline platform-warn" onClick={() => setRevoking(r)}>{t("invites.revoke")}</button> : null}</td>
                 </tr>
               ))}
