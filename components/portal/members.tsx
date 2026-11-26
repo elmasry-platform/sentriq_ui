@@ -216,7 +216,7 @@ export function MembersPanel({ accessToken, tenantId, selfUserId, moduleEditor =
                   <td className="cell-wrap" data-label={t("people.member")}>
                     <div className="platform-person">
                       <span className="avatar" aria-hidden="true"><UserRound size={14} /></span>
-                      <strong className="platform-cell-strong">{m.displayName ?? m.email ?? t("people.memberFallback")}</strong>
+                      <strong className="platform-cell-strong" title={m.email ?? undefined}>{m.displayName ?? m.email ?? t("people.memberFallback")}</strong>
                     </div>
                     <div className="platform-muted">{t(`level.${m.role}` as CopyKey)}</div>
                   </td>

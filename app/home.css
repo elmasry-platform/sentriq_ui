@@ -123,3 +123,15 @@
 @media(max-width:680px){.public-hero-band{padding-bottom:56px}.public-header{height:66px;gap:18px}.public-nav{display:none}.public-actions{margin-inline-start:auto;gap:11px}.public-signin{display:none}.public-enter{min-height:39px;padding-inline:12px;font-size:12px}.public-hero{padding:48px 0 0;gap:34px}.hero-copy h1{font-size:clamp(38px,11vw,52px)}.public-lede{font-size:14px}.hero-note{margin-top:34px}.hero-product-viewport{height:460px;container-type:normal}.hero-product-scale{width:100%;transform:none}.hero-product-scale .sq-overview{padding:14px}.hero-product-live{display:none}.lifecycle-section,.modules-section,.capabilities-section{padding-top:58px;padding-bottom:58px}.section-heading h2,.modules-intro h2,.lifecycle-top h2,.capabilities-section h2,.closing-section h2{font-size:30px}.lifecycle-steps{display:grid;grid-template-columns:1fr 1fr;gap:24px 16px;margin-top:34px}.lifecycle-step{padding-top:22px}.module-groups{grid-template-columns:1fr;gap:12px;margin-top:32px}.capability-strip{grid-template-columns:1fr}.capability-cell{border-inline-end:0;border-bottom:1px solid var(--line)}.capability-cell:last-child{border-bottom:0}.closing-section{flex-direction:column;align-items:flex-start;padding:36px 28px;margin:0 20px}.public-footer{grid-template-columns:1fr auto;gap:16px}.public-footer>span{grid-column:1/-1;grid-row:2}.public-footer>div{gap:12px}.public-footer small{grid-column:1/-1}.login-page{padding-inline:22px}.login-header{height:66px}.login-content{grid-template-columns:1fr;gap:31px;padding:38px 0}.login-aside h1{max-width:12ch;font-size:47px}.login-aside>p:not(.public-eyebrow){font-size:12px}.login-aside-foot{margin-top:23px}.login-panel{padding:23px}.login-footer{gap:12px;font-size:12px}}
 @media(max-width:420px){.lifecycle-steps{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.public-site *,.login-page *{scroll-behavior:auto!important;transition-duration:.01ms!important}}
+
+/* Mobile audit fixes */
+@media (max-width: 680px) {
+  .language-switch { min-width: 44px; min-height: 44px; font-size: 14px; }
+  .public-brand, .public-footer a, .footer-language, .login-back, .login-modules { min-height: 44px; display: inline-flex; align-items: center; }
+  .public-enter { white-space: nowrap; min-height: 44px; padding-inline: 10px; gap: 4px; }
+  .public-header { gap: 8px; }
+  .sq-brief { max-width: 100%; min-width: 0; overflow: hidden; }
+}
+@media (max-width: 380px) { .public-brand { letter-spacing: .08em; } .public-actions { gap: 4px; } }
+@media (max-width: 680px) { .login-back, .login-modules, .public-brand, .module-link, .module-open { min-height: 44px !important; display: inline-flex !important; align-items: center; } }
+.hero-product-viewport{pointer-events:none;user-select:none}

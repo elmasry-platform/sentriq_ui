@@ -458,3 +458,37 @@ html[data-portal-pending] body { visibility: hidden; }
 .data-table .platform-person .platform-link-button { max-width: none; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; text-align: start; }
 .data-table .platform-person { min-width: 0; } .data-table .platform-person .platform-link-button { min-width: 0; flex: 1 1 auto; display: block; }
 .data-table .platform-person .platform-link-button { height: auto; min-height: 0; line-height: 1.35; }
+
+/* Mobile audit fixes */
+@media (max-width: 720px) {
+  .topbar, .sentriq-app .topbar { justify-content: space-between !important; }
+  .mobile-menu-button { margin-inline-end: auto; order: -1; min-width: 44px; min-height: 44px; }
+  .topbar-actions { margin-inline-start: auto; }
+  .avatar-menu-trigger, .language-button, .icon-button, .platform-icon-button, .topbar .icon-button { min-width: 44px; min-height: 44px; }
+  .row-menu > summary, .more-options > summary, .platform-fold > summary { min-width: 44px; min-height: 44px; }
+  .button-outline, .button-primary { min-height: 44px; }
+  .form-row-actions button, .forms-filters button, .directory-filters button { min-width: 44px; min-height: 44px; }
+  .data-table td button, .data-table td a, .people-table td a, .inspection-table td a, .platform-table td button, .link-button { min-height: 44px; display: inline-flex; align-items: center; }
+  .module-subnav a, .subnav a, .section-tabs a, .page-subnav a { min-height: 44px; display: inline-flex; align-items: center; }
+  .main-content a:not(.button-primary):not(.button-outline) { padding-block: 4px; }
+}
+.data-table td, .people-table td, .platform-table td { overflow-wrap: anywhere; }
+.data-table td .email, .cell-stack, .cell-stack * { min-width: 0; overflow-wrap: anywhere; word-break: break-word; text-overflow: clip; white-space: normal; }
+.wrap-text { overflow-wrap: anywhere; word-break: break-word; white-space: normal !important; text-overflow: clip !important; min-width: 0; }
+bdi { unicode-bidi: isolate; }
+.platform-person .platform-cell-strong, .platform-person .platform-link-button, .platform-cell-strong { max-width: 100%; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; word-break: break-word; text-align: start; }
+.platform-cell-strong, .platform-cell-muted, .platform-person small, .cell-stack small, .cell-stack strong { unicode-bidi: plaintext; text-align: start; }
+.is-rtl .platform-person .platform-cell-strong, .is-rtl .platform-person .platform-link-button { direction: rtl; unicode-bidi: plaintext; }
+.platform-link-button { min-height: 32px; text-align: start; }
+@media (max-width: 720px) { .platform-link-button { min-height: 44px; } }
+@media (max-width: 720px) {
+  .contextual-nav { min-height: 48px !important; }
+  .contextual-nav a { min-height: 44px !important; display: inline-flex !important; align-items: center !important; padding-inline: 12px !important; }
+  .forms-filters button { min-height: 44px !important; min-width: 44px !important; justify-content: center; }
+  .platform-link-button { min-height: 44px !important; display: inline-flex !important; align-items: center; }
+  .sq-work-search input { min-height: 44px; font-size: 14px !important; }
+  .module-link, .module-open { min-height: 44px; display: inline-flex; align-items: center; }
+  .sq-shell .sq-heading a, .sq-shell main a[href] { min-height: 44px; display: inline-flex; align-items: center; }
+}
+.platform-muted { min-height: 44px; display: inline-flex; align-items: center; }
+@media (max-width:720px){.sq-work-search{min-height:44px}.sq-work-search input{min-height:32px}}

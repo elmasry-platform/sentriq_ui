@@ -113,7 +113,7 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
                       {c.name}<ChevronRight size={13} />
                     </button>
                   ) : (
-                    <strong className="platform-cell-strong">{c.name}</strong>
+                    <strong className="platform-cell-strong" title={c.name}>{c.name}</strong>
                   )}
                 </div>
                 <div className="platform-muted">{[c.industry_label, new Date(c.created_at).toLocaleDateString(dateLocale(lang))].filter(Boolean).join(" · ")}</div>
