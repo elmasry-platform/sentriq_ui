@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ArrowDownRight, ArrowRight, ArrowUpRight, ChartNoAxesCombined, Check, ClipboardCheck, FolderOpen, ShieldCheck } from "lucide-react"
 import { OverviewDashboard } from "./overview-dashboard"
 import type { Language } from "./app-shell"
@@ -28,8 +28,8 @@ const content = {
     groups: [
       { name: "Operate", state: "Working prototype", items: ["Inspections & forms", "Incidents & observations", "Permits to work"] },
       { name: "Control", state: "Working prototype", items: ["Risk assessments", "Audits & compliance", "Findings & actions"] },
-      { name: "Enable", state: "Demonstration", items: ["Documents & evidence", "Sites & organization", "People & equipment"] },
-      { name: "Understand", state: "Demonstration", items: ["Reports & analytics", "Management review", "Audit trail"] },
+      { name: "Enable", state: "Preview", items: ["Documents & evidence", "Sites & organization", "People & equipment"] },
+      { name: "Understand", state: "Preview", items: ["Reports & analytics", "Management review", "Audit trail"] },
     ],
     openModule: "Open module",
     capabilities: "Built for the realities of enterprise QHSE",
@@ -79,7 +79,9 @@ const content = {
 const groupIcons = [ClipboardCheck, ShieldCheck, FolderOpen, ChartNoAxesCombined]
 
 export function PublicHome() {
-  const [language, setLanguage] = useState<Language>("en")
+  const [language, setLanguageState] = useState<Language>("en")
+  useEffect(() => { try { if (window.localStorage.getItem("sentriq-portal-lang") === "ar") setLanguageState("ar") } catch {} }, [])
+  const setLanguage = (next: Language) => { setLanguageState(next); try { window.localStorage.setItem("sentriq-portal-lang", next) } catch {} }
   const t = content[language]
   const rtl = language === "ar"
   const data = useMemo(() => mockSentriqDashboardService.getDashboard("ws_northstar"), [])

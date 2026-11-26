@@ -31,6 +31,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return { title }
 }
 
+export function generateStaticParams() {
+  return Object.keys(routeTitles).map((route) => ({ slug: route.split("/") }))
+}
+
 export default async function WorkspacePage({ params }: { params: Promise<{ slug: string[] }> }) {
   const { slug } = await params
   const route = `/app/${slug.join("/")}`
