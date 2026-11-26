@@ -110,10 +110,10 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
                   <span className="avatar" aria-hidden="true"><Building2 size={14} /></span>
                   {onOpen ? (
                     <button type="button" onClick={() => onOpen(c)} className="platform-link-button">
-                      {c.name}<ChevronRight size={13} />
+                      <bdi>{c.name}</bdi><ChevronRight size={13} />
                     </button>
                   ) : (
-                    <strong className="platform-cell-strong">{c.name}</strong>
+                    <strong className="platform-cell-strong" title={c.name}><bdi>{c.name}</bdi></strong>
                   )}
                 </div>
                 <div className="platform-muted">{[c.industry_label, new Date(c.created_at).toLocaleDateString(dateLocale(lang))].filter(Boolean).join(" · ")}</div>
@@ -126,7 +126,7 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
                   {onOpen ? <button type="button" onClick={() => onOpen(c)} className="button-outline">{t(openLabelKey)}</button> : null}
                   {(canModules !== undefined && c.status === "active") || (allowLifecycle && canLifecycle && c.status !== "closed") ? (
                     <details className="row-menu">
-                      <summary aria-label={t("more.options")}><MoreHorizontal size={16} aria-hidden="true" /></summary>
+                      <summary aria-label={t("more.options")} title={t("more.options")}><MoreHorizontal size={16} aria-hidden="true" /></summary>
                       <div className="row-menu-list" onClick={(e) => { (e.currentTarget.parentElement as HTMLDetailsElement).open = false }}>
                   {canModules !== undefined && c.status === "active" ? <button type="button" className="button-outline" onClick={() => setModulesFor(c)}>{t("modules.button")}</button> : null}
                   {busyId === c.id ? <LoaderCircle size={15} className="spin platform-muted" /> : allowLifecycle && canLifecycle && c.status === "active" ? (

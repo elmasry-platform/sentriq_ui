@@ -8,6 +8,7 @@ import { Dialog } from "@/components/sentriq/dialog"
 import type { CompanyRow } from "./companies"
 import { PortalEmpty, PortalError, PortalLoading } from "./states"
 import { PlatformMemberAccess } from "./platform-member-access"
+import { latestRestore, restoreLines, type RestoreRow } from "@/lib/portal/restore-report"
 
 interface MemberRow { id: string; user_id: string; member_role: string; status: string; display_name: string | null; email: string | null }
 
@@ -39,6 +40,7 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
   const [reason, setReason] = useState("")
   const [saveError, setSaveError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [restored, setRestored] = useState<{ name: string; row: RestoreRow | null; error: string | null } | null>(null)
   const reload = useCallback(() => setTick((v) => v + 1), [])
 
   const [everyone, setEveryone] = useState<{ id: string; membershipId: string; role: string; status: string }[]>([])
@@ -93,7 +95,16 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
     setBusy(true)
     try {
       await rpc("platform_set_membership_status", { p_tenant_id: companyId, p_membership_id: pending.member.id, p_status: pending.status, p_reason: reason.trim() }, accessToken)
+      const reactivated = pending.status === "active" ? pending.member : null
       setPending(null); setReason(""); setSaveError(null); reload()
+      // Operators see what the reactivation restored. Company managers do not get the report.
+      if (reactivated && !ownCompany) {
+        const who = name(reactivated)
+        try {
+          const body = await rpc<unknown>("membership_restore_report", { p_tenant_id: companyId, p_membership_id: reactivated.id }, accessToken)
+          setRestored({ name: who, row: latestRestore(body), error: null })
+        } catch (e) { setRestored({ name: who, row: null, error: fe(e) }) }
+      }
     } catch (e) { setSaveError(fe(e)) } finally { setBusy(false) }
   }
 
@@ -122,7 +133,7 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
                 <span className="avatar" aria-hidden="true"><UserRound size={14} /></span>
                 <span>
                   <strong>{name(m)}</strong>
-                  <small>{LEVEL_KEY[m.member_role] ? t(LEVEL_KEY[m.member_role]) : m.member_role} · {m.status === "active" ? t("status.active") : t("status.suspended")}</small>
+                  <small>{LEVEL_KEY[m.member_role] ? t(LEVEL_KEY[m.member_role]) : m.member_role} · {t(`status.${m.status}` as CopyKey)}</small>
                 </span>
               </button>
             ))}
@@ -137,9 +148,9 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
               {ownCompany ? null : canLifecycle ? (
                 busy ? <LoaderCircle size={15} className="spin platform-muted" /> : selected.status === "active" ? (
                   <button type="button" className="button-outline platform-warn" onClick={() => { setPending({ member: selected, status: "suspended" }); setReason(""); setSaveError(null) }}><PauseCircle size={13} /> {t("detail.suspendMember")}</button>
-                ) : (
+                ) : selected.status === "suspended" ? (
                   <button type="button" className="button-outline platform-ok" onClick={() => { setPending({ member: selected, status: "active" }); setReason(""); setSaveError(null) }}><PlayCircle size={13} /> {t("detail.reactivateMember")}</button>
-                )
+                ) : null
               ) : <span className="platform-muted">{t("detail.managedByOwner")}</span>}
             </div>
             <PlatformMemberAccess key={`${companyId}:${selected.id}`} accessToken={accessToken} tenantId={companyId} canPermissions={canPermissions} canEntitlements={canEntitlements}
@@ -148,10 +159,21 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
           </>
         )}
       </section>
+      {restored ? (
+        <Dialog title={t("restore.title")} closeLabel={t("restore.close")} onClose={() => setRestored(null)}>
+          <p className="ux-dialog-hint"><bdi>{restored.name}</bdi></p>
+          {restored.error ? <p className="inspection-alert" role="alert">{t("restore.unavailable")}</p>
+            : !restored.row ? <p>{t("restore.empty")}</p>
+            : restored.row.mode === "clean_slate" || restoreLines(restored.row.outcome ?? {}).length === 0 ? <p>{t("restore.none")}</p>
+            : <ul>{restoreLines(restored.row.outcome ?? {}).map((l) => <li key={l.key}>{t(l.key, { count: l.count })}</li>)}</ul>}
+          <p className="platform-muted">{t("restore.note")}</p>
+          <div className="inspection-modal-actions"><button type="button" className="button-primary" onClick={() => setRestored(null)}>{t("restore.close")}</button></div>
+        </Dialog>
+      ) : null}
       {pending ? (
         <Dialog title={pending.status === "suspended" ? t("detail.suspend.title", { name: name(pending.member) }) : t("detail.reactivate.title", { name: name(pending.member) })} closeLabel={t("companies.cancel")} onClose={() => setPending(null)}>
           <p className="ux-dialog-hint">{pending.status === "suspended" ? t("detail.suspend.hint") : t("detail.reactivate.hint")}</p>
-          <label>{t("companies.reason")}<textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} data-autofocus /></label>
+          <label>{t("companies.reason")}<textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} placeholder={t("detail.reason.placeholder")} data-autofocus /></label>
           {saveError ? <p className="inspection-alert" role="alert">{saveError}</p> : null}
           <div className="inspection-modal-actions">
             <button type="button" className="button-outline" onClick={() => setPending(null)}>{t("companies.cancel")}</button>

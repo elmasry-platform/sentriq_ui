@@ -179,7 +179,8 @@ function PlatformShellInner({
   const platformItems = platformNav[identity.role]
   const noCompany = identity.role === "employee" && !identity.tenantId && identity.membershipStatus === "none"
   const areaLabel = identity.role === "owner" || identity.role === "subowner" ? tt("shell.platform") : (companyName ?? tt("shell.company"))
-  const displayLabel = noCompany ? tt("role.none") : tt(ROLE_KEY[identity.role])
+  const suspendedSelf = identity.role === "employee" && identity.membershipStatus === "suspended"
+  const displayLabel = suspendedSelf ? tt("role.suspended") : noCompany ? tt("role.none") : tt(ROLE_KEY[identity.role])
   const navLink = (item: NavItem) => {
     const longer = platformItems.some((o) => o.href.length > item.href.length && o.href.startsWith(`${item.href}/`) && (route === o.href || route.startsWith(`${o.href}/`)))
     const active = !longer && (route === item.href || route.startsWith(`${item.href}/`))
@@ -188,7 +189,7 @@ function PlatformShellInner({
       <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
         className={`nav-link${active ? " nav-link-active" : ""}`}
         aria-current={active ? "page" : undefined}
-        title={collapsed ? label : undefined}>
+        title={label} aria-label={label}>
         <item.icon size={18} strokeWidth={1.8} /><span className="nav-link-text">{label}</span>
       </Link>
     )
@@ -238,7 +239,7 @@ function PlatformShellInner({
               {subtitle ? <p className="page-subtitle">{subtitle}</p> : null}
             </div>
           </div>
-          {children({ session, identity, reload })}
+          {suspendedSelf ? <div className="panel platform-panel" role="status"><h2>{tt("shell.suspended.title")}</h2><p className="platform-muted">{tt("shell.suspended.body")}</p></div> : children({ session, identity, reload })}
         </main>
       </div>
     </div>

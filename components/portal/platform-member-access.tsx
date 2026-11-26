@@ -275,7 +275,7 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
             ))}
           </div>
           <details className="row-menu">
-            <summary aria-label={t("more.options")}><MoreHorizontal size={16} aria-hidden="true" /></summary>
+            <summary aria-label={t("more.options")} title={t("more.options")}><MoreHorizontal size={16} aria-hidden="true" /></summary>
             <div className="row-menu-list">
               <label className="access-keys-toggle"><input type="checkbox" checked={showKeys} onChange={(e) => setShowKeys(e.target.checked)} /> {t("ea.perms.showKeys")}</label>
               <button type="button" className="button-outline" onClick={() => setOpenGroups(Object.fromEntries(groups.map(([k]) => [k, true])))}>{t("ea.perms.expandAll")}</button>
