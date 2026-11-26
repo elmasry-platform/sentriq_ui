@@ -499,3 +499,4 @@ bdi { unicode-bidi: isolate; }
   .sidebar .nav-link { min-height: 44px; }
   .sidebar .nav-link-active { box-shadow: none; }
 }
+@media (max-width:720px){.forms-table .form-status{justify-self:start}}
