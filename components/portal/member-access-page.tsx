@@ -122,7 +122,7 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
                 <span className="avatar" aria-hidden="true"><UserRound size={14} /></span>
                 <span>
                   <strong>{name(m)}</strong>
-                  <small>{LEVEL_KEY[m.member_role] ? t(LEVEL_KEY[m.member_role]) : m.member_role} · {m.status === "active" ? t("status.active") : t("status.suspended")}</small>
+                  <small>{LEVEL_KEY[m.member_role] ? t(LEVEL_KEY[m.member_role]) : m.member_role} · {t(`status.${m.status}` as CopyKey)}</small>
                 </span>
               </button>
             ))}
@@ -137,9 +137,9 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
               {ownCompany ? null : canLifecycle ? (
                 busy ? <LoaderCircle size={15} className="spin platform-muted" /> : selected.status === "active" ? (
                   <button type="button" className="button-outline platform-warn" onClick={() => { setPending({ member: selected, status: "suspended" }); setReason(""); setSaveError(null) }}><PauseCircle size={13} /> {t("detail.suspendMember")}</button>
-                ) : (
+                ) : selected.status === "suspended" ? (
                   <button type="button" className="button-outline platform-ok" onClick={() => { setPending({ member: selected, status: "active" }); setReason(""); setSaveError(null) }}><PlayCircle size={13} /> {t("detail.reactivateMember")}</button>
-                )
+                ) : null
               ) : <span className="platform-muted">{t("detail.managedByOwner")}</span>}
             </div>
             <PlatformMemberAccess key={`${companyId}:${selected.id}`} accessToken={accessToken} tenantId={companyId} canPermissions={canPermissions} canEntitlements={canEntitlements}
