@@ -1,5 +1,6 @@
 "use client"
 
+import { companyInviteErrorKey } from "@/lib/portal/invite-error"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Copy, LoaderCircle, Plus } from "lucide-react"
 import { rpc } from "@/lib/portal/api"
@@ -136,7 +137,7 @@ function CreateInvitation({ accessToken, ownTenantId, companies, onClose, onCrea
       const token = Array.isArray(res) ? res[0]?.token : (res as unknown as { token: string }).token
       if (!token) throw new Error("request_failed_500")
       onCreated(email.trim(), `${window.location.origin}/portal/accept/#token=${token}`)
-    } catch (e) { setErr(fe(e)); setBusy(false) }
+    } catch (e) { const k = ownTenantId ? companyInviteErrorKey(e) : null; setErr(k ? t(k) : fe(e)); setBusy(false) }
   }
 
   return (
