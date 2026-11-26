@@ -136,3 +136,6 @@
 @media (max-width: 680px) { .login-back, .login-modules, .public-brand, .module-link, .module-open { min-height: 44px !important; display: inline-flex !important; align-items: center; } }
 .hero-product-viewport{pointer-events:none;user-select:none}
 .public-enter{white-space:nowrap}
+.hero-copy .hero-text-link{white-space:nowrap}
+@media (max-width:680px){.hero-ctas{flex-wrap:wrap;gap:10px}.hero-copy .hero-text-link,.hero-copy .public-enter{min-height:44px;padding-inline:14px;white-space:nowrap}}
+@media (max-width:380px){.hero-ctas{flex-direction:column;align-items:stretch}.hero-copy .hero-text-link,.hero-copy .public-enter{justify-content:center}}
