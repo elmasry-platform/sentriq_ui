@@ -126,7 +126,7 @@ export function CompaniesPanel({ accessToken, allowLifecycle, canLifecycle = tru
                   {onOpen ? <button type="button" onClick={() => onOpen(c)} className="button-outline">{t(openLabelKey)}</button> : null}
                   {(canModules !== undefined && c.status === "active") || (allowLifecycle && canLifecycle && c.status !== "closed") ? (
                     <details className="row-menu">
-                      <summary aria-label={t("more.options")}><MoreHorizontal size={16} aria-hidden="true" /></summary>
+                      <summary aria-label={t("more.options")} title={t("more.options")}><MoreHorizontal size={16} aria-hidden="true" /></summary>
                       <div className="row-menu-list" onClick={(e) => { (e.currentTarget.parentElement as HTMLDetailsElement).open = false }}>
                   {canModules !== undefined && c.status === "active" ? <button type="button" className="button-outline" onClick={() => setModulesFor(c)}>{t("modules.button")}</button> : null}
                   {busyId === c.id ? <LoaderCircle size={15} className="spin platform-muted" /> : allowLifecycle && canLifecycle && c.status === "active" ? (

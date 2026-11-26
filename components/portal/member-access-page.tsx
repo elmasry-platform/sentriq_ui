@@ -151,7 +151,7 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
       {pending ? (
         <Dialog title={pending.status === "suspended" ? t("detail.suspend.title", { name: name(pending.member) }) : t("detail.reactivate.title", { name: name(pending.member) })} closeLabel={t("companies.cancel")} onClose={() => setPending(null)}>
           <p className="ux-dialog-hint">{pending.status === "suspended" ? t("detail.suspend.hint") : t("detail.reactivate.hint")}</p>
-          <label>{t("companies.reason")}<textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} data-autofocus /></label>
+          <label>{t("companies.reason")}<textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} placeholder={t("detail.reason.placeholder")} data-autofocus /></label>
           {saveError ? <p className="inspection-alert" role="alert">{saveError}</p> : null}
           <div className="inspection-modal-actions">
             <button type="button" className="button-outline" onClick={() => setPending(null)}>{t("companies.cancel")}</button>

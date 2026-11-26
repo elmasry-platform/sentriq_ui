@@ -455,3 +455,6 @@ html[data-portal-pending] body { visibility: hidden; }
 .platform-login-brand p { color: #3f4a5c; font-size: 13px; }
 .invite-form { padding-bottom: 0; }
 .invite-sticky { background: #fbfaf6; padding-bottom: 4px; z-index: 2; }
+.data-table .platform-person .platform-link-button { max-width: none; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; text-align: start; }
+.data-table .platform-person { min-width: 0; } .data-table .platform-person .platform-link-button { min-width: 0; flex: 1 1 auto; display: block; }
+.data-table .platform-person .platform-link-button { height: auto; min-height: 0; line-height: 1.35; }
