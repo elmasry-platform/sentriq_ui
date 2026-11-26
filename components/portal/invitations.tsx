@@ -71,7 +71,7 @@ export function InvitationsPage({ accessToken, ownTenantId }: { accessToken: str
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <td className="cell-wrap" data-label={t("invites.col.person")}><div className="cell-stack"><strong className="platform-cell-strong">{r.invitee_name ?? r.email}</strong>{r.invitee_name ? <div className="platform-muted">{r.email}</div> : null}
+                  <td className="cell-wrap" data-label={t("invites.col.person")}><div className="cell-stack"><strong className="platform-cell-strong"><bdi>{r.invitee_name ?? r.email}</bdi></strong>{r.invitee_name ? <div className="platform-muted"><bdi>{r.email}</bdi></div> : null}
                     <div className="platform-muted">{LEVEL_KEY[r.intended_level] ? t(LEVEL_KEY[r.intended_level]) : r.intended_level} · {r.decision_count > 0 ? t("invites.access.count", { count: r.decision_count }) : t("invites.access.none")}</div></div></td>
                   {ownTenantId ? null : <td className="cell-wrap" data-label={t("invites.col.company")}>{r.company_name}</td>}
                   <td data-label={t("invites.col.status")}><span className={`ux-badge ${STATUS_TONE[r.status]}`}>{t(`invites.status.${r.status}` as CopyKey)}</span>{r.revoke_reason && r.status === "revoked" ? <div className="platform-muted">{r.revoke_reason}</div> : null}</td>

@@ -45,7 +45,11 @@ export async function resolveIdentity(accessToken: string, userId: string): Prom
     select: "id,membershipId,workspaceId,role,status,displayName",
   }, accessToken)
   const active = memberships.filter((m) => m.status === "active")
-  if (active.length === 0) return { role: "employee", tenantIds: [], membershipStatus: "none" }
+  if (active.length === 0) {
+    const suspended = memberships.find((m) => m.status === "suspended")
+    if (suspended) return { role: "employee", tenantId: suspended.workspaceId, tenantIds: [], membershipStatus: "suspended", displayName: suspended.displayName ?? null }
+    return { role: "employee", tenantIds: [], membershipStatus: "none" }
+  }
   const levelRank: Record<string, PortalRole> = {
     company_superadmin: "superadmin",
     company_admin: "admin",

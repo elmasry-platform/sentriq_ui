@@ -53,7 +53,7 @@ export function CapabilitiesCard({ accessToken, tenantId }: { accessToken: strin
       <div className="metric-card platform-metric">
         <p className="platform-metric-label">{t("caps.membership")}</p>
         <strong>{LEVEL_KEY[caps.membership.level] ? t(LEVEL_KEY[caps.membership.level]) : caps.membership.level}</strong>
-        <span className="platform-muted platform-capitalize">{caps.membership.status === "active" ? t("status.active") : caps.membership.status}</span>
+        <span className="platform-muted platform-capitalize">{["active", "suspended", "invited", "ended"].includes(caps.membership.status) ? t(`status.${caps.membership.status}` as CopyKey) : caps.membership.status}</span>
       </div>
       <div className="metric-card platform-metric">
         <p className="platform-metric-label">{t("caps.sites")}</p>
