@@ -492,3 +492,10 @@ bdi { unicode-bidi: isolate; }
 }
 .platform-muted { min-height: 44px; display: inline-flex; align-items: center; }
 @media (max-width:720px){.sq-work-search{min-height:44px}.sq-work-search input{min-height:32px}}
+@media (min-width: 721px) and (max-width: 900px) {
+  .sidebar, .sidebar:not(.sidebar-collapsed) { width: 76px !important; min-width: 76px !important; padding-inline: 10px !important; overflow-x: hidden; }
+  .sidebar .brand-name, .sidebar .workspace-label, .sidebar .workspace-select-wrap select, .sidebar .select-chevron, .sidebar .nav-section-label, .sidebar .nav-link-text, .sidebar .nav-count, .sidebar .sidebar-bottom, .sidebar .nav-link > span:not(.nav-icon) { display: none !important; }
+  .sidebar .brand, .sidebar .nav-link { justify-content: center !important; padding-inline: 0 !important; }
+  .sidebar .nav-link { min-height: 44px; }
+  .sidebar .nav-link-active { box-shadow: none; }
+}

@@ -135,3 +135,4 @@
 @media (max-width: 380px) { .public-brand { letter-spacing: .08em; } .public-actions { gap: 4px; } }
 @media (max-width: 680px) { .login-back, .login-modules, .public-brand, .module-link, .module-open { min-height: 44px !important; display: inline-flex !important; align-items: center; } }
 .hero-product-viewport{pointer-events:none;user-select:none}
+.public-enter{white-space:nowrap}

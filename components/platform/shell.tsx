@@ -189,7 +189,7 @@ function PlatformShellInner({
       <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
         className={`nav-link${active ? " nav-link-active" : ""}`}
         aria-current={active ? "page" : undefined}
-        title={collapsed ? label : undefined}>
+        title={label} aria-label={label}>
         <item.icon size={18} strokeWidth={1.8} /><span className="nav-link-text">{label}</span>
       </Link>
     )
