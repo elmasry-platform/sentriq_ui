@@ -8,7 +8,8 @@ import { inspectionRepository, type InspectionAnswer, type InspectionFinding, ty
 import { purgedNotice } from "@/lib/inspections/messages"
 import { OUTBOX_MAX_AGE_DAYS } from "@/lib/inspections/policy"
 import { createOutbox } from "@/lib/inspections/outbox"
-import { effectiveAnswers } from "@/lib/inspections/hidden"
+import { droppedAnswers, effectiveAnswers, hiddenWithFindings } from "@/lib/inspections/hidden"
+import { changedAnswers, MIN_UNCHANGED_REPLY_LENGTH } from "@/lib/inspections/policy"
 import { GPS_MANUAL_ENTRY_NEEDS_FORM_FLAG, HIDDEN_ANSWER_RULE } from "@/lib/inspections/policy"
 import { differingAnswers, SyncConflict, type ConflictItem } from "@/components/sentriq/sync-conflict"
 import { errorMessage, formatNumber, plural, type Language } from "@/lib/sentriq/format"
@@ -37,6 +38,8 @@ export function InspectionRunner({ userId, record: initial, template, language, 
   const [attempted, setAttempted] = useState(false)
   const [evidenceUrls, setEvidenceUrls] = useState<Record<string, string[]>>({})
   const [findings, setFindings] = useState<InspectionFinding[]>(initial.findings ?? [])
+  const [reply, setReply] = useState("")
+  const [pendingHide, setPendingHide] = useState<{ question: Question; value: unknown } | null>(null)
   const [flagging, setFlagging] = useState<Question | null>(null)
   const [draftFinding, setDraftFinding] = useState({ title: "", description: "", priority: "medium" as InspectionFinding["priority"], photo: "" })
   const [showReview, setShowReview] = useState(false)
@@ -89,7 +92,12 @@ export function InspectionRunner({ userId, record: initial, template, language, 
   const sectionMissing = (sectionId: string) => questionsOf(sectionId).filter((question) => errorOf(question)).length
 
   const mark = (id: string) => setTouched((current) => new Set(current).add(id))
-  const setAnswer = (question: Question, value: unknown) => { setAnswers((current) => ({ ...current, [question.id]: value })); mark(question.id); setSaveState("dirty") }
+  const applyAnswer = (question: Question, value: unknown) => { setAnswers((current) => ({ ...current, [question.id]: value })); mark(question.id); setSaveState("dirty") }
+  // Hiding a question that has a finding never deletes the finding. The person confirms first.
+  const setAnswer = (question: Question, value: unknown) => {
+    if (form && hiddenWithFindings(form, values, { ...values, [question.id]: value }, findings).length) { setPendingHide({ question, value }); return }
+    applyAnswer(question, value)
+  }
 
   // Hidden questions: kept on the device while drafting, never sent and never scored (HIDDEN_ANSWER_RULE).
   const rowsFor = (forSubmission: boolean) => {
@@ -159,14 +167,24 @@ export function InspectionRunner({ userId, record: initial, template, language, 
   const submitNow = () => {
     if (sending.current) return
     if (errors.length) { jumpTo(errors[0].question); return }
+    if (replyMissing) { setMessage(t.unchangedNeeded); return }
     sending.current = true; setSubmitting(true)
     const saved = persist()
     if (!saved) { sending.current = false; setSubmitting(false); return }
     // Write to the device queue first, then send. Same client id on every retry.
-    outbox.enqueue({ inspectionId: saved.id, expectedRevision: saved.revision, answers: rowsFor(true), findings })
+    outbox.enqueue({ inspectionId: saved.id, expectedRevision: saved.revision, answers: rowsFor(true), findings, meta: { ...(unchanged ? { reply: reply.trim() } : {}), droppedHidden: form ? droppedAnswers(form, values) : [] } })
     sending.current = false; setSubmitting(false)
     runFlush(saved)
   }
+  // An open return: the reviewer returned it in this cycle and it has not been sent again yet.
+  const openReturn = useMemo(() => {
+    const last = [...record.reviewHistory].reverse().find((entry) => entry.decision === "returned")
+    return last && (last.cycle ?? 0) === (record.cycle ?? 0) && record.status !== "submitted" ? last : undefined
+  }, [record])
+  const flaggedIds = new Set(openReturn?.flaggedQuestionIds ?? [])
+  const lockedQuestion = (id: string) => !!openReturn && flaggedIds.size > 0 && !flaggedIds.has(id)
+  const unchanged = !!openReturn && form !== undefined && changedAnswers(openReturn.answersAtReturn ?? [], rowsFor(true)).length === 0
+  const replyMissing = unchanged && reply.trim().length < MIN_UNCHANGED_REPLY_LENGTH
   const sectionOfQuestion = (questionId: string) => sections.findIndex((section) => section.questionIds.includes(questionId))
 
   const addFinding = () => {
@@ -260,6 +278,8 @@ export function InspectionRunner({ userId, record: initial, template, language, 
     <div ref={topRef} />
     {purgeNote}
     {!online && <p className="inspection-offline" role="status"><WifiOff size={15} aria-hidden="true" />{t.offline}</p>}
+    {openReturn && <div className="runner-returned" role="note"><strong>{t.returnedTitle}</strong><p>{openReturn.reason}</p><small>{flaggedIds.size ? t.returnedFlagged : t.returnedAny}</small>
+      {unchanged && <label>{t.unchangedLabel}<textarea value={reply} onChange={(event) => setReply(event.target.value)} aria-describedby="reply-hint" /><small id="reply-hint">{t.unchangedHint}</small></label>}</div>}
     {message && <p className="inspection-alert" role="alert">{message}</p>}
     {conflict && <div className="inspection-conflict" role="alert"><strong>{t.conflict}</strong>
       <button type="button" onClick={startResolve}>{t.reload}</button>
@@ -295,7 +315,8 @@ export function InspectionRunner({ userId, record: initial, template, language, 
           <div className="runner-question-title"><span className="ux-qnum">{String(visibleQuestions.filter((item) => item.type !== "instruction").indexOf(question) + 1).padStart(2, "0")}</span><label htmlFor={`input-${question.id}`}>{questionLabel(question, language)}{runtime[question.id]?.required && <b aria-label={t.required}> *</b>}</label>
             <button type="button" className={`runner-raise${flagged ? " is-flagged" : ""}`} onClick={() => { setFlagging(question); setDraftFinding({ title: questionLabel(question, language), description: "", priority: "medium", photo: "" }) }} aria-label={`${t.flagIssue}: ${questionLabel(question, language)}`}><Flag size={14} aria-hidden="true" />{flagged ? `${formatNumber(flagged, language)} ${t.flagged}` : t.flagIssue}</button></div>
           {question.help[language] && <p className="ux-help">{question.help[language]}</p>}
-          {field(question)}
+          {flaggedIds.has(question.id) && <p className="runner-flagged-chip">{t.flaggedByReviewer}</p>}
+          {lockedQuestion(question.id) ? <fieldset disabled className="runner-locked"><legend className="sr-only">{t.lockedNotFlagged}</legend>{field(question)}<small>{t.lockedNotFlagged}</small></fieldset> : field(question)}
           {show && <small className="runner-error" role="alert"><AlertTriangle size={13} aria-hidden="true" />{error}</small>}
         </article> })}</div> : <p className="inspection-empty">{t.noQuestions}</p>}
     </>}
@@ -310,6 +331,10 @@ export function InspectionRunner({ userId, record: initial, template, language, 
       </div>
     </footer>
 
+    {pendingHide && <Dialog title={t.hideFindingTitle} closeLabel={t.cancel} onClose={() => setPendingHide(null)}>
+      <p>{t.hideFindingBody}</p>
+      <div className="inspection-modal-actions"><button type="button" className="button-outline" onClick={() => setPendingHide(null)}>{t.cancel}</button><button type="button" className="button-primary" onClick={() => { applyAnswer(pendingHide.question, pendingHide.value); setPendingHide(null) }}>{t.hideConfirm}</button></div>
+    </Dialog>}
     {flagging && <Dialog title={t.raise} closeLabel={t.cancel} onClose={() => setFlagging(null)}>
       <label>{t.title}<input data-autofocus value={draftFinding.title} onChange={(event) => setDraftFinding({ ...draftFinding, title: event.target.value })} /></label>
       <label>{t.description}<textarea value={draftFinding.description} onChange={(event) => setDraftFinding({ ...draftFinding, description: event.target.value })} /></label>

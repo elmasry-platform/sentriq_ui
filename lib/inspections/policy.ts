@@ -4,7 +4,7 @@
 /** What happens to an answer when its question becomes hidden by a rule. Default. */
 export const HIDDEN_ANSWER_RULE: "keep_on_device_exclude_from_submission" | "clear" = "keep_on_device_exclude_from_submission"
 
-/** Where a returned inspection goes after the inspector resubmits. DECIDED by Mohamed (option 3, hybrid):
+/** Where a returned inspection goes after the inspector resubmits. Option 3 (hybrid), relayed by Main as Mohamed's decision (original message not seen by Frontend):
  *  resume at the returning stage only if every changed answer is on a flagged question, otherwise restart at stage 1.
  *  The client result is a preview only. The server decides. */
 export const RETURN_RULE = "hybrid" as const
@@ -41,3 +41,6 @@ export const MIN_RETURN_REASON_LENGTH = 5
 
 /** A queued submission older than this is dropped from the device queue (answers stay in the draft). Covers a session that ended without a sign out. */
 export const OUTBOX_MAX_AGE_DAYS = 14
+
+/** Same value as MIN_UNCHANGED_REPLY in repository.ts (kept apart so policy.ts has no imports). */
+export const MIN_UNCHANGED_REPLY_LENGTH = 10

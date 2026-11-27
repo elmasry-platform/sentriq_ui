@@ -448,3 +448,7 @@
 .ux-success-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .ux-success-actions { align-items: stretch; } .ux-success-actions > button { min-height: 44px; margin-top: 0; }
 .ux-success .ux-success-actions > button { height: 44px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; padding-block: 0; }
+.runner-returned { margin: 12px 0; padding: 12px 14px; border: 1px solid var(--border); border-inline-start: 4px solid #b4532a; background: var(--surface); display: grid; gap: 6px; }
+.runner-returned p { margin: 0; } .runner-returned label { display: grid; gap: 4px; font-weight: 600; } .runner-returned textarea { min-height: 72px; }
+.runner-flagged-chip { margin: 0 0 6px; font-size: 12px; font-weight: 700; color: #8a3a16; }
+.runner-locked { border: 0; padding: 0; margin: 0; min-width: 0; opacity: .6; } .runner-locked small { display: block; margin-top: 6px; }

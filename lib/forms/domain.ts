@@ -241,7 +241,7 @@ export function validateAnswer(question: Question, value: unknown): string | und
   if (question.validation.maxLength && String(value).length > question.validation.maxLength) return `Maximum length is ${question.validation.maxLength}.`
 }
 
-function conditionMatches(rule: Condition, answer: unknown, sourceType?: FieldType): boolean {
+export function conditionMatches(rule: Condition, answer: unknown, sourceType?: FieldType): boolean {
   const comparable = (value: unknown): number => {
     if (sourceType === "time") { const [hours, minutes] = String(value).split(":").map(Number); return hours * 60 + minutes }
     if (sourceType === "date" || sourceType === "datetime") return Date.parse(String(value))

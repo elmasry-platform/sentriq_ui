@@ -7,7 +7,8 @@ export type InspectionStage = "reviewer_1" | "reviewer_2" | "final_reviewer" | n
 export type ReviewStageId = Exclude<InspectionStage, null>
 export type InspectionAnswer = { questionId: string; value: unknown }
 export type ReviewEntry = { id: string; stage: string; decision: "approved" | "returned"; actorId: string; at: string; reason?: string; revision: number; cycle?: number; flaggedQuestionIds?: string[]; answersAtReturn?: InspectionAnswer[] }
-export type SubmissionEvent = { id: string; at: string; cycle: number; kind: "submitted" | "resubmitted"; changedQuestionIds: string[]; path?: "resume" | "restart"; stage?: string }
+export type SubmissionEvent = { id: string; at: string; cycle: number; kind: "submitted" | "resubmitted" | "resubmitted_without_change"; changedQuestionIds: string[]; path?: "resume" | "restart"; stage?: string; reply?: string; droppedHidden?: { questionId: string; ruleIds: string[]; reason: string }[] }
+export type SubmitMeta = { reply?: string; droppedHidden?: { questionId: string; ruleIds: string[]; reason: string }[] }
 export type InspectionFinding = {
   id: string
   questionId: string
@@ -57,6 +58,8 @@ export type ReviewDecision = {
 
 export const DEFAULT_REVIEW_STAGES: ReviewStageId[] = ["reviewer_1", "reviewer_2", "final_reviewer"]
 export const MIN_RETURN_REASON = 5
+/** Written reply when an inspector resubmits a returned inspection without changing any answer. */
+export const MIN_UNCHANGED_REPLY = 10
 
 export type InspectionErrorCode =
   | "STALE_REVISION"
@@ -68,6 +71,7 @@ export type InspectionErrorCode =
   | "WRONG_STAGE"
   | "SELF_REVIEW"
   | "ALREADY_REVIEWED"
+  | "REPLY_REQUIRED"
   | "STORAGE_UNREADABLE"
   | "STORAGE_FAILED"
 
@@ -81,6 +85,7 @@ const messages: Record<InspectionErrorCode, string> = {
   WRONG_STAGE: "This inspection is waiting for a different review stage.",
   SELF_REVIEW: "You cannot review an inspection that you carried out.",
   ALREADY_REVIEWED: "You already approved an earlier stage of this inspection.",
+  REPLY_REQUIRED: `Nothing was changed after the return. Write why, at least ${MIN_UNCHANGED_REPLY} characters.`,
   STORAGE_UNREADABLE: "Saved inspection data could not be read. It has not been overwritten.",
   STORAGE_FAILED: "Your changes could not be saved in this browser. Check available storage and try again.",
 }
@@ -105,7 +110,7 @@ export interface InspectionRepository {
   get(id: string): InspectionRecord | undefined
   create(input: InspectionDraftInput): InspectionRecord
   saveDraft(id: string, answers: InspectionAnswer[], expectedRevision: number, findings?: InspectionFinding[]): InspectionRecord
-  submit(id: string, answers: InspectionAnswer[], expectedRevision: number, findings?: InspectionFinding[], clientId?: string): InspectionRecord
+  submit(id: string, answers: InspectionAnswer[], expectedRevision: number, findings?: InspectionFinding[], clientId?: string, meta?: SubmitMeta): InspectionRecord
   review(id: string, decision: ReviewDecision): InspectionRecord
 }
 
@@ -197,7 +202,7 @@ export class LocalInspectionRepository implements InspectionRepository {
     })
   }
 
-  submit(id: string, answers: InspectionAnswer[], expectedRevision: number, findings: InspectionFinding[] = [], clientId?: string) {
+  submit(id: string, answers: InspectionAnswer[], expectedRevision: number, findings: InspectionFinding[] = [], clientId?: string, meta: SubmitMeta = {}) {
     const fingerprint = payloadFingerprint(answers, findings)
     if (clientId) {
       const known = this.get(id)?.submissionKeys?.[clientId]
@@ -212,7 +217,10 @@ export class LocalInspectionRepository implements InspectionRepository {
       const lastReturn = [...record.reviewHistory].reverse().find((entry) => entry.decision === "returned")
       const resubmission = lastReturn && (lastReturn.cycle ?? 0) === (record.cycle ?? 0) // a draft save keeps the return open
       const decided = resubmission ? returnPath({ returnedStage: lastReturn.stage, firstStage: stages[0], flaggedQuestionIds: lastReturn.flaggedQuestionIds ?? [], returned: lastReturn.answersAtReturn ?? record.answers, resubmitted: answers }) : undefined
-      record.submissionHistory = [...(record.submissionHistory ?? []), { id: newId("sub"), at: new Date().toISOString(), cycle: (record.cycle ?? 0) + 1, kind: decided ? "resubmitted" : "submitted", changedQuestionIds: decided?.changedQuestionIds ?? [], path: decided?.path, stage: decided?.stage }]
+      const unchanged = !!decided && decided.changedQuestionIds.length === 0
+      const reply = meta.reply?.trim()
+      if (unchanged && (!reply || reply.length < MIN_UNCHANGED_REPLY)) throw new InspectionError("REPLY_REQUIRED")
+      record.submissionHistory = [...(record.submissionHistory ?? []), { id: newId("sub"), at: new Date().toISOString(), cycle: (record.cycle ?? 0) + 1, kind: decided ? (unchanged ? "resubmitted_without_change" : "resubmitted") : "submitted", changedQuestionIds: decided?.changedQuestionIds ?? [], path: decided?.path, stage: decided?.stage, ...(unchanged ? { reply } : {}), ...(meta.droppedHidden?.length ? { droppedHidden: meta.droppedHidden } : {}) }]
       record.status = "submitted"
       record.currentStage = (decided?.stage as InspectionStage | undefined) ?? stages[0]
       record.submittedAt = new Date().toISOString()

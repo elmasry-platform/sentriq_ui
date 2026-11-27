@@ -48,3 +48,19 @@ test("repository: a draft edit before resubmitting does not move the baseline; a
   const out = repo.submit(rec.id, [r("q1", "z"), r("q2", "n"), base[2]], second.revision)
   assert.deepEqual(out.submissionHistory!.at(-1)!.changedQuestionIds, ["q2"]); assert.equal(out.currentStage, "final_reviewer")
 })
+
+test("repository: unchanged resubmission needs a written reply of 10 characters, resumes at the returning stage, and is marked in history", () => {
+  const { repo, rec } = returned(["q1"])
+  assert.throws(() => repo.submit(rec.id, base, rec.revision), { code: "REPLY_REQUIRED" })
+  assert.throws(() => repo.submit(rec.id, base, rec.revision, [], undefined, { reply: "too short" }), { code: "REPLY_REQUIRED" }) // 9 characters
+  const out = repo.submit(rec.id, base, rec.revision, [], undefined, { reply: "Checked again, all is fine." })
+  assert.equal(out.currentStage, "final_reviewer")
+  const last = out.submissionHistory!.at(-1)!
+  assert.deepEqual([last.kind, last.path, last.reply], ["resubmitted_without_change", "resume", "Checked again, all is fine."])
+})
+test("repository: audit of dropped hidden answers is stored with the submission", () => {
+  const { repo, rec } = returned(["q1"])
+  const dropped = [{ questionId: "q2", ruleIds: ["c1"], reason: "hide_rule" }]
+  const out = repo.submit(rec.id, [r("q1", "z"), ...base.slice(1)], rec.revision, [], undefined, { droppedHidden: dropped })
+  assert.deepEqual(out.submissionHistory!.at(-1)!.droppedHidden, dropped)
+})

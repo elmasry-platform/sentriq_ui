@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --experimental-strip-types --test lib/forms/domain.test.ts lib/inspections/repository.test.ts lib/inspections/outbox.test.ts lib/inspections/messages.test.ts lib/inspections/return-path.test.ts lib/inspections/hidden.test.ts lib/actions/repository.test.ts lib/sentriq/demo-permissions.test.ts lib/sentriq/format.test.ts lib/sentriq/overview-model.test.ts lib/portal/copy.test.ts lib/portal/errors.test.ts lib/portal/invite-token.test.ts lib/portal/accept-flow.test.ts lib/portal/perm-label.test.ts lib/portal/restore-report.test.ts lib/portal/invite-error.test.ts lib/portal/access-lock.test.ts lib/sentriq/admin-notice.test.ts lib/portal/env-check.test.ts lib/portal/membership-rank.test.ts lib/security/headers.test.ts lib/portal/mfa.test.ts",
+    "test": "node --experimental-strip-types --test lib/forms/domain.test.ts lib/inspections/repository.test.ts lib/inspections/outbox.test.ts lib/inspections/messages.test.ts lib/inspections/return-path.test.ts lib/inspections/hidden.test.ts lib/inspections/hidden.audit.test.ts lib/actions/repository.test.ts lib/sentriq/demo-permissions.test.ts lib/sentriq/format.test.ts lib/sentriq/overview-model.test.ts lib/portal/copy.test.ts lib/portal/errors.test.ts lib/portal/invite-token.test.ts lib/portal/accept-flow.test.ts lib/portal/perm-label.test.ts lib/portal/restore-report.test.ts lib/portal/invite-error.test.ts lib/portal/access-lock.test.ts lib/sentriq/admin-notice.test.ts lib/portal/env-check.test.ts lib/portal/membership-rank.test.ts lib/security/headers.test.ts lib/portal/mfa.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

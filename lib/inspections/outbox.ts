@@ -1,5 +1,5 @@
 import { OUTBOX_MAX_AGE_DAYS } from "./policy.ts"
-import { payloadFingerprint, type InspectionAnswer, type InspectionFinding, type InspectionRecord, type InspectionRepository } from "./repository.ts"
+import { payloadFingerprint, type SubmitMeta, type InspectionAnswer, type InspectionFinding, type InspectionRecord, type InspectionRepository } from "./repository.ts"
 
 // A device-side queue for submissions, one queue per user AND company. An entry is written BEFORE the first send,
 // so an app restart, a lost connection or a double tap retries the same client id. The server (or the local
@@ -8,7 +8,7 @@ import { payloadFingerprint, type InspectionAnswer, type InspectionFinding, type
 // Real build: this must move to IndexedDB (with a persistent-storage request) and carry photo blobs with their own
 // upload status. Server contract: the payload fingerprint must be SHA-256 of the canonical answers, not this 32-bit hash.
 export type OutboxState = "queued" | "syncing" | "conflict" | "blocked"
-export type OutboxEntry = { clientId: string; inspectionId: string; expectedRevision: number; answers: InspectionAnswer[]; findings: InspectionFinding[]; fingerprint: string; state: OutboxState; attempts: number; queuedAt: string; lastError?: string }
+export type OutboxEntry = { clientId: string; inspectionId: string; expectedRevision: number; answers: InspectionAnswer[]; findings: InspectionFinding[]; meta?: SubmitMeta; fingerprint: string; state: OutboxState; attempts: number; queuedAt: string; lastError?: string }
 export type FlushResult = { inspectionId: string; outcome: "submitted" | "conflict" | "blocked" | "offline"; record?: InspectionRecord; code?: string }
 export type OutboxScope = { userId: string; workspaceId: string }
 type Store = Pick<Storage, "getItem" | "setItem"> & Partial<Pick<Storage, "removeItem" | "key" | "length">>
@@ -60,12 +60,12 @@ export function createOutbox(scope: OutboxScope, store: Store | undefined = defa
   const entry = (inspectionId: string) => read().find((item) => item.inspectionId === inspectionId)
 
   /** Queue a submission. Same payload: the existing entry (same client id). Changed payload: the entry is replaced and gets a NEW client id, so edits are never lost. */
-  const enqueue = (input: { inspectionId: string; expectedRevision: number; answers: InspectionAnswer[]; findings: InspectionFinding[] }): OutboxEntry => {
+  const enqueue = (input: { inspectionId: string; expectedRevision: number; answers: InspectionAnswer[]; findings: InspectionFinding[]; meta?: SubmitMeta }): OutboxEntry => {
     const entries = read()
     const fingerprint = payloadFingerprint(input.answers, input.findings)
     const existing = entries.find((item) => item.inspectionId === input.inspectionId)
     if (existing && existing.fingerprint === fingerprint && (existing.state === "queued" || existing.state === "syncing")) return existing
-    const next: OutboxEntry = { clientId: newClientId(), inspectionId: input.inspectionId, expectedRevision: input.expectedRevision, answers: structuredClone(input.answers), findings: structuredClone(input.findings), fingerprint, state: "queued", attempts: 0, queuedAt: new Date().toISOString() }
+    const next: OutboxEntry = { clientId: newClientId(), inspectionId: input.inspectionId, expectedRevision: input.expectedRevision, answers: structuredClone(input.answers), findings: structuredClone(input.findings), meta: input.meta ? structuredClone(input.meta) : undefined, fingerprint, state: "queued", attempts: 0, queuedAt: new Date().toISOString() }
     write([...entries.filter((item) => item.inspectionId !== input.inspectionId), next])
     return next
   }
@@ -83,13 +83,13 @@ export function createOutbox(scope: OutboxScope, store: Store | undefined = defa
       if (!online) { results.push({ inspectionId: item.inspectionId, outcome: "offline" }); continue }
       write(read().map((row) => row.clientId === item.clientId ? { ...row, state: "syncing" as const, attempts: row.attempts + 1 } : row))
       try {
-        const record = repository.submit(item.inspectionId, item.answers, item.expectedRevision, item.findings, item.clientId)
+        const record = repository.submit(item.inspectionId, item.answers, item.expectedRevision, item.findings, item.clientId, item.meta)
         write(read().filter((row) => row.clientId !== item.clientId))
         results.push({ inspectionId: item.inspectionId, outcome: "submitted", record })
       } catch (error) {
         const code = (error as { code?: string }).code ?? "UNKNOWN"
         const conflict = code === "STALE_REVISION"
-        const blocked = ["NOT_EDITABLE", "NOT_FOUND", "CLIENT_ID_PAYLOAD_MISMATCH"].includes(code)
+        const blocked = ["NOT_EDITABLE", "NOT_FOUND", "CLIENT_ID_PAYLOAD_MISMATCH", "REPLY_REQUIRED"].includes(code)
         write(read().map((row) => row.clientId === item.clientId ? { ...row, state: conflict ? "conflict" as const : blocked ? "blocked" as const : "queued" as const, lastError: code } : row))
         results.push({ inspectionId: item.inspectionId, outcome: conflict ? "conflict" : blocked ? "blocked" : "offline", code })
       }
