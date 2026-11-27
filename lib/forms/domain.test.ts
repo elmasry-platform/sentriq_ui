@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { answerableCount, canAddAnswerable, createQuestion, duplicateForm, emptyForm, validateAnswer, validateForm, validateQuestion } from "./domain.ts"
+import { answerableCount, canAddAnswerable, createQuestion, duplicateForm, emptyForm, validateAnswer, validateForm, validateQuestion, FIELD_TYPES, RUNNER_FIELD_TYPES } from "./domain.ts"
 
 const add = (form: ReturnType<typeof emptyForm>, type: "short_text" | "instruction" | "repeat_group" = "short_text") => { const question = createQuestion(type, form.sections[0].id); if (type === "repeat_group") question.config.children = [{ id: "child_a", type: "integer", label: { en: "Child", ar: "فرعي" }, required: false, config: {} }]; form.questions.push(question); form.sections[0].questionIds.push(question.id); return question }
 test("instruction is zero capacity; normal and repeat fields count once", () => { const form = emptyForm(); add(form); add(form, "instruction"); add(form, "repeat_group"); assert.equal(answerableCount(form), 2) })
@@ -210,4 +210,9 @@ test("capacity counts hidden answerable questions and excludes instructions and 
   const repeat = add(form, "repeat_group")
   repeat.config.children = [{ id: "a", type: "decimal", label: { en: "Amount", ar: "المبلغ" }, required: false, config: {} }]
   assert.equal(answerableCount(form), 2)
+})
+
+test("runner-supported types are real field types, and the unsupported ones stay out of the builder list", () => {
+  for (const type of RUNNER_FIELD_TYPES) assert.ok((FIELD_TYPES as readonly string[]).includes(type))
+  for (const type of ["barcode_qr", "repeat_group", "reference", "user", "site", "location"]) assert.ok(!RUNNER_FIELD_TYPES.includes(type as never))
 })
