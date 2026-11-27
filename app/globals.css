@@ -500,3 +500,4 @@ a.platform-muted { min-height: 44px; display: inline-flex; align-items: center; 
   .sidebar .nav-link-active { box-shadow: none; }
 }
 @media (max-width:720px){.forms-table .form-status{justify-self:start}}
+.access-readonly-note{display:flex;align-items:center;gap:8px;margin:8px 0;padding:10px 12px;border:1px solid var(--border,#d9dde3);border-radius:6px;background:#f4f6f9;color:#3f4a5c;font-size:13px;font-weight:600}
