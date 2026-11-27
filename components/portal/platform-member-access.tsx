@@ -241,6 +241,15 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
     }, accessToken)
   }, () => { setDelSource(""); setDelExpires(""); setDelReason("") })
 
+  if (readOnly) {
+    return (
+      <div className="access-editor" data-testid="effective-access">
+        <p className="access-audit-note">{t("ea.level")}: <strong>{t(`level.${data.membership.role}` as CopyKey)}</strong></p>
+        <p className="access-readonly-note" role="note" data-testid="readonly-note"><Lock size={14} aria-hidden="true" /> {t("ea.managedByOperator")}</p>
+      </div>
+    )
+  }
+
   return (
     <div className="access-editor" data-testid="effective-access">
       <h3>{t("ea.title", { name: member.displayName ?? member.email ?? "" })}</h3>
