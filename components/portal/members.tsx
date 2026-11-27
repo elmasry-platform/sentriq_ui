@@ -1,7 +1,9 @@
 "use client"
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
-import { ChevronDown, ChevronUp, LoaderCircle, UserRound } from "lucide-react"
+import Link from "next/link"
+import { ChevronDown, ChevronUp, KeyRound, LoaderCircle, Lock, UserRound } from "lucide-react"
+import { isReadOnlyTarget } from "@/lib/portal/access-lock"
 import { rpc, select } from "@/lib/portal/api"
 import { dateLocale, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
 import { PortalEmpty, PortalError, PortalLoading } from "./states"
@@ -144,7 +146,8 @@ function AccessEditor({ accessToken, tenantId, member, decisions, onSaved }: {
   )
 }
 
-export function MembersPanel({ accessToken, tenantId, selfUserId, moduleEditor = false }: { accessToken: string; tenantId: string; selfUserId: string; moduleEditor?: boolean }) {
+/** directory: read-only list (name, level, status) with a link to Member access, the one place to change access. */
+export function MembersPanel({ accessToken, tenantId, selfUserId, moduleEditor = false, directory = false, manageHref }: { accessToken: string; tenantId: string; selfUserId: string; moduleEditor?: boolean; directory?: boolean; manageHref?: string }) {
   const t = useT()
   const fe = useFriendlyError()
   const [rows, setRows] = useState<MemberRow[] | null>(null)
@@ -192,6 +195,46 @@ export function MembersPanel({ accessToken, tenantId, selfUserId, moduleEditor =
     const allowed = mine.filter((d) => d.decision === "allow").length
     const denied = mine.filter((d) => d.decision === "deny").length
     return { allowed, denied, rest: CAPABILITY_KEYS.length - allowed - denied }
+  }
+
+  if (directory) {
+    return (
+      <div className="panel platform-panel" data-testid="people-directory">
+        <div className="panel-header">
+          <div>
+            <h2>{t("people.members")}</h2>
+            <p>{t("people.count", { count: rows.length })}</p>
+          </div>
+        </div>
+        <table className="data-table">
+          <thead>
+            <tr><th>{t("people.member")}</th><th>{t("people.level")}</th><th>{t("people.status")}</th><th></th></tr>
+          </thead>
+          <tbody>
+            {rows.map((m) => {
+              const locked = isReadOnlyTarget(true, m.role)
+              return (
+                <tr key={m.membershipId}>
+                  <td className="cell-wrap" data-label={t("people.member")}>
+                    <div className="platform-person">
+                      <span className="avatar" aria-hidden="true"><UserRound size={14} /></span>
+                      <strong className="platform-cell-strong" title={m.email ?? undefined}><bdi>{m.displayName ?? m.email ?? t("people.memberFallback")}</bdi></strong>
+                    </div>
+                  </td>
+                  <td data-label={t("people.level")}>{t(`level.${m.role}` as CopyKey)}</td>
+                  <td data-label={t("people.status")}><span className={`ux-badge platform-capitalize ${m.status === "active" ? "ux-badge-approved" : "ux-badge-returned"}`}>{t(`status.${m.status}` as CopyKey)}</span></td>
+                  <td>
+                    {locked
+                      ? <span className="platform-muted" data-testid="row-locked" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Lock size={14} aria-hidden="true" /> {t("ea.managedByOperator")}</span>
+                      : manageHref ? <Link className="button-outline" href={`${manageHref}?member=${encodeURIComponent(m.membershipId)}`}><KeyRound size={13} aria-hidden="true" /> {t("people.manage")}</Link> : null}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    )
   }
 
   return (
