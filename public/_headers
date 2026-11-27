@@ -1,0 +1,12 @@
+# Cloudflare Pages response headers. The site is a static export, so the
+# headers() block in next.config.mjs is ignored; this file is what applies.
+# If NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_BACKEND_URL change, update connect-src below
+# (lib/security/headers.test.ts compares them with those env values when they are set).
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' https://ekwimtbmfouiobjwpuev.supabase.co https://sentriq-backend-staging.vercel.app; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
