@@ -1,6 +1,7 @@
 "use client"
 
 import { rpc, select, ApiError } from "./api"
+import { bestMembership, LEVEL_ROLE } from "./membership-rank"
 
 export type PortalRole = "owner" | "subowner" | "superadmin" | "admin" | "employee"
 
@@ -50,14 +51,9 @@ export async function resolveIdentity(accessToken: string, userId: string): Prom
     if (suspended) return { role: "employee", tenantId: suspended.workspaceId, tenantIds: [], membershipStatus: "suspended", displayName: suspended.displayName ?? null }
     return { role: "employee", tenantIds: [], membershipStatus: "none" }
   }
-  const levelRank: Record<string, PortalRole> = {
-    company_superadmin: "superadmin",
-    company_admin: "admin",
-    employee: "employee",
-  }
-  const best = active.sort((a, b) => (levelRank[a.role] ? 0 : 1) - (levelRank[b.role] ? 0 : 1))[0]
+  const best = bestMembership(active)!
   return {
-    role: levelRank[best.role] ?? "employee",
+    role: LEVEL_ROLE[best.role] ?? "employee",
     tenantId: best.workspaceId,
     tenantIds: [...new Set(active.map((m) => m.workspaceId))],
     membershipLevel: best.role,
