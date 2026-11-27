@@ -111,3 +111,17 @@ export function PermissionMatrix({ accessToken, tenantId }: { accessToken: strin
     </details>
   )
 }
+
+/** The signed-in person's own access, folded: it is not the company directory. */
+export function OwnAccessSection({ accessToken, tenantId }: { accessToken: string; tenantId: string }) {
+  const t = useT()
+  return (
+    <details className="panel platform-panel more-options" data-testid="own-access">
+      <summary>{t("people.ownAccess")}</summary>
+      <div className="platform-stack">
+        <CapabilitiesCard accessToken={accessToken} tenantId={tenantId} />
+        <PermissionMatrix accessToken={accessToken} tenantId={tenantId} />
+      </div>
+    </details>
+  )
+}

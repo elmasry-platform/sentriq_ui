@@ -1,7 +1,7 @@
 "use client"
 
 import { isReadOnlyTarget } from "@/lib/portal/access-lock"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { LoaderCircle, PauseCircle, PlayCircle, UserRound } from "lucide-react"
 import { rpc, select, ApiError } from "@/lib/portal/api"
 import { useFriendlyError, useT, type CopyKey } from "@/lib/portal/i18n"
@@ -36,6 +36,9 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
   const [query, setQuery] = useState("")
   const [level, setLevel] = useState("")
   const [memberId, setMemberId] = useState<string | null>(null)
+  // A link from People & access can open one person: /portal/superadmin/access?member=<membership id>. Used once.
+  const wantedMember = useRef<string | null>(null)
+  useEffect(() => { wantedMember.current = new URLSearchParams(window.location.search).get("member") }, [])
   const [tick, setTick] = useState(0)
   const [pending, setPending] = useState<{ member: MemberRow; status: "active" | "suspended" } | null>(null)
   const [reason, setReason] = useState("")
@@ -78,7 +81,12 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
       : rpc<{ rows?: MemberRow[] } | MemberRow[]>("platform_read_company", { p_tenant_id: companyId, p_resource: "iam.memberships", p_limit: 100 }, accessToken)
           .then((res) => (Array.isArray(res) ? res : res.rows ?? []))
     load
-      .then((rows) => { if (active) setMembers(rows) })
+      .then((rows) => {
+        if (!active) return
+        setMembers(rows)
+        const want = wantedMember.current
+        if (want) { wantedMember.current = null; if (rows.some((m) => m.id === want)) setMemberId(want) }
+      })
       .catch((e) => { if (active) { setMembers([]); setError(fe(e)) } })
     return () => { active = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
