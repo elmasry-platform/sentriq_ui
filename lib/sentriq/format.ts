@@ -1,6 +1,11 @@
+import { AR_DIGITS } from "../inspections/policy.ts"
 export type Language = "en" | "ar"
 
-export const locale = (language: Language) => (language === "ar" ? "ar" : "en")
+// One digit rule everywhere, set by AR_DIGITS in policy.ts. "ar-EG" gives Arabic-Indic digits; plain "ar" gives western digits.
+export const locale = (language: Language) => (language === "ar" ? (AR_DIGITS === "arabic_indic" ? "ar-EG" : "ar") : "en")
+const ARABIC_INDIC = "٠١٢٣٤٥٦٧٨٩"
+/** Turn Latin digits in a text into Arabic-Indic digits for the Arabic UI. Other text is untouched. */
+export const localDigits = (text: string, language: Language) => (language === "ar" && AR_DIGITS === "arabic_indic" ? text.replace(/[0-9]/g, (digit) => ARABIC_INDIC[Number(digit)]) : text)
 
 export function formatDate(value: string | undefined, language: Language, options: Intl.DateTimeFormatOptions = { dateStyle: "medium" }) {
   if (!value) return "—"

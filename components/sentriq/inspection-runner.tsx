@@ -9,10 +9,10 @@ import { purgedNotice } from "@/lib/inspections/messages"
 import { OUTBOX_MAX_AGE_DAYS } from "@/lib/inspections/policy"
 import { createOutbox } from "@/lib/inspections/outbox"
 import { droppedAnswers, effectiveAnswers, hiddenWithFindings } from "@/lib/inspections/hidden"
-import { changedAnswers, MIN_UNCHANGED_REPLY_LENGTH } from "@/lib/inspections/policy"
+import { changedAnswers, charCount, MIN_UNCHANGED_REPLY_LENGTH } from "@/lib/inspections/policy"
 import { GPS_MANUAL_ENTRY_NEEDS_FORM_FLAG, HIDDEN_ANSWER_RULE } from "@/lib/inspections/policy"
 import { differingAnswers, SyncConflict, type ConflictItem } from "@/components/sentriq/sync-conflict"
-import { errorMessage, formatNumber, plural, type Language } from "@/lib/sentriq/format"
+import { errorMessage, formatNumber, localDigits, plural, type Language } from "@/lib/sentriq/format"
 import { words } from "@/lib/sentriq/inspections-i18n"
 import { SignaturePad } from "@/components/sentriq/signature-pad"
 import { Dialog } from "@/components/sentriq/dialog"
@@ -39,6 +39,7 @@ export function InspectionRunner({ userId, record: initial, template, language, 
   const [evidenceUrls, setEvidenceUrls] = useState<Record<string, string[]>>({})
   const [findings, setFindings] = useState<InspectionFinding[]>(initial.findings ?? [])
   const [reply, setReply] = useState("")
+  const [replyAsked, setReplyAsked] = useState(false)
   const [pendingHide, setPendingHide] = useState<{ question: Question; value: unknown } | null>(null)
   const [flagging, setFlagging] = useState<Question | null>(null)
   const [draftFinding, setDraftFinding] = useState({ title: "", description: "", priority: "medium" as InspectionFinding["priority"], photo: "" })
@@ -167,7 +168,7 @@ export function InspectionRunner({ userId, record: initial, template, language, 
   const submitNow = () => {
     if (sending.current) return
     if (errors.length) { jumpTo(errors[0].question); return }
-    if (replyMissing) { setMessage(t.unchangedNeeded); return }
+    if (replyMissing) { setReplyAsked(true); setMessage(t.unchangedNeeded); return }
     sending.current = true; setSubmitting(true)
     const saved = persist()
     if (!saved) { sending.current = false; setSubmitting(false); return }
@@ -178,13 +179,13 @@ export function InspectionRunner({ userId, record: initial, template, language, 
   }
   // An open return: the reviewer returned it in this cycle and it has not been sent again yet.
   const openReturn = useMemo(() => {
-    const last = [...record.reviewHistory].reverse().find((entry) => entry.decision === "returned")
+    const last = [...record.reviewHistory].reverse().find((entry) => entry.decision === "returned" || entry.decision === "reopened")
     return last && (last.cycle ?? 0) === (record.cycle ?? 0) && record.status !== "submitted" ? last : undefined
   }, [record])
   const flaggedIds = new Set(openReturn?.flaggedQuestionIds ?? [])
   const lockedQuestion = (id: string) => !!openReturn && flaggedIds.size > 0 && !flaggedIds.has(id)
   const unchanged = !!openReturn && form !== undefined && changedAnswers(openReturn.answersAtReturn ?? [], rowsFor(true)).length === 0
-  const replyMissing = unchanged && reply.trim().length < MIN_UNCHANGED_REPLY_LENGTH
+  const replyMissing = unchanged && charCount(reply) < MIN_UNCHANGED_REPLY_LENGTH
   const sectionOfQuestion = (questionId: string) => sections.findIndex((section) => section.questionIds.includes(questionId))
 
   const addFinding = () => {
@@ -278,8 +279,8 @@ export function InspectionRunner({ userId, record: initial, template, language, 
     <div ref={topRef} />
     {purgeNote}
     {!online && <p className="inspection-offline" role="status"><WifiOff size={15} aria-hidden="true" />{t.offline}</p>}
-    {openReturn && <div className="runner-returned" role="note"><strong>{t.returnedTitle}</strong><p>{openReturn.reason}</p><small>{flaggedIds.size ? t.returnedFlagged : t.returnedAny}</small>
-      {unchanged && <label>{t.unchangedLabel}<textarea value={reply} onChange={(event) => setReply(event.target.value)} aria-describedby="reply-hint" /><small id="reply-hint">{t.unchangedHint}</small></label>}</div>}
+    {openReturn && <div className="runner-returned" role="note"><strong>{t.returnedTitle}</strong><p dir="auto">{openReturn.reason}</p><small>{flaggedIds.size ? t.returnedFlagged : t.returnedAny}</small>
+      {unchanged && replyAsked && <label>{t.unchangedLabel}<textarea value={reply} onChange={(event) => setReply(event.target.value)} aria-describedby="reply-hint" /><small id="reply-hint">{t.unchangedHint}</small></label>}</div>}
     {message && <p className="inspection-alert" role="alert">{message}</p>}
     {conflict && <div className="inspection-conflict" role="alert"><strong>{t.conflict}</strong>
       <button type="button" onClick={startResolve}>{t.reload}</button>
@@ -289,7 +290,7 @@ export function InspectionRunner({ userId, record: initial, template, language, 
       <button type="button" className="inspection-back" onClick={onExit}><ArrowLeft size={16} aria-hidden="true" />{t.backWork}</button>
       <p className="eyebrow">{record.id} · v{record.templateVersion} <span className={`sync-badge is-${syncState}`}>{stateLabel[syncState]}</span></p>
       <h1>{template?.title[language] ?? record.title}</h1>
-      <div className="runner-progress-copy"><span>{answeredCount}/{totalCount} {t.answered}</span><span>{formatNumber(progress, language)}%</span></div>
+      <div className="runner-progress-copy"><span>{formatNumber(answeredCount, language)}/{formatNumber(totalCount, language)} {t.answered}</span><span>{formatNumber(progress, language)}%</span></div>
       <div className="runner-progress-track" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label={`${answeredCount}/${totalCount} ${t.answered}`}><span style={{ width: `${progress}%` }} /></div>
       <nav className="ux-section-nav" aria-label={t.sectionsLabel}>{sections.map((section, index) => {
         const missing = sectionMissing(section.id); const active = !showReview && index === sectionIndex
@@ -299,7 +300,7 @@ export function InspectionRunner({ userId, record: initial, template, language, 
 
     {showReview ? <div className="runner-review">
       <h2>{t.reviewSubmit}</h2>
-      <p className="ux-review-summary">{answeredCount}/{totalCount} {t.answered} · {plural(language, "finding", findings.length)}</p>
+      <p className="ux-review-summary">{formatNumber(answeredCount, language)}/{formatNumber(totalCount, language)} {t.answered} · {plural(language, "finding", findings.length)}</p>
       {errors.length > 0 && <div role="alert" className="runner-errors"><strong>{(errors.length === 1 ? t.missingOne : t.missingN).replace("{n}", formatNumber(errors.length, language))}</strong><ul>{errors.map(({ question, message: error }) => <li key={question.id}><button type="button" onClick={() => jumpTo(question)}>{questionLabel(question, language)}</button><span>{error}</span></li>)}</ul></div>}
       {sections.map((section, index) => <section key={section.id} className="ux-review-section"><div className="ux-review-section-head"><h3>{section.title[language] || section.title.en}</h3><button type="button" className="ux-link" onClick={() => goToSection(index)}>{t.editSection}</button></div>
         {questionsOf(section.id).map((question) => <div className="inspection-answer-row" key={question.id}><strong>{questionLabel(question, language)}</strong>{question.type === "signature" && typeof values[question.id] === "string" && values[question.id] ? <span className="runner-review-signature"><img src={String(values[question.id])} alt={questionLabel(question, language)} /><small>{t.signedDrawn}. {t.signedBy} {record.inspectorId}{signedAt[question.id] ? ` ${t.signedOn} ${new Intl.DateTimeFormat(language === "ar" ? "ar" : "en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(signedAt[question.id]))}` : ""}</small></span> : <span>{formatReviewAnswer(question, values[question.id], language)}</span>}</div>)}</section>)}
@@ -312,7 +313,7 @@ export function InspectionRunner({ userId, record: initial, template, language, 
         if (question.type === "instruction") return <aside className="runner-instruction" key={question.id}>{(question.config.content as { en?: string; ar?: string } | undefined)?.[language] || (question.config.content as { en?: string } | undefined)?.en || questionLabel(question, language)}</aside>
         const flagged = findings.filter((finding) => finding.questionId === question.id).length
         return <article className={`runner-question${show ? " has-error" : ""}`} id={`question-${question.id}`} key={question.id}>
-          <div className="runner-question-title"><span className="ux-qnum">{String(visibleQuestions.filter((item) => item.type !== "instruction").indexOf(question) + 1).padStart(2, "0")}</span><label htmlFor={`input-${question.id}`}>{questionLabel(question, language)}{runtime[question.id]?.required && <b aria-label={t.required}> *</b>}</label>
+          <div className="runner-question-title"><span className="ux-qnum">{localDigits(String(visibleQuestions.filter((item) => item.type !== "instruction").indexOf(question) + 1).padStart(2, "0"), language)}</span><label htmlFor={`input-${question.id}`}>{questionLabel(question, language)}{runtime[question.id]?.required && <b aria-label={t.required}> *</b>}</label>
             <button type="button" className={`runner-raise${flagged ? " is-flagged" : ""}`} onClick={() => { setFlagging(question); setDraftFinding({ title: questionLabel(question, language), description: "", priority: "medium", photo: "" }) }} aria-label={`${t.flagIssue}: ${questionLabel(question, language)}`}><Flag size={14} aria-hidden="true" />{flagged ? `${formatNumber(flagged, language)} ${t.flagged}` : t.flagIssue}</button></div>
           {question.help[language] && <p className="ux-help">{question.help[language]}</p>}
           {flaggedIds.has(question.id) && <p className="runner-flagged-chip">{t.flaggedByReviewer}</p>}
@@ -332,7 +333,7 @@ export function InspectionRunner({ userId, record: initial, template, language, 
     </footer>
 
     {pendingHide && <Dialog title={t.hideFindingTitle} closeLabel={t.cancel} onClose={() => setPendingHide(null)}>
-      <p>{t.hideFindingBody}</p>
+      <p>{t.hideFindingBody.replace("{q}", questionLabel(pendingHide.question, language))}</p>
       <div className="inspection-modal-actions"><button type="button" className="button-outline" onClick={() => setPendingHide(null)}>{t.cancel}</button><button type="button" className="button-primary" onClick={() => { applyAnswer(pendingHide.question, pendingHide.value); setPendingHide(null) }}>{t.hideConfirm}</button></div>
     </Dialog>}
     {flagging && <Dialog title={t.raise} closeLabel={t.cancel} onClose={() => setFlagging(null)}>

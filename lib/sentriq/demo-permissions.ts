@@ -16,6 +16,7 @@ export type Permission =
   | "inspections.review.reviewer_1"
   | "inspections.review.reviewer_2"
   | "inspections.review.final_reviewer"
+  | "inspections.reopen"
   | "actions.read"
   | "actions.create"
   | "actions.update_assigned"
@@ -39,7 +40,7 @@ export const rolePermissions: Record<DemoRole, Permission[]> = {
   form_designer: [...base],
   company_admin: [...base, "admin.access"],
   tenant_admin: [...base, "admin.access"],
-  company_superadmin: [...base, "actions.create", "actions.verify", "admin.access"],
+  company_superadmin: [...base, "inspections.reopen", "actions.create", "actions.verify", "admin.access"],
   // Platform operators are separate from company memberships and never see company records here.
   platform_owner: [],
   platform_subowner: [],

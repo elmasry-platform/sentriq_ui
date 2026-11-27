@@ -211,11 +211,12 @@ function InspectionDetail({ record, template, language, role, fromReviews, onCha
         <Stepper steps={stages.map((stage) => ({ id: stage, label: stageLabel(language, stage) }))} current={record.currentStage} done={doneStages} />
         <dl className="ux-overview-stats"><div><dt>{t.answered}</dt><dd>{formatNumber(answered, language)}/{formatNumber(questions.length, language)}</dd></div><div><dt>{t.findingsTab}</dt><dd>{plural(language, "finding", record.findings?.length ?? 0)}</dd></div><div><dt>{t.actionsLinked}</dt><dd>{plural(language, "action", actions.length)}</dd></div></dl>
         {mayExecute(role, record) && <Link className="button-primary" href={`/app/inspections/${record.id}/run`}>{record.status === "draft" && record.answers.length === 0 ? t.run : t.continue}</Link>}
-        <ReviewPanel record={record} language={language} role={role} onChange={onChange} />
+        <ReviewPanel record={record} questions={questions} language={language} role={role} onChange={onChange} />
+        <ReopenMenu record={record} language={language} role={role} onChange={onChange} />
       </>}
       {tab === "answers" && <><h2>{t.answers}</h2>{questions.length ? questions.map((question) => <div className="inspection-answer-row" key={question.id}><strong>{questionLabel(question, language)}</strong><span>{formatAnswer(question, record.answers.find((answer) => answer.questionId === question.id)?.value, language)}</span></div>) : <p>{t.noQuestions}</p>}</>}
       {tab === "findings" && <FindingsTab record={record} actions={actions} language={language} role={role} canCreate={can(role, "actions.create") && access.siteIds.includes(record.siteId)} onCreated={loadActions} />}
-      {tab === "history" && <><h2>{t.history}</h2>{record.reviewHistory.length ? <ol className="inspection-history">{[...record.reviewHistory].reverse().map((entry) => <li key={entry.id}><strong>{entry.decision === "approved" ? t.approve : t.return} · {stageLabel(language, entry.stage)}</strong><span>{personName(entry.actorId) !== "—" ? personName(entry.actorId) : demoActorLabel(entry.actorId)}{entry.reason ? ` — ${entry.reason}` : ""}</span><time dateTime={entry.at}>{formatDateTime(entry.at, language)}</time></li>)}</ol> : <p>{t.noHistory}</p>}</>}
+      {tab === "history" && <HistoryTab record={record} template={template} language={language} />}
       {tab === "audit" && <AuditTab record={record} language={language} />}
     </div>
     <p className="inspection-demo-note">{t.demo}</p>
@@ -247,12 +248,61 @@ function AuditTab({ record, language }: { record: InspectionRecord; language: La
   return <><h2>{t.audit}</h2><p className="ux-muted">{t.auditHint}</p><ol className="inspection-history">{events.map((event) => <li key={event.id}><strong>{event.text}</strong><span>{event.actor}</span><time dateTime={event.at}>{formatDateTime(event.at, language)}</time></li>)}<li><strong>Revision {record.revision}</strong><span>{t.updated}</span><time dateTime={record.updatedAt}>{formatDateTime(record.updatedAt, language)}</time></li></ol></>
 }
 
+/* ---------------------------------------------------------------- history */
+
+type HistoryItem = { id: string; at: string; title: string; who: string; lines: string[] }
+function HistoryTab({ record, template, language }: { record: InspectionRecord; template?: Template; language: Language }) {
+  const t = words[language]
+  const label = (id: string) => { const q = template?.snapshot.questions.find((item) => item.id === id); return q ? questionLabel(q, language) : id }
+  const who = (id: string) => (personName(id) !== "—" ? personName(id) : demoActorLabel(id))
+  const items: HistoryItem[] = [
+    ...record.reviewHistory.map((entry) => ({ id: entry.id, at: entry.at, who: who(entry.actorId),
+      title: `${entry.decision === "approved" ? t.evApproved : entry.decision === "reopened" ? t.evReopened : t.evReturned} · ${stageLabel(language, entry.stage)}`,
+      lines: [entry.reason ?? "", entry.flaggedQuestionIds?.length ? `${t.flaggedLabel}: ${entry.flaggedQuestionIds.map(label).join(", ")}` : "", entry.notified?.length ? entry.notified.map(who).join(", ") : ""].filter(Boolean) })),
+    ...(record.submissionHistory ?? []).map((entry) => ({ id: entry.id, at: entry.at, who: who(record.inspectorId),
+      title: entry.kind === "submitted" ? t.evSubmitted : entry.kind === "resubmitted_without_change" ? t.evResubmittedSame : t.evResubmitted,
+      lines: [
+        entry.kind !== "submitted" ? (entry.changedQuestionIds.length ? `${t.changedLabel}: ${entry.changedQuestionIds.map(label).join(", ")}` : t.noneChanged) : "",
+        entry.reply ? `${t.replyLabel}: ${entry.reply}` : "",
+        entry.path && entry.stage ? `${entry.path === "resume" ? t.resumedAt : t.restartedAt} ${stageLabel(language, entry.stage)}` : "",
+        entry.droppedHidden?.length ? `${t.droppedLabel}: ${entry.droppedHidden.map((d) => `${label(d.questionId)} (${t.ruleLabel} ${d.ruleIds.join(", ")})`).join("; ")}` : "",
+      ].filter(Boolean) })),
+  ].sort((a, b) => b.at.localeCompare(a.at))
+  return <><h2>{t.history}</h2>{items.length ? <ol className="inspection-history">{items.map((item) => <li key={item.id}><strong>{item.title}</strong><span>{item.who}</span>{item.lines.map((line, index) => <span dir="auto" key={index}>{line}</span>)}<time dateTime={item.at}>{formatDateTime(item.at, language)}</time></li>)}</ol> : <p>{t.noHistory}</p>}</>
+}
+
+/* ----------------------------------------------------------------- reopen */
+
+/** Reopen is a separate privilege. It sits in a menu on approved records, never next to Approve and Return. */
+function ReopenMenu({ record, language, role, onChange }: { record: InspectionRecord; language: Language; role: string; onChange: (record: InspectionRecord) => void }) {
+  const t = words[language]
+  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState("")
+  const [message, setMessage] = useState("")
+  if (record.status !== "approved" || !can(role, "inspections.reopen")) return null
+  const actor = demoActor(role)
+  const confirm = () => {
+    try { onChange(inspectionRepository.reopen(record.id, { actorId: actor.userId, reason, expectedRevision: record.revision })); setOpen(false); setReason(""); setMessage("") } catch (error) { setMessage(errorMessage(language, error)) }
+  }
+  return <details className="ux-more"><summary>{t.moreActions}</summary>
+    <button type="button" className="button-outline" onClick={() => setOpen(true)}>{t.reopen}</button>
+    {open && <Dialog title={t.reopenTitle} closeLabel={t.cancel} onClose={() => setOpen(false)}>
+      <p>{t.reopenHint}</p>
+      <label>{t.reasonLabel}<textarea data-autofocus value={reason} onChange={(event) => setReason(event.target.value)} rows={3} /></label>
+      <p className="ux-dialog-hint">{t.reasonHint}</p>
+      {message && <p role="alert" className="inspection-alert">{message}</p>}
+      <div className="inspection-modal-actions"><button type="button" className="button-outline" onClick={() => setOpen(false)}>{t.cancel}</button><button type="button" className="button-primary" onClick={confirm}>{t.confirmReopen}</button></div>
+    </Dialog>}
+  </details>
+}
+
 /* ----------------------------------------------------------------- review */
 
-function ReviewPanel({ record, language, role, onChange }: { record: InspectionRecord; language: Language; role: string; onChange: (record: InspectionRecord) => void }) {
+function ReviewPanel({ record, questions, language, role, onChange }: { record: InspectionRecord; questions: { id: string; title: { en: string; ar: string } }[]; language: Language; role: string; onChange: (record: InspectionRecord) => void }) {
   const t = words[language]
   const [returning, setReturning] = useState(false)
   const [reason, setReason] = useState("")
+  const [flags, setFlags] = useState<string[]>([])
   const [message, setMessage] = useState("")
   const [conflict, setConflict] = useState(false)
   const actor = demoActor(role)
@@ -265,8 +315,8 @@ function ReviewPanel({ record, language, role, onChange }: { record: InspectionR
 
   const act = (decision: "approved" | "returned") => {
     try {
-      onChange(inspectionRepository.review(record.id, { decision, actorId: actor.userId, reason, expectedRevision: record.revision, stage }))
-      setMessage(""); setReturning(false); setReason(""); setConflict(false)
+      onChange(inspectionRepository.review(record.id, { decision, actorId: actor.userId, reason, flaggedQuestionIds: decision === "returned" ? flags : undefined, expectedRevision: record.revision, stage }))
+      setMessage(""); setReturning(false); setReason(""); setFlags([]); setConflict(false)
     } catch (error) {
       if ((error as { code?: string }).code === "STALE_REVISION") setConflict(true)
       setMessage(errorMessage(language, error))
@@ -282,6 +332,7 @@ function ReviewPanel({ record, language, role, onChange }: { record: InspectionR
     {returning && <Dialog title={t.returnDialog} closeLabel={t.cancel} onClose={() => setReturning(false)}>
       <label>{t.reasonLabel}<textarea data-autofocus value={reason} onChange={(event) => setReason(event.target.value)} rows={4} aria-describedby="return-hint" /></label>
       <p id="return-hint" className="ux-dialog-hint">{t.reasonHint}</p>
+      {questions.length > 0 && <fieldset className="ux-flag-pick"><legend>{t.flagPick}</legend>{questions.map((question) => <label key={question.id} className="runner-option"><input type="checkbox" checked={flags.includes(question.id)} onChange={(event) => setFlags((current) => event.target.checked ? [...current, question.id] : current.filter((id) => id !== question.id))} />{question.title[language]}</label>)}<small>{t.flagNote}</small></fieldset>}
       {message && <p role="alert" className="inspection-alert">{message}</p>}
       <div className="inspection-modal-actions"><button type="button" className="button-outline" onClick={() => setReturning(false)}>{t.cancel}</button><button type="button" className="button-primary" onClick={() => act("returned")}>{t.confirmReturn}</button></div>
     </Dialog>}

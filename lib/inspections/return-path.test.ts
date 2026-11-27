@@ -64,3 +64,40 @@ test("repository: audit of dropped hidden answers is stored with the submission"
   const out = repo.submit(rec.id, [r("q1", "z"), ...base.slice(1)], rec.revision, [], undefined, { droppedHidden: dropped })
   assert.deepEqual(out.submissionHistory!.at(-1)!.droppedHidden, dropped)
 })
+
+function approvedRecord() {
+  const { repo, rec } = returned(["q1"])
+  let x = repo.submit(rec.id, [r("q1", "z"), ...base.slice(1)], rec.revision)
+  x = repo.review(x.id, { decision: "approved", actorId: "rev_f", expectedRevision: x.revision, stage: "final_reviewer" } as never)
+  return { repo, rec: x }
+}
+test("reopen: only from approved, reason of 5 characters, approval stays in history, earlier approvers are listed", () => {
+  const { repo, rec } = approvedRecord(); assert.equal(rec.status, "approved")
+  assert.throws(() => repo.reopen(rec.id, { actorId: "admin", reason: "abcd", expectedRevision: rec.revision }), { code: "REASON_REQUIRED" })
+  const out = repo.reopen(rec.id, { actorId: "admin", reason: "abcde", expectedRevision: rec.revision })
+  assert.equal(out.status, "returned"); assert.ok(out.revision > rec.revision)
+  assert.equal(out.reviewHistory.filter((e) => e.decision === "approved").length, rec.reviewHistory.filter((e) => e.decision === "approved").length)
+  const last = out.reviewHistory.at(-1)!
+  assert.deepEqual([last.decision, last.reason], ["reopened", "abcde"]); assert.deepEqual(last.notified, ["rev_f"])
+})
+test("reopen: refused when not approved, and refused after the hard lock days", () => {
+  const { repo, rec } = returned([]); assert.throws(() => repo.reopen(rec.id, { actorId: "a", reason: "long enough", expectedRevision: rec.revision }), { code: "REOPEN_NOT_APPROVED" })
+  const ok = approvedRecord()
+  assert.throws(() => ok.repo.reopen(ok.rec.id, { actorId: "a", reason: "long enough", expectedRevision: ok.rec.revision, lockAfterDays: -1 }), { code: "REOPEN_LOCKED" })
+})
+test("reopen: a resubmission goes through the same return-path rule and keeps the full history", () => {
+  const { repo, rec } = approvedRecord()
+  const re = repo.reopen(rec.id, { actorId: "admin", reason: "New evidence", expectedRevision: rec.revision })
+  const out = repo.submit(re.id, [r("q1", "z"), r("q2", "changed"), base[2]], re.revision)
+  assert.equal(out.currentStage, "reviewer_1") // a change with no flags restarts at stage 1
+  assert.ok(out.reviewHistory.length >= rec.reviewHistory.length + 1)
+})
+
+import { charCount } from "./policy.ts"
+test("reply length counts what people see: Arabic, emoji (1 each) and trimmed spaces", () => {
+  assert.equal(charCount("  مرحبا  "), 5); assert.equal(charCount("👍👍👍"), 3); assert.equal(charCount(undefined), 0)
+  assert.equal(charCount("👍".repeat(10)), 10) // 10 emoji = 10 characters, enough
+  const { repo, rec } = returned(["q1"])
+  assert.throws(() => repo.submit(rec.id, base, rec.revision, [], undefined, { reply: "مراجعة تمت" .slice(0, 9) }), { code: "REPLY_REQUIRED" })
+  assert.doesNotThrow(() => repo.submit(rec.id, base, rec.revision, [], undefined, { reply: "تمت المراجعة مرة أخرى" }))
+})

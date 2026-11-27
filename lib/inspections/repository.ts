@@ -1,4 +1,4 @@
-import { returnPath } from "./policy.ts"
+import { charCount, returnPath } from "./policy.ts"
 import mockData from "../../data/mock-data.json" with { type: "json" }
 import { newId } from "../forms/domain.ts"
 
@@ -6,7 +6,7 @@ export type InspectionStatus = "draft" | "submitted" | "in_review" | "approved" 
 export type InspectionStage = "reviewer_1" | "reviewer_2" | "final_reviewer" | null
 export type ReviewStageId = Exclude<InspectionStage, null>
 export type InspectionAnswer = { questionId: string; value: unknown }
-export type ReviewEntry = { id: string; stage: string; decision: "approved" | "returned"; actorId: string; at: string; reason?: string; revision: number; cycle?: number; flaggedQuestionIds?: string[]; answersAtReturn?: InspectionAnswer[] }
+export type ReviewEntry = { id: string; stage: string; decision: "approved" | "returned" | "reopened"; actorId: string; at: string; reason?: string; revision: number; cycle?: number; flaggedQuestionIds?: string[]; answersAtReturn?: InspectionAnswer[]; notified?: string[] }
 export type SubmissionEvent = { id: string; at: string; cycle: number; kind: "submitted" | "resubmitted" | "resubmitted_without_change"; changedQuestionIds: string[]; path?: "resume" | "restart"; stage?: string; reply?: string; droppedHidden?: { questionId: string; ruleIds: string[]; reason: string }[] }
 export type SubmitMeta = { reply?: string; droppedHidden?: { questionId: string; ruleIds: string[]; reason: string }[] }
 export type InspectionFinding = {
@@ -72,6 +72,8 @@ export type InspectionErrorCode =
   | "SELF_REVIEW"
   | "ALREADY_REVIEWED"
   | "REPLY_REQUIRED"
+  | "REOPEN_NOT_APPROVED"
+  | "REOPEN_LOCKED"
   | "STORAGE_UNREADABLE"
   | "STORAGE_FAILED"
 
@@ -85,6 +87,8 @@ const messages: Record<InspectionErrorCode, string> = {
   WRONG_STAGE: "This inspection is waiting for a different review stage.",
   SELF_REVIEW: "You cannot review an inspection that you carried out.",
   ALREADY_REVIEWED: "You already approved an earlier stage of this inspection.",
+  REOPEN_NOT_APPROVED: "Only an approved inspection can be reopened.",
+  REOPEN_LOCKED: "This inspection is locked. The reopen period has ended.",
   REPLY_REQUIRED: `Nothing was changed after the return. Write why, at least ${MIN_UNCHANGED_REPLY} characters.`,
   STORAGE_UNREADABLE: "Saved inspection data could not be read. It has not been overwritten.",
   STORAGE_FAILED: "Your changes could not be saved in this browser. Check available storage and try again.",
@@ -214,17 +218,35 @@ export class LocalInspectionRepository implements InspectionRepository {
       record.answers = structuredClone(answers)
       record.findings = structuredClone(findings)
       const stages = reviewStagesOf(record)
-      const lastReturn = [...record.reviewHistory].reverse().find((entry) => entry.decision === "returned")
+      const lastReturn = [...record.reviewHistory].reverse().find((entry) => entry.decision === "returned" || entry.decision === "reopened")
       const resubmission = lastReturn && (lastReturn.cycle ?? 0) === (record.cycle ?? 0) // a draft save keeps the return open
       const decided = resubmission ? returnPath({ returnedStage: lastReturn.stage, firstStage: stages[0], flaggedQuestionIds: lastReturn.flaggedQuestionIds ?? [], returned: lastReturn.answersAtReturn ?? record.answers, resubmitted: answers }) : undefined
       const unchanged = !!decided && decided.changedQuestionIds.length === 0
       const reply = meta.reply?.trim()
-      if (unchanged && (!reply || reply.length < MIN_UNCHANGED_REPLY)) throw new InspectionError("REPLY_REQUIRED")
+      if (unchanged && charCount(reply) < MIN_UNCHANGED_REPLY) throw new InspectionError("REPLY_REQUIRED")
       record.submissionHistory = [...(record.submissionHistory ?? []), { id: newId("sub"), at: new Date().toISOString(), cycle: (record.cycle ?? 0) + 1, kind: decided ? (unchanged ? "resubmitted_without_change" : "resubmitted") : "submitted", changedQuestionIds: decided?.changedQuestionIds ?? [], path: decided?.path, stage: decided?.stage, ...(unchanged ? { reply } : {}), ...(meta.droppedHidden?.length ? { droppedHidden: meta.droppedHidden } : {}) }]
       record.status = "submitted"
       record.currentStage = (decided?.stage as InspectionStage | undefined) ?? stages[0]
       record.submittedAt = new Date().toISOString()
       record.cycle = (record.cycle ?? 0) + 1
+    })
+  }
+
+  /** Reopen an APPROVED inspection. A separate privileged action: reason required, the approval stays in history, nothing is edited in place.
+   *  The record goes back to the inspector as a new revision and re-enters the chain by the same return-path rule. `notified` lists who approved earlier (the server sends the notices). */
+  reopen(id: string, input: { actorId: string; reason: string; expectedRevision: number; lockAfterDays?: number }) {
+    return this.update(id, input.expectedRevision, (record) => {
+      if (record.status !== "approved") throw new InspectionError("REOPEN_NOT_APPROVED")
+      const reason = input.reason?.trim()
+      if (!reason || reason.length < MIN_RETURN_REASON) throw new InspectionError("REASON_REQUIRED")
+      const cycle = record.cycle ?? 0
+      const approvals = record.reviewHistory.filter((entry) => entry.decision === "approved" && (entry.cycle ?? 0) === cycle)
+      const lastApproval = approvals[approvals.length - 1]
+      if (input.lockAfterDays !== undefined && lastApproval && Date.now() - Date.parse(lastApproval.at) > input.lockAfterDays * 86_400_000) throw new InspectionError("REOPEN_LOCKED")
+      const stages = reviewStagesOf(record)
+      record.reviewHistory.push({ id: newId("review"), stage: stages[stages.length - 1], decision: "reopened", actorId: input.actorId, at: new Date().toISOString(), reason, revision: record.revision + 1, cycle, flaggedQuestionIds: [], answersAtReturn: structuredClone(record.answers), notified: [...new Set(approvals.map((entry) => entry.actorId))] })
+      record.status = "returned"
+      record.currentStage = null
     })
   }
 

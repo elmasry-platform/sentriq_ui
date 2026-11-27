@@ -36,11 +36,17 @@ export function returnPath(input: { returnedStage: string; firstStage: string; f
 /** GPS questions accept typed coordinates only when the form allows it (config.manualEntry === true). Default. */
 export const GPS_MANUAL_ENTRY_NEEDS_FORM_FLAG = true
 
+/** Digits in the Arabic UI. One switch for every number and date. Open: HSE advisor says western (Egyptian UI norm), brief C2-15 says Arabic-Indic. Default western until decided. */
+export const AR_DIGITS: "western" | "arabic_indic" = "western"
+
 /** Shortest reason a reviewer must give when returning. */
 export const MIN_RETURN_REASON_LENGTH = 5
 
 /** A queued submission older than this is dropped from the device queue (answers stay in the draft). Covers a session that ended without a sign out. */
 export const OUTBOX_MAX_AGE_DAYS = 14
+
+/** Length of a written reply in characters a person sees (code points, trimmed). Not UTF-16 units: an emoji counts 1. The server must count the same way. */
+export const charCount = (text: string | undefined) => [...(text ?? "").trim()].length
 
 /** Same value as MIN_UNCHANGED_REPLY in repository.ts (kept apart so policy.ts has no imports). */
 export const MIN_UNCHANGED_REPLY_LENGTH = 10

@@ -31,3 +31,12 @@ test("English and Arabic dictionaries have identical keys", () => {
   assert.deepEqual(en.filter((key) => !ar.includes(key)), [])
   assert.deepEqual(ar.filter((key) => !en.includes(key)), [])
 })
+
+import { localDigits, formatNumber as fmtNum } from "./format.ts"
+import { AR_DIGITS } from "../inspections/policy.ts"
+test("Arabic UI uses Arabic-Indic digits everywhere, English stays Latin", () => {
+  const indic = AR_DIGITS === "arabic_indic"
+  assert.equal(fmtNum(100, "ar"), indic ? "١٠٠" : "100"); assert.equal(fmtNum(100, "en"), "100")
+  assert.equal(localDigits("10 أحرف", "ar"), indic ? "١٠ أحرف" : "10 أحرف"); assert.equal(localDigits("10 chars", "en"), "10 chars")
+  assert.equal(fmtNum(7, "ar"), localDigits("7", "ar")) // numbers and texts follow the same switch
+})

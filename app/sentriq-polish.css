@@ -452,3 +452,6 @@
 .runner-returned p { margin: 0; } .runner-returned label { display: grid; gap: 4px; font-weight: 600; } .runner-returned textarea { min-height: 72px; }
 .runner-flagged-chip { margin: 0 0 6px; font-size: 12px; font-weight: 700; color: #8a3a16; }
 .runner-locked { border: 0; padding: 0; margin: 0; min-width: 0; opacity: .6; } .runner-locked small { display: block; margin-top: 6px; }
+.ux-flag-pick { border: 1px solid var(--border); padding: 8px 12px; margin: 10px 0; display: grid; gap: 6px; max-height: 220px; overflow: auto; } .ux-flag-pick legend { font-weight: 700; padding-inline: 4px; }
+.ux-more { margin-top: 16px; } .ux-more summary { cursor: pointer; font-weight: 600; padding: 8px 0; } .ux-more button { margin-top: 6px; }
+.inspection-history li span { display: block; }
