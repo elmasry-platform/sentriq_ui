@@ -1,5 +1,6 @@
 "use client"
 
+import { PREVIEW_ONLY_NOTICE } from "@/lib/sentriq/admin-notice"
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { Activity, ArrowDownRight, ArrowUpRight, BadgeCheck, Building2, Check, ChevronDown, ChevronRight, CircleHelp, ClipboardList, Clock3, Copy, Crown, Download, FileClock, Filter, KeyRound, LockKeyhole, Mail, MoreHorizontal, Plus, Search, Shield, ShieldCheck, SlidersHorizontal, Sparkles, Users, X } from "lucide-react"
@@ -53,7 +54,7 @@ export function AdminCenter({ route, role, language }: { route: string; role: De
   const visibleCompanies = useMemo(() => companyRows.filter((item) => `${item.name} ${item.industry} ${item.modules.join(" ")}`.toLowerCase().includes(query.toLowerCase()) && (statusFilter === "All statuses" || item.status === statusFilter)), [companyRows, query, statusFilter])
   const visibleMembers = useMemo(() => memberRows.filter((item) => `${item.name} ${item.email} ${item.roles.join(" ")} ${item.level}`.toLowerCase().includes(query.toLowerCase()) && (statusFilter === "All statuses" || item.status === statusFilter)), [memberRows, query, statusFilter])
   const showNotice = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(""), 3200) }
-  const toggleMember = (id: string) => setMemberRows((rows) => rows.map((member) => member.id === id ? { ...member, status: member.status === "Active" ? "Suspended" : "Active" } : member))
+  const toggleMember = (id: string) => { showNotice(t(language, PREVIEW_ONLY_NOTICE.en, PREVIEW_ONLY_NOTICE.ar)); setMemberRows((rows) => rows.map((member) => member.id === id ? { ...member, status: member.status === "Active" ? "Suspended" : "Active" } : member)) }
   const revokeInvitation = (id: string) => { setInviteRows((rows) => rows.map((invite) => invite.id === id ? { ...invite, status: "Revoked" } : invite)); showNotice("Invitation revoked in this preview.") }
   const createInvitation = () => {
     const email = newEmail.trim().toLowerCase()
