@@ -1,3 +1,6 @@
+import { PHASE_PRODUCTION_BUILD } from "next/constants.js"
+import { assertPublicEnv } from "./lib/portal/env-check.mjs"
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "export",
@@ -16,4 +19,7 @@ const nextConfig = {
   },
 }
 
-export default nextConfig
+export default (phase) => {
+  if (phase === PHASE_PRODUCTION_BUILD) assertPublicEnv(process.env)
+  return nextConfig
+}
