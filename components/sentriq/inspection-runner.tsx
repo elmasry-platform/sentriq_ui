@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { AlertTriangle, CloudOff, MapPin, ArrowLeft, Check, CheckCircle2, ChevronLeft, ChevronRight, Flag, Upload, WifiOff } from "lucide-react"
 import { evaluateFormula, getQuestionRuntimeStates, roundCalculated, RUNNER_FIELD_TYPES, validateAnswer, type Question } from "@/lib/forms/domain"
 import { inspectionRepository, type InspectionAnswer, type InspectionFinding, type InspectionRecord } from "@/lib/inspections/repository"
+import { purgedNotice } from "@/lib/inspections/messages"
+import { OUTBOX_MAX_AGE_DAYS } from "@/lib/inspections/policy"
 import { createOutbox } from "@/lib/inspections/outbox"
 import { effectiveAnswers } from "@/lib/inspections/hidden"
 import { GPS_MANUAL_ENTRY_NEEDS_FORM_FLAG, HIDDEN_ANSWER_RULE } from "@/lib/inspections/policy"
@@ -26,6 +28,9 @@ export function InspectionRunner({ userId, record: initial, template, language, 
   // One queue per user and company. Another person on the same phone never sees or sends it.
   const outbox = useMemo(() => createOutbox({ userId: userId, workspaceId: initial.workspaceId }), [userId, initial.inspectorId, initial.workspaceId])
   const [record, setRecord] = useState(initial)
+  const [purged, setPurged] = useState(0)
+  useEffect(() => { setPurged(outbox.takePurged()) }, [outbox])
+  const purgeNote = purged > 0 ? <p className="inspection-offline" role="status">{purgedNotice(OUTBOX_MAX_AGE_DAYS, language)}</p> : null
   const [sectionIndex, setSectionIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, unknown>>(() => Object.fromEntries(initial.answers.map((item) => [item.questionId, item.value])))
   const [touched, setTouched] = useState<Set<string>>(new Set())
@@ -233,6 +238,7 @@ export function InspectionRunner({ userId, record: initial, template, language, 
   if (conflictItems) return <section className="inspection-runner" dir={rtl ? "rtl" : "ltr"}><SyncConflict items={conflictItems} language={language} onResolve={resolveChoices} /></section>
 
   if (done) return <section className="inspection-runner ux-success" dir={rtl ? "rtl" : "ltr"} aria-live="polite">
+    {purgeNote}
     <span className="ux-success-mark">{syncState === "submitted" ? <CheckCircle2 size={34} aria-hidden="true" /> : <CloudOff size={34} aria-hidden="true" />}</span>
     <span className={`sync-badge is-${syncState}`} data-testid="sync-state">{stateLabel[syncState]}</span>
     <h1>{syncState === "submitted" ? t.submitted : syncState === "queued" ? t.queuedTitle : syncState === "syncing" ? t.submitting : syncState === "conflict" ? t.conflict : t.blockedMsg}</h1>
@@ -252,6 +258,7 @@ export function InspectionRunner({ userId, record: initial, template, language, 
 
   return <section className="inspection-runner" dir={rtl ? "rtl" : "ltr"}>
     <div ref={topRef} />
+    {purgeNote}
     {!online && <p className="inspection-offline" role="status"><WifiOff size={15} aria-hidden="true" />{t.offline}</p>}
     {message && <p className="inspection-alert" role="alert">{message}</p>}
     {conflict && <div className="inspection-conflict" role="alert"><strong>{t.conflict}</strong>

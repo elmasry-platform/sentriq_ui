@@ -447,3 +447,4 @@
 .ux-success .button-outline, .ux-success .ux-success-actions { margin-top: 16px; }
 .ux-success-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .ux-success-actions { align-items: stretch; } .ux-success-actions > button { min-height: 44px; margin-top: 0; }
+.ux-success .ux-success-actions > button { height: 44px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; padding-block: 0; }

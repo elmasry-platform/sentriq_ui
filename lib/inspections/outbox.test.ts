@@ -112,3 +112,13 @@ test("signing in as someone else removes the old user's queue, keeps your own", 
   wipeOtherUsers("u_b", store)
   assert.equal(outbox.read().length, 0); assert.equal(other.read().length, 1)
 })
+
+test("purge is never silent: takePurged reports how many were removed once, then zero", () => {
+  const { store, record, outbox } = setup()
+  outbox.enqueue(input(record, "yes"))
+  const key = [...store.m.keys()].find((k) => k.includes("outbox.v2"))!
+  const rows = JSON.parse(store.m.get(key)!); rows[0].queuedAt = new Date(Date.now() - 20 * 86_400_000).toISOString(); store.m.set(key, JSON.stringify(rows))
+  assert.equal(outbox.takePurged(), 1); assert.equal(outbox.takePurged(), 0)
+  assert.equal(outbox.takePurged(), 0)
+})
+test("nothing purged: no message", () => { const { record, outbox } = setup(); outbox.enqueue(input(record, "yes")); assert.equal(outbox.takePurged(), 0) })

@@ -14,6 +14,7 @@ export type OutboxScope = { userId: string; workspaceId: string }
 type Store = Pick<Storage, "getItem" | "setItem"> & Partial<Pick<Storage, "removeItem" | "key" | "length">>
 
 const PREFIX = "sentriq.inspections.outbox.v2:"
+const NOTICE = "sentriq.inspections.outbox.notice:"
 const newClientId = () => globalThis.crypto?.randomUUID?.() ?? `c_${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
 const defaultStore = (): Store | undefined => (typeof localStorage === "undefined" ? undefined : localStorage)
 
@@ -22,6 +23,7 @@ export function wipeAllOutboxes(store: Store | undefined = defaultStore()) {
   if (!store?.key || !store.removeItem || store.length === undefined) return
   const keys: string[] = []
   for (let i = 0; i < store.length; i++) { const key = store.key(i); if (key && (key.startsWith(PREFIX) || key === "sentriq.inspections.outbox.v1")) keys.push(key) }
+  for (let i = 0; i < store.length; i++) { const key = store.key(i); if (key && key.startsWith(NOTICE)) keys.push(key) }
   keys.forEach((key) => store.removeItem!(key))
 }
 
@@ -39,13 +41,18 @@ export function wipeOtherUsers(userId: string, store: Store | undefined = defaul
 export function createOutbox(scope: OutboxScope, store: Store | undefined = defaultStore()) {
   if (!scope.userId || !scope.workspaceId) throw new Error("An outbox needs a user and a company.")
   const key = `${PREFIX}${encodeURIComponent(scope.workspaceId)}:${encodeURIComponent(scope.userId)}`
+  const noticeKey = `${NOTICE}${encodeURIComponent(scope.workspaceId)}:${encodeURIComponent(scope.userId)}`
   const read = (): OutboxEntry[] => {
     if (!store) return []
     try {
       const parsed = JSON.parse(store.getItem(key) ?? "[]"); if (!Array.isArray(parsed)) return []
       const oldest = Date.now() - OUTBOX_MAX_AGE_DAYS * 86_400_000
       const fresh = (parsed as OutboxEntry[]).filter((row) => !(Date.parse(row.queuedAt) < oldest))
-      if (fresh.length !== parsed.length) store.setItem(key, JSON.stringify(fresh))
+      if (fresh.length !== parsed.length) {
+        store.setItem(key, JSON.stringify(fresh))
+        // Remember that answers were removed, so the person is told (never a silent loss). The draft record stays.
+        store.setItem(noticeKey, String(Number(store.getItem(noticeKey) ?? 0) + (parsed.length - fresh.length)))
+      }
       return fresh
     } catch { return [] }
   }
@@ -89,6 +96,8 @@ export function createOutbox(scope: OutboxScope, store: Store | undefined = defa
     }
     return results
   }
-  return { read, entry, enqueue, discard, exportBlocked, flush }
+  /** How many queued submissions the purge removed since the person last saw the message. Reading clears it. */
+  const takePurged = (): number => { if (!store) return 0; read(); const n = Number(store.getItem(noticeKey) ?? 0); if (n > 0) store.setItem(noticeKey, "0"); return n }
+  return { takePurged, read, entry, enqueue, discard, exportBlocked, flush }
 }
 export type Outbox = ReturnType<typeof createOutbox>
