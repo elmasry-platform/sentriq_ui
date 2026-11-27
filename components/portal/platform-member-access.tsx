@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ChevronDown, ChevronRight, LoaderCircle, MoreHorizontal } from "lucide-react"
+import { ChevronDown, ChevronRight, Lock, LoaderCircle, MoreHorizontal } from "lucide-react"
 import { rpc } from "@/lib/portal/api"
 import { dateLocale, tryCopy, useFriendlyError, usePortalLang, useT, type CopyKey } from "@/lib/portal/i18n"
 import { permissionLabel } from "@/lib/portal/perm-label"
@@ -59,9 +59,10 @@ export interface CompanyContext {
   people: { userId: string; role: string; status: string }[]
 }
 
-export function PlatformMemberAccess({ accessToken, tenantId, member, canPermissions = true, canEntitlements = true, company }: {
-  accessToken: string; tenantId: string; member: PlatformMember; canPermissions?: boolean; canEntitlements?: boolean; company?: CompanyContext
+export function PlatformMemberAccess({ accessToken, tenantId, member, canPermissions: canPermissionsProp = true, canEntitlements = true, company, readOnly = false }: {
+  accessToken: string; tenantId: string; member: PlatformMember; canPermissions?: boolean; canEntitlements?: boolean; company?: CompanyContext; readOnly?: boolean
 }) {
+  const canPermissions = canPermissionsProp && !readOnly
   const t = useT()
   const fe = useFriendlyError()
   const lang = usePortalLang()
@@ -244,6 +245,7 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
     <div className="access-editor" data-testid="effective-access">
       <h3>{t("ea.title", { name: member.displayName ?? member.email ?? "" })}</h3>
       <p className="access-audit-note">{t("ea.level")}: <strong>{t(`level.${data.membership.role}` as CopyKey)}</strong></p>
+      {readOnly ? <p className="access-readonly-note" role="note" data-testid="readonly-note"><Lock size={14} aria-hidden="true" /> {t("ea.managedByOperator")}</p> : null}
 
       <section aria-label={t("ea.summary.title")} className="access-summary" data-testid="access-summary">
         <h4>{t("ea.summary.title")}</h4>
@@ -375,7 +377,7 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
               </button>
             </div>
           </div>
-        ) : null) : <p className="platform-muted">{t("ea.noPower.permissions")}</p>}
+        ) : null) : readOnly ? null : <p className="platform-muted">{t("ea.noPower.permissions")}</p>}
       </section>
       <details className="platform-fold" data-testid="access-advanced">
         <summary>{t("ea.advanced.title")}</summary>
@@ -410,7 +412,7 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
                   <td><span className={`ux-badge ${badgeFor(g.status)}`}>{t(`ea.status.${g.status}` as CopyKey)}</span></td>
                   <td style={{ overflowWrap: "anywhere", paddingInlineEnd: 12 }}>{g.status === "revoked" && g.revoke_reason ? `${g.reason} / ${g.revoke_reason}` : g.reason}</td>
                   <td>
-                    {(company ? (g.status === "live" && !!g.delegated_from_grant_id && g.delegated_by === company.selfUserId) : (canEntitlements && g.status === "live" && !g.delegated_from_grant_id)) ? (
+                    {(!readOnly && (company ? (g.status === "live" && !!g.delegated_from_grant_id && g.delegated_by === company.selfUserId) : (canEntitlements && g.status === "live" && !g.delegated_from_grant_id))) ? (
                       revokeId === g.grant_id ? (
                         <span className="access-save-row">
                           <input value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} placeholder={t("ea.personal.revokeReason")} aria-label={t("ea.personal.revokeReason")} />
@@ -424,7 +426,7 @@ export function PlatformMemberAccess({ accessToken, tenantId, member, canPermiss
             </tbody>
           </table>
         )}
-        {company ? (
+        {readOnly ? <p className="platform-muted" role="note">{t("ea.managedByOperator")}</p> : company ? (
           <div role="group" aria-label={t("ea.delegate.title")}>
             <p className="access-audit-note">{t("ea.company.noException")}</p>
             {member.status !== "active" ? <p className="platform-muted">{t("ea.delegate.inactive")}</p> : mine.length === 0 ? <p className="platform-muted">{t("ea.delegate.none")}</p> : (

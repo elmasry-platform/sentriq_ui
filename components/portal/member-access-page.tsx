@@ -1,5 +1,6 @@
 "use client"
 
+import { isReadOnlyTarget } from "@/lib/portal/access-lock"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { LoaderCircle, PauseCircle, PlayCircle, UserRound } from "lucide-react"
 import { rpc, select, ApiError } from "@/lib/portal/api"
@@ -153,7 +154,7 @@ export function MemberAccessPage({ accessToken, canLifecycle = true, canPermissi
                 ) : null
               ) : <span className="platform-muted">{t("detail.managedByOwner")}</span>}
             </div>
-            <PlatformMemberAccess key={`${companyId}:${selected.id}`} accessToken={accessToken} tenantId={companyId} canPermissions={canPermissions} canEntitlements={canEntitlements}
+            <PlatformMemberAccess key={`${companyId}:${selected.id}`} readOnly={isReadOnlyTarget(!!ownCompany, selected.member_role)} accessToken={accessToken} tenantId={companyId} canPermissions={canPermissions} canEntitlements={canEntitlements}
               company={ownCompany ? { selfUserId: ownCompany.selfUserId, selfMembershipId: everyone.find((x) => x.id === ownCompany.selfUserId)?.membershipId ?? null, people: everyone.map((x) => ({ userId: x.id, role: x.role, status: x.status })) } : undefined}
               member={{ membershipId: selected.id, role: selected.member_role, status: selected.status, displayName: selected.display_name, email: selected.email }} />
           </>
