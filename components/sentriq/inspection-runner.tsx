@@ -2,9 +2,13 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { AlertTriangle, MapPin, ArrowLeft, Check, CheckCircle2, ChevronLeft, ChevronRight, Flag, Upload, WifiOff } from "lucide-react"
+import { AlertTriangle, CloudOff, MapPin, ArrowLeft, Check, CheckCircle2, ChevronLeft, ChevronRight, Flag, Upload, WifiOff } from "lucide-react"
 import { evaluateFormula, getQuestionRuntimeStates, roundCalculated, RUNNER_FIELD_TYPES, validateAnswer, type Question } from "@/lib/forms/domain"
-import { inspectionRepository, type InspectionFinding, type InspectionRecord } from "@/lib/inspections/repository"
+import { inspectionRepository, type InspectionAnswer, type InspectionFinding, type InspectionRecord } from "@/lib/inspections/repository"
+import { discardQueued, enqueueSubmission, flushOutbox, outboxEntry, reviseQueued } from "@/lib/inspections/outbox"
+import { effectiveAnswers } from "@/lib/inspections/hidden"
+import { GPS_MANUAL_ENTRY_NEEDS_FORM_FLAG, HIDDEN_ANSWER_RULE } from "@/lib/inspections/policy"
+import { differingAnswers, SyncConflict, type ConflictItem } from "@/components/sentriq/sync-conflict"
 import { errorMessage, formatNumber, plural, type Language } from "@/lib/sentriq/format"
 import { words } from "@/lib/sentriq/inspections-i18n"
 import { SignaturePad } from "@/components/sentriq/signature-pad"
@@ -12,6 +16,7 @@ import { Dialog } from "@/components/sentriq/dialog"
 import { answersToRows, isAnswered, questionLabel, type Template } from "@/components/sentriq/inspection-shared"
 
 type SaveState = "clean" | "dirty" | "saving" | "saved"
+type SyncState = "draft" | "queued" | "syncing" | "submitted" | "conflict" | "blocked"
 type Props = { record: InspectionRecord; template?: Template; language: Language; onChange: (record: InspectionRecord) => void; onExit: () => void }
 
 export function InspectionRunner({ record: initial, template, language, onChange, onExit }: Props) {
@@ -28,13 +33,16 @@ export function InspectionRunner({ record: initial, template, language, onChange
   const [flagging, setFlagging] = useState<Question | null>(null)
   const [draftFinding, setDraftFinding] = useState({ title: "", description: "", priority: "medium" as InspectionFinding["priority"], photo: "" })
   const [showReview, setShowReview] = useState(false)
-  const [done, setDone] = useState(initial.status === "submitted")
+  const [syncState, setSyncState] = useState<SyncState>(() => { if (initial.status === "submitted") return "submitted"; const entry = outboxEntry(initial.id); return entry ? (entry.state === "conflict" ? "conflict" : entry.state === "blocked" ? "blocked" : "queued") : "draft" })
+  const [conflictItems, setConflictItems] = useState<ConflictItem[] | null>(null)
+  const [serverRows, setServerRows] = useState<InspectionAnswer[]>([])
+  const [locationNote, setLocationNote] = useState("")
+  const done = syncState !== "draft"
   const [conflict, setConflict] = useState(false)
   const [message, setMessage] = useState("")
   const [saveState, setSaveState] = useState<SaveState>("clean")
   const [savedTime, setSavedTime] = useState("")
   const [online, setOnline] = useState(true)
-  const [queuedOffline, setQueuedOffline] = useState(false)
   const [signedAt, setSignedAt] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const sending = useRef(false)
@@ -60,7 +68,7 @@ export function InspectionRunner({ record: initial, template, language, onChange
     }
     return next
   }, [form, answers])
-  const runtime = useMemo(() => (form ? getQuestionRuntimeStates(form, values) : {}), [form, values])
+  const runtime = useMemo(() => (form ? getQuestionRuntimeStates(form, effectiveAnswers(form, values)) : {}), [form, values])
   const shown = (question: Question) => Boolean(runtime[question.id]?.visible)
   const answerable = (question: Question) => question.type !== "instruction" && shown(question)
   const questionsOf = (sectionId: string) => (sections.find((section) => section.id === sectionId)?.questionIds ?? []).map((id) => form?.questions.find((item) => item.id === id)).filter((question): question is Question => Boolean(question && answerable(question)))
@@ -76,15 +84,19 @@ export function InspectionRunner({ record: initial, template, language, onChange
   const mark = (id: string) => setTouched((current) => new Set(current).add(id))
   const setAnswer = (question: Question, value: unknown) => { setAnswers((current) => ({ ...current, [question.id]: value })); mark(question.id); setSaveState("dirty") }
 
-  const persist = (submit = false) => {
+  // Hidden questions: kept on the device while drafting, never sent and never scored (HIDDEN_ANSWER_RULE).
+  const rowsFor = (forSubmission: boolean) => {
+    if (!form || !forSubmission && HIDDEN_ANSWER_RULE === "keep_on_device_exclude_from_submission") return answersToRows(values)
+    return answersToRows(effectiveAnswers(form, values))
+  }
+
+  const persist = () => {
     setSaveState("saving")
     try {
-      const rows = answersToRows(values)
-      const next = submit ? inspectionRepository.submit(record.id, rows, record.revision, findings) : inspectionRepository.saveDraft(record.id, rows, record.revision, findings)
+      const next = inspectionRepository.saveDraft(record.id, rowsFor(false), record.revision, findings)
       setRecord(next); onChange(next); setConflict(false); setMessage("")
       setSavedTime(new Intl.DateTimeFormat(language === "ar" ? "ar" : "en", { hour: "2-digit", minute: "2-digit" }).format(new Date()))
       setSaveState("saved")
-      if (submit) { setQueuedOffline(!navigator.onLine); setDone(true) }
       return next
     } catch (error) {
       setSaveState("dirty")
@@ -94,9 +106,36 @@ export function InspectionRunner({ record: initial, template, language, onChange
     }
   }
 
+  const runFlush = (current: InspectionRecord) => {
+    setSyncState("syncing")
+    window.setTimeout(() => {
+      const result = flushOutbox(inspectionRepository, navigator.onLine, undefined, current.id)[0]
+      if (!result || result.outcome === "offline") setSyncState("queued")
+      else if (result.outcome === "submitted") { if (result.record) { setRecord(result.record); onChange(result.record) } setSyncState("submitted") }
+      else setSyncState(result.outcome === "conflict" ? "conflict" : "blocked")
+    }, 0)
+  }
+  const flushRef = useRef(runFlush); flushRef.current = runFlush
+  const persistRef = useRef(persist); persistRef.current = persist
+  const dirtyRef = useRef(false); dirtyRef.current = saveState === "dirty" && !done
+
+  useEffect(() => {
+    const onOnline = () => { if (syncState === "queued") flushRef.current(record) }
+    window.addEventListener("online", onOnline)
+    return () => window.removeEventListener("online", onOnline)
+  }, [syncState, record])
+  useEffect(() => { if (syncState === "queued" && navigator.onLine) flushRef.current(record) }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  // A draft must survive leaving the page, a call, or closing the app.
+  useEffect(() => {
+    const save = () => { if (dirtyRef.current) persistRef.current() }
+    const hidden = () => { if (document.visibilityState === "hidden") save() }
+    window.addEventListener("pagehide", save); document.addEventListener("visibilitychange", hidden)
+    return () => { window.removeEventListener("pagehide", save); document.removeEventListener("visibilitychange", hidden); save() }
+  }, [])
+
   useEffect(() => {
     if (done || saveState !== "dirty") return
-    const timer = window.setTimeout(() => persist(false), 10000)
+    const timer = window.setTimeout(() => persist(), 10000)
     return () => window.clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [answers, findings, saveState, done])
@@ -108,13 +147,18 @@ export function InspectionRunner({ record: initial, template, language, onChange
   useEffect(() => () => Object.values(evidenceUrls).flat().forEach((url) => URL.revokeObjectURL(url)), [evidenceUrls])
 
   const goToSection = (index: number) => { setShowReview(false); setSectionIndex(index); topRef.current?.scrollIntoView({ block: "start" }) }
-  const goNext = () => { setAttempted(true); persist(false); if (sectionIndex < sections.length - 1) goToSection(sectionIndex + 1); else { setShowReview(true); topRef.current?.scrollIntoView({ block: "start" }) } }
+  const goNext = () => { setAttempted(true); persist(); if (sectionIndex < sections.length - 1) goToSection(sectionIndex + 1); else { setShowReview(true); topRef.current?.scrollIntoView({ block: "start" }) } }
   const jumpTo = (question: Question) => { setAttempted(true); goToSection(Math.max(0, sectionOfQuestion(question.id))); window.setTimeout(() => { const target = document.getElementById(`question-${question.id}`); target?.scrollIntoView({ block: "center" }); target?.querySelector<HTMLElement>("input,textarea,button")?.focus({ preventScroll: true }) }, 60) }
   const submitNow = () => {
     if (sending.current) return
     if (errors.length) { jumpTo(errors[0].question); return }
     sending.current = true; setSubmitting(true)
-    if (!persist(true)) { sending.current = false; setSubmitting(false) }
+    const saved = persist()
+    if (!saved) { sending.current = false; setSubmitting(false); return }
+    // Write to the device queue first, then send. Same client id on every retry.
+    enqueueSubmission({ inspectionId: saved.id, expectedRevision: saved.revision, answers: rowsFor(true), findings })
+    sending.current = false; setSubmitting(false)
+    runFlush(saved)
   }
   const sectionOfQuestion = (questionId: string) => sections.findIndex((section) => section.questionIds.includes(questionId))
 
@@ -125,18 +169,21 @@ export function InspectionRunner({ record: initial, template, language, onChange
   }
 
   const [locating, setLocating] = useState("")
+  const manualAllowed = (question: Question) => !GPS_MANUAL_ENTRY_NEEDS_FORM_FLAG || question.config.manualEntry === true
   const locate = (question: Question) => {
-    if (!navigator.geolocation) { setMessage(t.locationDenied); return }
+    const typeHint = manualAllowed(question) ? t.typeInstead : ""
+    setLocationNote("")
+    if (typeof navigator === "undefined" || !navigator.geolocation) { setLocationNote(t.locationOff + typeHint); return }
     setLocating(question.id)
     navigator.geolocation.getCurrentPosition(
       (position) => {
         try {
           const digits = Math.min(8, Math.max(0, Math.trunc(Number(question.config.precision ?? 6)) || 0))
-          setAnswer(question, `${position.coords.latitude.toFixed(digits)}, ${position.coords.longitude.toFixed(digits)}`); setMessage("")
-        } catch { setMessage(t.locationDenied) }
+          setAnswer(question, `${position.coords.latitude.toFixed(digits)}, ${position.coords.longitude.toFixed(digits)}`)
+        } catch { setLocationNote(t.locationOff + typeHint) }
         setLocating("")
       },
-      () => { setLocating(""); setMessage(t.locationDenied) },
+      (error) => { setLocating(""); setLocationNote((error.code === 1 ? t.locationBlocked : error.code === 3 ? t.locationTimeout : t.locationOff) + typeHint) },
       { enableHighAccuracy: true, timeout: 15000 })
   }
 
@@ -154,21 +201,43 @@ export function InspectionRunner({ record: initial, template, language, onChange
       {Array.isArray(value) && value.length > 0 && <div className="runner-evidence-list">{value.map((file, index) => { const fileName = typeof file === "string" ? file : (file as File).name; return <div className="runner-evidence-item" key={`${fileName}-${index}`}>{question.type === "photo" && evidenceUrls[question.id]?.[index] && <img src={evidenceUrls[question.id][index]} alt={language === "ar" ? `معاينة ${index + 1}` : `Evidence ${index + 1} preview`} />}<span>{fileName}</span><button type="button" aria-label={`${t.remove} ${fileName}`} onClick={() => updateEvidence(question, (value as File[]).filter((_, fileIndex) => fileIndex !== index))}>{t.remove}</button></div> })}</div>}</div>
     if (question.type === "calculated") return <p className="runner-calculated" id={id} role="status"><small>{t.calculatedLabel}</small><strong>{isAnswered(values[question.id]) ? formatNumber(Number(values[question.id]), language) : t.calculatedWait}</strong></p>
     if (question.type === "signature") return <SignaturePad value={typeof value === "string" ? value : ""} label={name} hint={t.signHere} clearLabel={t.clearSignature} signedLabel={t.signed} onChange={(data) => { setAnswer(question, data); setSignedAt((current) => { const next = { ...current }; if (data) next[question.id] = new Date().toISOString(); else delete next[question.id]; return next }) }} />
-    if (question.type === "gps") return <div className="runner-gps"><button type="button" className="button-outline" onClick={() => locate(question)}><MapPin size={16} aria-hidden="true" />{locating === question.id ? t.locating : t.useLocation}</button><input id={id} aria-label={name} dir="ltr" inputMode="text" placeholder={t.coordsHint} value={String(value)} onChange={(event) => setAnswer(question, event.target.value)} /></div>
+    if (question.type === "gps") return <div className="runner-gps"><button type="button" className="button-outline" onClick={() => locate(question)}><MapPin size={16} aria-hidden="true" />{locating === question.id ? t.locating : t.useLocation}</button><input id={id} aria-label={name} dir="ltr" inputMode="text" placeholder={t.coordsHint} readOnly={!manualAllowed(question)} value={String(value)} onChange={(event) => setAnswer(question, event.target.value)} />{locationNote && <small className="runner-error" role="alert">{locationNote}</small>}</div>
     if (question.type === "attestation") return <label className="runner-option"><input id={id} type="checkbox" checked={value === true} onChange={(event) => setAnswer(question, event.target.checked)} /><span>{(question.config.statement as { en?: string; ar?: string } | undefined)?.[language] ?? name}</span></label>
     if (question.type === "long_text") return <textarea id={id} aria-label={name} value={String(value)} onChange={(event) => setAnswer(question, event.target.value)} rows={4} />
     const type = question.type === "integer" || question.type === "decimal" ? "number" : question.type === "date" ? "date" : question.type === "time" ? "time" : question.type === "datetime" ? "datetime-local" : "text"
     return <input id={id} aria-label={name} type={type} inputMode={type === "number" ? "decimal" : undefined} value={String(value)} onChange={(event) => setAnswer(question, type === "number" ? (event.target.value === "" ? "" : Number(event.target.value)) : event.target.value)} />
   }
 
-  if (done) return <section className="inspection-runner ux-success" dir={rtl ? "rtl" : "ltr"}>
-    <span className="ux-success-mark"><CheckCircle2 size={34} aria-hidden="true" /></span>
-    <h1>{t.submitted}</h1>
-    <p>{queuedOffline ? t.syncing : t.submittedHint}</p>
+  const startResolve = () => {
+    const latest = inspectionRepository.get(record.id); if (!latest) { setMessage(errorMessage(language, new Error("NOT_FOUND"))); return }
+    const entry = outboxEntry(record.id)
+    const mine = entry ? entry.answers : rowsFor(false)
+    const diffs = differingAnswers(mine, latest.answers)
+    setRecord(latest); onChange(latest); setServerRows(latest.answers)
+    setAnswers(Object.fromEntries(mine.map((row) => [row.questionId, row.value])))
+    if (entry) discardQueued(record.id)
+    setSyncState("draft"); setConflict(false); setSaveState("dirty")
+    if (diffs.length) setConflictItems(diffs.map((id) => { const question = form?.questions.find((item) => item.id === id); const pick = (rows: InspectionAnswer[]) => question ? formatReviewAnswer(question, rows.find((row) => row.questionId === id)?.value, language) : String(rows.find((row) => row.questionId === id)?.value ?? "—"); return { questionId: id, label: question ? questionLabel(question, language) : id, mine: pick(mine), server: pick(latest.answers) } }))
+  }
+  const resolveChoices = (choices: Record<string, "mine" | "server">) => {
+    setAnswers((current) => { const next = { ...current }; for (const [id, side] of Object.entries(choices)) if (side === "server") { const row = serverRows.find((item) => item.questionId === id); if (row) next[id] = row.value; else delete next[id] } return next })
+    setConflictItems(null); setSaveState("dirty")
+  }
+  const stateLabel: Record<SyncState, string> = { draft: t.stateDraft, queued: t.stateQueued, syncing: t.stateSyncing, submitted: t.stateSubmitted, conflict: t.conflictShort, blocked: t.blockedShort }
+
+  if (conflictItems) return <section className="inspection-runner" dir={rtl ? "rtl" : "ltr"}><SyncConflict items={conflictItems} language={language} onResolve={resolveChoices} /></section>
+
+  if (done) return <section className="inspection-runner ux-success" dir={rtl ? "rtl" : "ltr"} aria-live="polite">
+    <span className="ux-success-mark">{syncState === "submitted" ? <CheckCircle2 size={34} aria-hidden="true" /> : <CloudOff size={34} aria-hidden="true" />}</span>
+    <span className={`sync-badge is-${syncState}`} data-testid="sync-state">{stateLabel[syncState]}</span>
+    <h1>{syncState === "submitted" ? t.submitted : syncState === "queued" ? t.queuedTitle : syncState === "syncing" ? t.submitting : syncState === "conflict" ? t.conflict : t.blockedMsg}</h1>
+    {syncState === "submitted" && <p>{t.submittedHint}</p>}
+    {syncState === "queued" && <p>{t.syncing}</p>}
+    {syncState === "conflict" && <button type="button" className="button-primary" onClick={startResolve}>{t.reload}</button>}
     <dl className="ux-success-stats"><div><dt>{t.answered}</dt><dd>{formatNumber(answeredCount, language)}/{formatNumber(totalCount, language)}</dd></div><div><dt>{t.findingsTab}</dt><dd>{plural(language, "finding", findings.length)}</dd></div></dl>
     <div className="ux-success-actions">
-      <Link className="button-primary" href="/app/inspections">{t.backWork}</Link>
-      <Link className="button-outline" href={`/app/inspections/${record.id}`}>{t.viewInspection}</Link>
+      <Link className={syncState === "conflict" ? "button-outline" : "button-primary"} href="/app/inspections">{t.backWork}</Link>
+      {syncState === "submitted" && <Link className="button-outline" href={`/app/inspections/${record.id}`}>{t.viewInspection}</Link>}
     </div>
   </section>
 
@@ -179,12 +248,12 @@ export function InspectionRunner({ record: initial, template, language, onChange
     {!online && <p className="inspection-offline" role="status"><WifiOff size={15} aria-hidden="true" />{t.offline}</p>}
     {message && <p className="inspection-alert" role="alert">{message}</p>}
     {conflict && <div className="inspection-conflict" role="alert"><strong>{t.conflict}</strong>
-      <button type="button" onClick={() => { const latest = inspectionRepository.get(record.id); if (latest) { setRecord(latest); setAnswers(Object.fromEntries(latest.answers.map((item) => [item.questionId, item.value]))); setFindings(latest.findings ?? []); setConflict(false); setSaveState("clean") } }}>{t.reload}</button>
+      <button type="button" onClick={startResolve}>{t.reload}</button>
       <button type="button" onClick={() => { try { const copy = inspectionRepository.create({ workspaceId: record.workspaceId, siteId: record.siteId, templateId: record.templateId, templateVersion: record.templateVersion, title: `${record.title} — ${language === "ar" ? "نسخة" : "copy"}`, inspectorId: record.inspectorId, dueAt: record.dueAt }); const savedCopy = inspectionRepository.saveDraft(copy.id, answersToRows(answers), copy.revision, findings); setRecord(savedCopy); onChange(savedCopy); setConflict(false); setMessage(`${t.copyChanges}: ${savedCopy.id}`) } catch (error) { setMessage(errorMessage(language, error)) } }}>{t.copyChanges}</button></div>}
 
     <header className="runner-header">
       <button type="button" className="inspection-back" onClick={onExit}><ArrowLeft size={16} aria-hidden="true" />{t.backWork}</button>
-      <p className="eyebrow">{record.id} · v{record.templateVersion}</p>
+      <p className="eyebrow">{record.id} · v{record.templateVersion} <span className={`sync-badge is-${syncState}`}>{stateLabel[syncState]}</span></p>
       <h1>{template?.title[language] ?? record.title}</h1>
       <div className="runner-progress-copy"><span>{answeredCount}/{totalCount} {t.answered}</span><span>{formatNumber(progress, language)}%</span></div>
       <div className="runner-progress-track" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label={`${answeredCount}/${totalCount} ${t.answered}`}><span style={{ width: `${progress}%` }} /></div>
@@ -221,7 +290,7 @@ export function InspectionRunner({ record: initial, template, language, onChange
       <span className={`ux-save-state ux-save-${saveState}`} role="status">{saveText}</span>
       <div className="ux-footer-buttons">
         <button type="button" className="button-outline" disabled={!showReview && sectionIndex === 0} onClick={() => (showReview ? goToSection(sections.length - 1) : goToSection(sectionIndex - 1))}>{rtl ? <ChevronRight size={16} aria-hidden="true" /> : <ChevronLeft size={16} aria-hidden="true" />}{t.back}</button>
-        <button type="button" className="button-outline" onClick={() => persist(false)}>{t.save}</button>
+        <button type="button" className="button-outline" onClick={() => persist()}>{t.save}</button>
         {showReview ? <button type="button" className="button-primary" disabled={submitting} aria-busy={submitting} onClick={submitNow}>{submitting ? t.submitting : t.submit}</button>
           : <button type="button" className="button-primary" onClick={goNext}>{sectionIndex < sections.length - 1 ? t.next : t.reviewSubmit}{rtl ? <ChevronLeft size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}</button>}
       </div>

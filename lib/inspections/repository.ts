@@ -36,6 +36,8 @@ export type InspectionRecord = {
   cycle?: number
   /** Optional per-template override of the review chain. */
   reviewStages?: ReviewStageId[]
+  /** client submission id -> payload fingerprint. The same id with the same payload returns the same record. */
+  submissionKeys?: Record<string, string>
 }
 export type InspectionDraftInput = Pick<InspectionRecord, "workspaceId" | "siteId" | "templateId" | "templateVersion" | "title" | "inspectorId"> & { dueAt?: string; reviewStages?: ReviewStageId[] }
 export type ReviewDecision = {
@@ -52,6 +54,7 @@ export const MIN_RETURN_REASON = 5
 
 export type InspectionErrorCode =
   | "STALE_REVISION"
+  | "CLIENT_ID_PAYLOAD_MISMATCH"
   | "NOT_FOUND"
   | "NOT_EDITABLE"
   | "NOT_WAITING_FOR_REVIEW"
@@ -64,6 +67,7 @@ export type InspectionErrorCode =
 
 const messages: Record<InspectionErrorCode, string> = {
   STALE_REVISION: "This inspection was changed by someone else.",
+  CLIENT_ID_PAYLOAD_MISMATCH: "This submission id was already used with different answers. Nothing was changed.",
   NOT_FOUND: "Inspection not found.",
   NOT_EDITABLE: "Only a draft or returned inspection can be edited.",
   NOT_WAITING_FOR_REVIEW: "This inspection is not waiting for review.",
@@ -95,8 +99,16 @@ export interface InspectionRepository {
   get(id: string): InspectionRecord | undefined
   create(input: InspectionDraftInput): InspectionRecord
   saveDraft(id: string, answers: InspectionAnswer[], expectedRevision: number, findings?: InspectionFinding[]): InspectionRecord
-  submit(id: string, answers: InspectionAnswer[], expectedRevision: number, findings?: InspectionFinding[]): InspectionRecord
+  submit(id: string, answers: InspectionAnswer[], expectedRevision: number, findings?: InspectionFinding[], clientId?: string): InspectionRecord
   review(id: string, decision: ReviewDecision): InspectionRecord
+}
+
+/** Stable fingerprint of what is being submitted (key order does not matter). */
+export function payloadFingerprint(answers: InspectionAnswer[], findings: InspectionFinding[] = []): string {
+  const text = JSON.stringify([[...answers].sort((a, b) => a.questionId.localeCompare(b.questionId)).map((a) => [a.questionId, a.value]), findings.map((f) => [f.questionId, f.title, f.description, f.priority])])
+  let hash = 2166136261
+  for (let i = 0; i < text.length; i++) { hash ^= text.charCodeAt(i); hash = Math.imul(hash, 16777619) >>> 0 }
+  return `${text.length}:${hash.toString(16)}`
 }
 
 const EDITABLE: InspectionStatus[] = ["draft", "in_progress", "returned"]
@@ -179,9 +191,15 @@ export class LocalInspectionRepository implements InspectionRepository {
     })
   }
 
-  submit(id: string, answers: InspectionAnswer[], expectedRevision: number, findings: InspectionFinding[] = []) {
+  submit(id: string, answers: InspectionAnswer[], expectedRevision: number, findings: InspectionFinding[] = [], clientId?: string) {
+    const fingerprint = payloadFingerprint(answers, findings)
+    if (clientId) {
+      const known = this.get(id)?.submissionKeys?.[clientId]
+      if (known !== undefined) { if (known !== fingerprint) throw new InspectionError("CLIENT_ID_PAYLOAD_MISMATCH"); return this.get(id) as InspectionRecord }
+    }
     return this.update(id, expectedRevision, (record) => {
       if (!EDITABLE.includes(record.status)) throw new InspectionError("NOT_EDITABLE")
+      if (clientId) record.submissionKeys = { ...(record.submissionKeys ?? {}), [clientId]: fingerprint }
       record.answers = structuredClone(answers)
       record.findings = structuredClone(findings)
       record.status = "submitted"

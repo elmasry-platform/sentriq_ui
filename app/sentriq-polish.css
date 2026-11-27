@@ -432,3 +432,15 @@
 .runner-review-signature { display: flex; flex-direction: column; gap: 4px; }
 .runner-review-signature img { width: 180px; max-width: 100%; background: #fff; border: 1px solid var(--border); }
 .runner-review-signature small { color: var(--muted); font-size: 12px; }
+
+/* Sync states and conflict choices */
+.sync-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; background: #EEF2EF; color: var(--navy); }
+.sync-badge.is-queued, .sync-badge.is-syncing { background: #F6E9D8; color: #7A4B12; }
+.sync-badge.is-submitted { background: #E1EEE7; color: #1F6B4F; }
+.sync-badge.is-conflict, .sync-badge.is-blocked { background: #F6E3DA; color: #9F3D37; }
+.sync-conflict { display: flex; flex-direction: column; gap: 12px; margin: 14px 0; padding: 14px; border: 1px solid #E5D3C9; background: #FBF3F0; }
+.sync-conflict-row { display: grid; gap: 8px; }
+.sync-conflict-q { font-weight: 600; font-size: 14px; }
+.sync-conflict-choice { display: grid; gap: 2px; text-align: start; min-height: 52px; padding: 8px 12px; border: 1.5px solid var(--border); background: #fff; font: inherit; cursor: pointer; }
+.sync-conflict-choice small { color: var(--muted); font-size: 11px; }
+.sync-conflict-choice.is-chosen { border-color: var(--teal); background: #EAF0EC; }
