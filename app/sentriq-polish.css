@@ -30,6 +30,9 @@
   .avatar-menu { display: block; }
   .topbar-actions > .avatar, .topbar-actions > .role-picker, .topbar-actions > .language-button, .topbar-actions > .profile-divider { display: none; }
 }
+/* Portal (platform shell): the account menu holds Sign out, so it shows at every width. */
+.platform-topbar-actions > .avatar-menu { display: block; }
+.platform-topbar-actions > .profile-divider { display: block; }
 
 /* ---------- shared bits ---------- */
 .ux-muted { color: var(--muted-strong); }

@@ -225,7 +225,7 @@ function PlatformShellInner({
         <header className="topbar">
           <button ref={menuButtonRef} type="button" className="mobile-menu-button" aria-label={tt("shell.openNav")} aria-expanded={mobileOpen} aria-controls="primary-navigation" onClick={() => setMobileOpen(true)}><Menu size={20} /></button>
           <div className="breadcrumbs"><span>{areaLabel}</span><ChevronRight size={14} /><strong>{title}</strong></div>
-          <div className="topbar-actions">
+          <div className="topbar-actions platform-topbar-actions">
             <button type="button" className="language-button" onClick={() => onLangChange(rtl ? "en" : "ar")} aria-label={rtl ? "Switch to English" : "التغيير إلى العربية"}><Languages size={16} /><span>{tt("lang.toggle")}</span></button>
             <span className="status-pill platform-role-pill"><ShieldCheck size={13} />{displayLabel}</span>
             <div className="topbar-divider profile-divider" />
