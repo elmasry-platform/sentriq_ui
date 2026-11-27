@@ -69,7 +69,7 @@ export function Inspections({ route, language = "en", workspaceId = "ws_northsta
 
   if (isRunner && record) {
     if (!mayExecute(role, record) && runnerLock !== record.id) return <section className="inspection-page" {...wrapperProps}><PermissionDenied title={language === "ar" ? "لا يمكنك تنفيذ هذا التفتيش" : "You cannot carry out this inspection"} reason={language === "ar" ? "يمكن للمفتش المسند إليه التفتيش فقط تنفيذه وهو مسودة أو مُعاد." : "Only the assigned inspector can fill in this inspection while it is a draft or returned."} backHref={`/app/inspections/${record.id}`} backLabel={t.viewInspection} /></section>
-    return <InspectionRunner record={record} template={currentTemplate} language={language} onChange={onRecordChange} onExit={() => { window.location.href = `/app/inspections/${record.id}` }} />
+    return <InspectionRunner userId={access.actor.userId} record={record} template={currentTemplate} language={language} onChange={onRecordChange} onExit={() => { window.location.href = `/app/inspections/${record.id}` }} />
   }
   if (isDetail && record) return <InspectionDetail record={record} template={currentTemplate} language={language} role={role} fromReviews={inReviews} onChange={onRecordChange} />
   return <InspectionList records={records} templates={templates} language={language} role={role} workspaceId={workspaceId} reviewList={isReviewList} />

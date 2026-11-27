@@ -103,7 +103,7 @@ export interface InspectionRepository {
   review(id: string, decision: ReviewDecision): InspectionRecord
 }
 
-/** Stable fingerprint of what is being submitted (key order does not matter). */
+/** Stable fingerprint of what is being submitted (key order does not matter). Local stand-in: the server must use SHA-256 of the canonical answers. */
 export function payloadFingerprint(answers: InspectionAnswer[], findings: InspectionFinding[] = []): string {
   const text = JSON.stringify([[...answers].sort((a, b) => a.questionId.localeCompare(b.questionId)).map((a) => [a.questionId, a.value]), findings.map((f) => [f.questionId, f.title, f.description, f.priority])])
   let hash = 2166136261

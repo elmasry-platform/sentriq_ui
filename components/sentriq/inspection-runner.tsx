@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { AlertTriangle, CloudOff, MapPin, ArrowLeft, Check, CheckCircle2, ChevronLeft, ChevronRight, Flag, Upload, WifiOff } from "lucide-react"
 import { evaluateFormula, getQuestionRuntimeStates, roundCalculated, RUNNER_FIELD_TYPES, validateAnswer, type Question } from "@/lib/forms/domain"
 import { inspectionRepository, type InspectionAnswer, type InspectionFinding, type InspectionRecord } from "@/lib/inspections/repository"
-import { discardQueued, enqueueSubmission, flushOutbox, outboxEntry, reviseQueued } from "@/lib/inspections/outbox"
+import { createOutbox } from "@/lib/inspections/outbox"
 import { effectiveAnswers } from "@/lib/inspections/hidden"
 import { GPS_MANUAL_ENTRY_NEEDS_FORM_FLAG, HIDDEN_ANSWER_RULE } from "@/lib/inspections/policy"
 import { differingAnswers, SyncConflict, type ConflictItem } from "@/components/sentriq/sync-conflict"
@@ -17,12 +17,14 @@ import { answersToRows, isAnswered, questionLabel, type Template } from "@/compo
 
 type SaveState = "clean" | "dirty" | "saving" | "saved"
 type SyncState = "draft" | "queued" | "syncing" | "submitted" | "conflict" | "blocked"
-type Props = { record: InspectionRecord; template?: Template; language: Language; onChange: (record: InspectionRecord) => void; onExit: () => void }
+type Props = { userId?: string; record: InspectionRecord; template?: Template; language: Language; onChange: (record: InspectionRecord) => void; onExit: () => void }
 
-export function InspectionRunner({ record: initial, template, language, onChange, onExit }: Props) {
+export function InspectionRunner({ userId, record: initial, template, language, onChange, onExit }: Props) {
   const rtl = language === "ar"
   const t = words[language]
   const form = template?.snapshot
+  // One queue per user and company. Another person on the same phone never sees or sends it.
+  const outbox = useMemo(() => createOutbox({ userId: userId ?? initial.inspectorId, workspaceId: initial.workspaceId }), [userId, initial.inspectorId, initial.workspaceId])
   const [record, setRecord] = useState(initial)
   const [sectionIndex, setSectionIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, unknown>>(() => Object.fromEntries(initial.answers.map((item) => [item.questionId, item.value])))
@@ -33,7 +35,7 @@ export function InspectionRunner({ record: initial, template, language, onChange
   const [flagging, setFlagging] = useState<Question | null>(null)
   const [draftFinding, setDraftFinding] = useState({ title: "", description: "", priority: "medium" as InspectionFinding["priority"], photo: "" })
   const [showReview, setShowReview] = useState(false)
-  const [syncState, setSyncState] = useState<SyncState>(() => { if (initial.status === "submitted") return "submitted"; const entry = outboxEntry(initial.id); return entry ? (entry.state === "conflict" ? "conflict" : entry.state === "blocked" ? "blocked" : "queued") : "draft" })
+  const [syncState, setSyncState] = useState<SyncState>(() => { if (initial.status === "submitted") return "submitted"; const entry = createOutbox({ userId: userId ?? initial.inspectorId, workspaceId: initial.workspaceId }).entry(initial.id); return entry ? (entry.state === "conflict" ? "conflict" : entry.state === "blocked" ? "blocked" : "queued") : "draft" })
   const [conflictItems, setConflictItems] = useState<ConflictItem[] | null>(null)
   const [serverRows, setServerRows] = useState<InspectionAnswer[]>([])
   const [locationNote, setLocationNote] = useState("")
@@ -109,7 +111,7 @@ export function InspectionRunner({ record: initial, template, language, onChange
   const runFlush = (current: InspectionRecord) => {
     setSyncState("syncing")
     window.setTimeout(() => {
-      const result = flushOutbox(inspectionRepository, navigator.onLine, undefined, current.id)[0]
+      const result = outbox.flush(inspectionRepository, navigator.onLine, current.id)[0]
       if (!result || result.outcome === "offline") setSyncState("queued")
       else if (result.outcome === "submitted") { if (result.record) { setRecord(result.record); onChange(result.record) } setSyncState("submitted") }
       else setSyncState(result.outcome === "conflict" ? "conflict" : "blocked")
@@ -156,7 +158,7 @@ export function InspectionRunner({ record: initial, template, language, onChange
     const saved = persist()
     if (!saved) { sending.current = false; setSubmitting(false); return }
     // Write to the device queue first, then send. Same client id on every retry.
-    enqueueSubmission({ inspectionId: saved.id, expectedRevision: saved.revision, answers: rowsFor(true), findings })
+    outbox.enqueue({ inspectionId: saved.id, expectedRevision: saved.revision, answers: rowsFor(true), findings })
     sending.current = false; setSubmitting(false)
     runFlush(saved)
   }
@@ -210,12 +212,12 @@ export function InspectionRunner({ record: initial, template, language, onChange
 
   const startResolve = () => {
     const latest = inspectionRepository.get(record.id); if (!latest) { setMessage(errorMessage(language, new Error("NOT_FOUND"))); return }
-    const entry = outboxEntry(record.id)
+    const entry = outbox.entry(record.id)
     const mine = entry ? entry.answers : rowsFor(false)
     const diffs = differingAnswers(mine, latest.answers)
     setRecord(latest); onChange(latest); setServerRows(latest.answers)
     setAnswers(Object.fromEntries(mine.map((row) => [row.questionId, row.value])))
-    if (entry) discardQueued(record.id)
+    if (entry) outbox.discard(record.id)
     setSyncState("draft"); setConflict(false); setSaveState("dirty")
     if (diffs.length) setConflictItems(diffs.map((id) => { const question = form?.questions.find((item) => item.id === id); const pick = (rows: InspectionAnswer[]) => question ? formatReviewAnswer(question, rows.find((row) => row.questionId === id)?.value, language) : String(rows.find((row) => row.questionId === id)?.value ?? "—"); return { questionId: id, label: question ? questionLabel(question, language) : id, mine: pick(mine), server: pick(latest.answers) } }))
   }
@@ -223,6 +225,9 @@ export function InspectionRunner({ record: initial, template, language, onChange
     setAnswers((current) => { const next = { ...current }; for (const [id, side] of Object.entries(choices)) if (side === "server") { const row = serverRows.find((item) => item.questionId === id); if (row) next[id] = row.value; else delete next[id] } return next })
     setConflictItems(null); setSaveState("dirty")
   }
+  // Back to editing without losing anything: the answers are already in the draft record.
+  const backToEdit = () => { outbox.discard(record.id); const latest = inspectionRepository.get(record.id); if (latest) { setRecord(latest); onChange(latest) } setSyncState("draft"); setSaveState("dirty") }
+  const saveCopy = () => { const text = outbox.exportBlocked(record.id) ?? JSON.stringify({ inspectionId: record.id, answers: rowsFor(false), findings }, null, 2); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([text], { type: "application/json" })); link.download = `${record.id}-answers.json`; link.click(); URL.revokeObjectURL(link.href) }
   const stateLabel: Record<SyncState, string> = { draft: t.stateDraft, queued: t.stateQueued, syncing: t.stateSyncing, submitted: t.stateSubmitted, conflict: t.conflictShort, blocked: t.blockedShort }
 
   if (conflictItems) return <section className="inspection-runner" dir={rtl ? "rtl" : "ltr"}><SyncConflict items={conflictItems} language={language} onResolve={resolveChoices} /></section>
@@ -234,6 +239,8 @@ export function InspectionRunner({ record: initial, template, language, onChange
     {syncState === "submitted" && <p>{t.submittedHint}</p>}
     {syncState === "queued" && <p>{t.syncing}</p>}
     {syncState === "conflict" && <button type="button" className="button-primary" onClick={startResolve}>{t.reload}</button>}
+    {syncState === "queued" && <button type="button" className="button-outline" onClick={backToEdit}>{t.changeAnswers}</button>}
+    {syncState === "blocked" && <div className="ux-success-actions"><button type="button" className="button-primary" onClick={saveCopy}>{t.saveCopy}</button><button type="button" className="button-outline" onClick={backToEdit}>{t.keepDraft}</button></div>}
     <dl className="ux-success-stats"><div><dt>{t.answered}</dt><dd>{formatNumber(answeredCount, language)}/{formatNumber(totalCount, language)}</dd></div><div><dt>{t.findingsTab}</dt><dd>{plural(language, "finding", findings.length)}</dd></div></dl>
     <div className="ux-success-actions">
       <Link className={syncState === "conflict" ? "button-outline" : "button-primary"} href="/app/inspections">{t.backWork}</Link>

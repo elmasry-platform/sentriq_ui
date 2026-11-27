@@ -1,63 +1,73 @@
-import type { InspectionAnswer, InspectionFinding, InspectionRecord, InspectionRepository } from "./repository.ts"
+import { payloadFingerprint, type InspectionAnswer, type InspectionFinding, type InspectionRecord, type InspectionRepository } from "./repository.ts"
 
-// A device-side queue for submissions. An entry is written BEFORE the first send, so an app restart,
-// a lost connection or a double tap always retries the same client id. The server (or the local
-// repository standing in for it) treats the same client id as the same submission.
+// A device-side queue for submissions, one queue per user AND company. An entry is written BEFORE the first send,
+// so an app restart, a lost connection or a double tap retries the same client id. The server (or the local
+// repository standing in for it) treats the same client id with the same payload as the same submission.
+//
+// Real build: this must move to IndexedDB (with a persistent-storage request) and carry photo blobs with their own
+// upload status. Server contract: the payload fingerprint must be SHA-256 of the canonical answers, not this 32-bit hash.
 export type OutboxState = "queued" | "syncing" | "conflict" | "blocked"
-export type OutboxEntry = { clientId: string; inspectionId: string; expectedRevision: number; answers: InspectionAnswer[]; findings: InspectionFinding[]; state: OutboxState; attempts: number; queuedAt: string; lastError?: string }
+export type OutboxEntry = { clientId: string; inspectionId: string; expectedRevision: number; answers: InspectionAnswer[]; findings: InspectionFinding[]; fingerprint: string; state: OutboxState; attempts: number; queuedAt: string; lastError?: string }
 export type FlushResult = { inspectionId: string; outcome: "submitted" | "conflict" | "blocked" | "offline"; record?: InspectionRecord; code?: string }
+export type OutboxScope = { userId: string; workspaceId: string }
+type Store = Pick<Storage, "getItem" | "setItem"> & Partial<Pick<Storage, "removeItem" | "key" | "length">>
 
-const KEY = "sentriq.inspections.outbox.v1"
-type Store = Pick<Storage, "getItem" | "setItem">
-const storeOf = (store?: Store): Store | undefined => store ?? (typeof localStorage === "undefined" ? undefined : localStorage)
+const PREFIX = "sentriq.inspections.outbox.v2:"
 const newClientId = () => globalThis.crypto?.randomUUID?.() ?? `c_${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
+const defaultStore = (): Store | undefined => (typeof localStorage === "undefined" ? undefined : localStorage)
 
-export function readOutbox(store?: Store): OutboxEntry[] {
-  const s = storeOf(store); if (!s) return []
-  try { const parsed = JSON.parse(s.getItem(KEY) ?? "[]"); return Array.isArray(parsed) ? parsed : [] } catch { return [] }
-}
-function writeOutbox(entries: OutboxEntry[], store?: Store) { storeOf(store)?.setItem(KEY, JSON.stringify(entries)) }
-
-export function outboxEntry(inspectionId: string, store?: Store) { return readOutbox(store).find((entry) => entry.inspectionId === inspectionId) }
-
-/** Queue a submission. A second call for the same inspection reuses the existing entry (same client id) and never adds another. */
-export function enqueueSubmission(input: { inspectionId: string; expectedRevision: number; answers: InspectionAnswer[]; findings: InspectionFinding[] }, store?: Store): OutboxEntry {
-  const entries = readOutbox(store)
-  const existing = entries.find((entry) => entry.inspectionId === input.inspectionId)
-  if (existing) return existing
-  const entry: OutboxEntry = { clientId: newClientId(), inspectionId: input.inspectionId, expectedRevision: input.expectedRevision, answers: structuredClone(input.answers), findings: structuredClone(input.findings), state: "queued", attempts: 0, queuedAt: new Date().toISOString() }
-  writeOutbox([...entries, entry], store)
-  return entry
+/** Remove every queue on this device (sign out). Also removes the old shared queue key. */
+export function wipeAllOutboxes(store: Store | undefined = defaultStore()) {
+  if (!store?.key || !store.removeItem || store.length === undefined) return
+  const keys: string[] = []
+  for (let i = 0; i < store.length; i++) { const key = store.key(i); if (key && (key.startsWith(PREFIX) || key === "sentriq.inspections.outbox.v1")) keys.push(key) }
+  keys.forEach((key) => store.removeItem!(key))
 }
 
-export function discardQueued(inspectionId: string, store?: Store) { writeOutbox(readOutbox(store).filter((entry) => entry.inspectionId !== inspectionId), store) }
+export function createOutbox(scope: OutboxScope, store: Store | undefined = defaultStore()) {
+  if (!scope.userId || !scope.workspaceId) throw new Error("An outbox needs a user and a company.")
+  const key = `${PREFIX}${encodeURIComponent(scope.workspaceId)}:${encodeURIComponent(scope.userId)}`
+  const read = (): OutboxEntry[] => { if (!store) return []; try { const parsed = JSON.parse(store.getItem(key) ?? "[]"); return Array.isArray(parsed) ? parsed : [] } catch { return [] } }
+  const write = (entries: OutboxEntry[]) => { store?.setItem(key, JSON.stringify(entries)) }
+  const entry = (inspectionId: string) => read().find((item) => item.inspectionId === inspectionId)
 
-/** Update the stored answers of a queued entry after the user resolved a conflict. Keeps the client id. */
-export function reviseQueued(inspectionId: string, patch: { expectedRevision: number; answers: InspectionAnswer[]; findings: InspectionFinding[] }, store?: Store) {
-  writeOutbox(readOutbox(store).map((entry) => entry.inspectionId === inspectionId ? { ...entry, ...structuredClone(patch), state: "queued" as const, lastError: undefined } : entry), store)
-}
-
-/** Send what is queued. Offline: nothing is sent and entries stay queued. A conflict keeps the answers on the device. */
-export function flushOutbox(repository: InspectionRepository, online: boolean, store?: Store, only?: string): FlushResult[] {
-  const results: FlushResult[] = []
-  const entries = readOutbox(store)
-  for (const entry of entries) {
-    if (only && entry.inspectionId !== only) continue
-    if (entry.state === "conflict" || entry.state === "blocked") continue
-    if (!online) { results.push({ inspectionId: entry.inspectionId, outcome: "offline" }); continue }
-    entry.state = "syncing"; entry.attempts += 1; writeOutbox(entries, store)
-    try {
-      const record = repository.submit(entry.inspectionId, entry.answers, entry.expectedRevision, entry.findings, entry.clientId)
-      writeOutbox(readOutbox(store).filter((item) => item.clientId !== entry.clientId), store)
-      results.push({ inspectionId: entry.inspectionId, outcome: "submitted", record })
-    } catch (error) {
-      const code = (error as { code?: string }).code ?? "UNKNOWN"
-      const conflict = code === "STALE_REVISION"
-      const blocked = ["NOT_EDITABLE", "NOT_FOUND", "CLIENT_ID_PAYLOAD_MISMATCH"].includes(code)
-      entry.state = conflict ? "conflict" : blocked ? "blocked" : "queued"; entry.lastError = code
-      writeOutbox(readOutbox(store).map((item) => item.clientId === entry.clientId ? entry : item), store)
-      results.push({ inspectionId: entry.inspectionId, outcome: conflict ? "conflict" : blocked ? "blocked" : "offline", code })
-    }
+  /** Queue a submission. Same payload: the existing entry (same client id). Changed payload: the entry is replaced and gets a NEW client id, so edits are never lost. */
+  const enqueue = (input: { inspectionId: string; expectedRevision: number; answers: InspectionAnswer[]; findings: InspectionFinding[] }): OutboxEntry => {
+    const entries = read()
+    const fingerprint = payloadFingerprint(input.answers, input.findings)
+    const existing = entries.find((item) => item.inspectionId === input.inspectionId)
+    if (existing && existing.fingerprint === fingerprint && (existing.state === "queued" || existing.state === "syncing")) return existing
+    const next: OutboxEntry = { clientId: newClientId(), inspectionId: input.inspectionId, expectedRevision: input.expectedRevision, answers: structuredClone(input.answers), findings: structuredClone(input.findings), fingerprint, state: "queued", attempts: 0, queuedAt: new Date().toISOString() }
+    write([...entries.filter((item) => item.inspectionId !== input.inspectionId), next])
+    return next
   }
-  return results
+  /** Drop a queued or blocked entry. The answers stay in the draft record. */
+  const discard = (inspectionId: string) => write(read().filter((item) => item.inspectionId !== inspectionId))
+  /** Export what is stuck, so nothing on a blocked entry is ever trapped on the device. */
+  const exportBlocked = (inspectionId: string): string | undefined => { const found = entry(inspectionId); return found ? JSON.stringify({ inspectionId: found.inspectionId, answers: found.answers, findings: found.findings, queuedAt: found.queuedAt, lastError: found.lastError }, null, 2) : undefined }
+
+  /** Send what is queued. Offline: nothing is sent and entries stay queued. A conflict keeps the answers on the device. */
+  const flush = (repository: InspectionRepository, online: boolean, only?: string): FlushResult[] => {
+    const results: FlushResult[] = []
+    for (const item of read()) {
+      if (only && item.inspectionId !== only) continue
+      if (item.state === "conflict" || item.state === "blocked") continue
+      if (!online) { results.push({ inspectionId: item.inspectionId, outcome: "offline" }); continue }
+      write(read().map((row) => row.clientId === item.clientId ? { ...row, state: "syncing" as const, attempts: row.attempts + 1 } : row))
+      try {
+        const record = repository.submit(item.inspectionId, item.answers, item.expectedRevision, item.findings, item.clientId)
+        write(read().filter((row) => row.clientId !== item.clientId))
+        results.push({ inspectionId: item.inspectionId, outcome: "submitted", record })
+      } catch (error) {
+        const code = (error as { code?: string }).code ?? "UNKNOWN"
+        const conflict = code === "STALE_REVISION"
+        const blocked = ["NOT_EDITABLE", "NOT_FOUND", "CLIENT_ID_PAYLOAD_MISMATCH"].includes(code)
+        write(read().map((row) => row.clientId === item.clientId ? { ...row, state: conflict ? "conflict" as const : blocked ? "blocked" as const : "queued" as const, lastError: code } : row))
+        results.push({ inspectionId: item.inspectionId, outcome: conflict ? "conflict" : blocked ? "blocked" : "offline", code })
+      }
+    }
+    return results
+  }
+  return { read, entry, enqueue, discard, exportBlocked, flush }
 }
+export type Outbox = ReturnType<typeof createOutbox>

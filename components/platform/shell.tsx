@@ -1,5 +1,6 @@
 "use client"
 
+import { wipeAllOutboxes } from "@/lib/inspections/outbox"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
@@ -153,6 +154,7 @@ function PlatformShellInner({
   useEffect(() => { setMobileOpen(false); setProfileOpen(false) }, [route])
 
   const handleSignOut = useCallback(async () => {
+    wipeAllOutboxes() // a queued submission must never stay on a shared phone for the next person
     await signOut()
     router.replace("/portal/login")
   }, [signOut, router])
