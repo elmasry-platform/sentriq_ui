@@ -11,6 +11,8 @@ import { usePortalSession } from "@/lib/portal/session"
 import { select } from "@/lib/portal/api"
 import { resolveIdentity, type PortalIdentity, type PortalRole } from "@/lib/portal/identity"
 import { LoadingState, ErrorState, PermissionDenied } from "@/components/sentriq/states"
+import { MfaGate } from "@/components/portal/mfa-gate"
+import { mfaRequired } from "@/lib/portal/mfa"
 import { PortalLangProvider, t, useStoredPortalLang, type CopyKey, type PortalLang } from "@/lib/portal/i18n"
 
 export const ROLE_KEY: Record<PortalRole, CopyKey> = {
@@ -98,6 +100,7 @@ function PlatformShellInner({
   const [error, setError] = useState<string | null>(null)
   const [resolving, setResolving] = useState(false)
   const [tick, setTick] = useState(0)
+  const [mfaPassed, setMfaPassed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -161,6 +164,10 @@ function PlatformShellInner({
     return error
       ? <div className="platform-boot"><ErrorState title={error} onRetry={reload} retryLabel={tt("shell.retry")} /></div>
       : <div className="platform-boot"><LoadingState label={tt("shell.boot.identity")} /></div>
+  }
+  // Operator two-step verification. Off unless NEXT_PUBLIC_OPERATOR_MFA is "on".
+  if (mfaRequired(identity.role, process.env.NEXT_PUBLIC_OPERATOR_MFA) && !mfaPassed) {
+    return <MfaGate lang={lang} onPassed={() => setMfaPassed(true)} onSignOut={handleSignOut} />
   }
   if (identity.role !== expect) {
     return (
