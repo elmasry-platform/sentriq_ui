@@ -415,3 +415,16 @@
   .ops-primary-action, .ops-secondary-action, .ops-section-link, .ops-work-row, .ops-attention-row, .people-filter select, .people-view-action, .people-manage-action { min-height: 44px; }
 }
 @media print { .ops-print-button { display: none !important; } }
+
+/* Runner: calculated, GPS, signature, instruction */
+.runner-calculated { display: flex; flex-direction: column; gap: 2px; margin: 12px 0 0; padding: 12px; background: #EEF2EF; border: 1px solid var(--border); }
+.runner-calculated small { color: var(--muted); font-size: 12px; }
+.runner-calculated strong { font-size: 18px; color: var(--navy); }
+.runner-gps { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.runner-gps button { min-height: 48px; justify-content: center; gap: 8px; }
+.runner-gps input { margin-top: 0 !important; }
+.runner-signature { margin-top: 12px; }
+.runner-signature canvas { width: 100%; aspect-ratio: 600 / 220; background: #fff; border: 1.5px dashed #AEB7B0; touch-action: none; display: block; }
+.runner-signature-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; color: var(--muted); font-size: 12px; }
+.runner-signature-bar button { min-height: 44px; }
+.runner-instruction { padding: 12px 14px; border-inline-start: 4px solid var(--teal); background: #EEF2EF; color: var(--text); font-size: 14px; line-height: 1.55; }

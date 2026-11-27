@@ -1,5 +1,7 @@
 export const FIELD_TYPES = ["short_text", "long_text", "integer", "decimal", "date", "time", "datetime", "boolean", "single_select", "multi_select", "reference", "user", "site", "location", "photo", "file", "attestation", "signature", "instruction", "gps", "barcode_qr", "calculated", "repeat_group"] as const
 export type FieldType = typeof FIELD_TYPES[number]
+// Types the inspection runner can answer today. The builder only offers these; the rest are hidden until the runner supports them.
+export const RUNNER_FIELD_TYPES: readonly FieldType[] = ["short_text", "long_text", "integer", "decimal", "date", "time", "datetime", "boolean", "single_select", "multi_select", "photo", "file", "attestation", "signature", "instruction", "gps", "calculated"]
 export type Choice = { id: string; label: { en: string; ar: string }; score: number | null; finding: boolean }
 export type ChildField = { id: string; type: "short_text" | "long_text" | "integer" | "decimal" | "date" | "boolean"; label: { en: string; ar: string }; required: boolean; config: Record<string, unknown> }
 export type FieldConfig = Record<string, unknown> & { choices?: Choice[]; children?: ChildField[]; formula?: string; dependencies?: string[] }
