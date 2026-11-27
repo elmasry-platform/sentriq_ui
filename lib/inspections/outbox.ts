@@ -1,3 +1,4 @@
+import { OUTBOX_MAX_AGE_DAYS } from "./policy.ts"
 import { payloadFingerprint, type InspectionAnswer, type InspectionFinding, type InspectionRecord, type InspectionRepository } from "./repository.ts"
 
 // A device-side queue for submissions, one queue per user AND company. An entry is written BEFORE the first send,
@@ -24,10 +25,30 @@ export function wipeAllOutboxes(store: Store | undefined = defaultStore()) {
   keys.forEach((key) => store.removeItem!(key))
 }
 
+const allKeys = (store: Store | undefined) => { const keys: string[] = []; if (store?.key && store.length !== undefined) for (let i = 0; i < store.length; i++) { const k = store.key(i); if (k && k.startsWith(PREFIX)) keys.push(k) } return keys }
+/** How many submissions wait on this device, over every queue. Used for the sign out warning. */
+export function pendingCount(store: Store | undefined = defaultStore()): number {
+  return allKeys(store).reduce((sum, key) => { try { const rows = JSON.parse(store!.getItem(key) ?? "[]"); return sum + (Array.isArray(rows) ? rows.length : 0) } catch { return sum } }, 0)
+}
+/** On sign in: remove queues that belong to anyone else (a session that ended without a sign out). */
+export function wipeOtherUsers(userId: string, store: Store | undefined = defaultStore()) {
+  const mine = `:${encodeURIComponent(userId)}`
+  allKeys(store).filter((key) => !key.endsWith(mine)).forEach((key) => store!.removeItem?.(key))
+}
+
 export function createOutbox(scope: OutboxScope, store: Store | undefined = defaultStore()) {
   if (!scope.userId || !scope.workspaceId) throw new Error("An outbox needs a user and a company.")
   const key = `${PREFIX}${encodeURIComponent(scope.workspaceId)}:${encodeURIComponent(scope.userId)}`
-  const read = (): OutboxEntry[] => { if (!store) return []; try { const parsed = JSON.parse(store.getItem(key) ?? "[]"); return Array.isArray(parsed) ? parsed : [] } catch { return [] } }
+  const read = (): OutboxEntry[] => {
+    if (!store) return []
+    try {
+      const parsed = JSON.parse(store.getItem(key) ?? "[]"); if (!Array.isArray(parsed)) return []
+      const oldest = Date.now() - OUTBOX_MAX_AGE_DAYS * 86_400_000
+      const fresh = (parsed as OutboxEntry[]).filter((row) => !(Date.parse(row.queuedAt) < oldest))
+      if (fresh.length !== parsed.length) store.setItem(key, JSON.stringify(fresh))
+      return fresh
+    } catch { return [] }
+  }
   const write = (entries: OutboxEntry[]) => { store?.setItem(key, JSON.stringify(entries)) }
   const entry = (inspectionId: string) => read().find((item) => item.inspectionId === inspectionId)
 

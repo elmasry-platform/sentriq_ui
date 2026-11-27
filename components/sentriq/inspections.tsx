@@ -1,5 +1,6 @@
 "use client"
 
+import { usePortalSession } from "@/lib/portal/session"
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ArrowLeft, Check, ClipboardCheck, Clock3, FilePlus2, MapPin, Plus, Search, ShieldCheck, UserRound } from "lucide-react"
@@ -28,6 +29,8 @@ export function Inspections({ route, language = "en", workspaceId = "ws_northsta
   const t = words[language]
   const rtl = language === "ar"
   const access = accessFor(role)
+  // The queue on the device belongs to the REAL signed-in user. The demo actor is only the fallback for /app demo mode.
+  const signedInUserId = usePortalSession().session?.userId
   const segments = route.split("/").filter(Boolean)
   const inReviews = segments[1] === "reviews"
   const inspectionId = segments[2]
@@ -69,7 +72,7 @@ export function Inspections({ route, language = "en", workspaceId = "ws_northsta
 
   if (isRunner && record) {
     if (!mayExecute(role, record) && runnerLock !== record.id) return <section className="inspection-page" {...wrapperProps}><PermissionDenied title={language === "ar" ? "لا يمكنك تنفيذ هذا التفتيش" : "You cannot carry out this inspection"} reason={language === "ar" ? "يمكن للمفتش المسند إليه التفتيش فقط تنفيذه وهو مسودة أو مُعاد." : "Only the assigned inspector can fill in this inspection while it is a draft or returned."} backHref={`/app/inspections/${record.id}`} backLabel={t.viewInspection} /></section>
-    return <InspectionRunner userId={access.actor.userId} record={record} template={currentTemplate} language={language} onChange={onRecordChange} onExit={() => { window.location.href = `/app/inspections/${record.id}` }} />
+    return <InspectionRunner userId={signedInUserId ?? access.actor.userId} record={record} template={currentTemplate} language={language} onChange={onRecordChange} onExit={() => { window.location.href = `/app/inspections/${record.id}` }} />
   }
   if (isDetail && record) return <InspectionDetail record={record} template={currentTemplate} language={language} role={role} fromReviews={inReviews} onChange={onRecordChange} />
   return <InspectionList records={records} templates={templates} language={language} role={role} workspaceId={workspaceId} reviewList={isReviewList} />

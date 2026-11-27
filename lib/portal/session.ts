@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { wipeOtherUsers } from "@/lib/inspections/outbox"
 import { getSupabase } from "./supabase"
 
 export interface PortalSession {
@@ -17,10 +18,12 @@ export function usePortalSession() {
     let active = true
     getSupabase().auth.getSession().then(({ data }) => {
       if (!active) return
+      if (data.session) wipeOtherUsers(data.session.user.id)
       setSession(data.session ? { accessToken: data.session.access_token, userId: data.session.user.id, email: data.session.user.email ?? "" } : null)
       setLoading(false)
     })
     const { data: sub } = getSupabase().auth.onAuthStateChange((_event, s) => {
+      if (s) wipeOtherUsers(s.user.id)
       setSession(s ? { accessToken: s.access_token, userId: s.user.id, email: s.user.email ?? "" } : null)
     })
     return () => { active = false; sub.subscription.unsubscribe() }

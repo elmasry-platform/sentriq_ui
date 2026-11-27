@@ -1,3 +1,4 @@
+import { returnPath } from "./policy.ts"
 import mockData from "../../data/mock-data.json" with { type: "json" }
 import { newId } from "../forms/domain.ts"
 
@@ -5,7 +6,8 @@ export type InspectionStatus = "draft" | "submitted" | "in_review" | "approved" 
 export type InspectionStage = "reviewer_1" | "reviewer_2" | "final_reviewer" | null
 export type ReviewStageId = Exclude<InspectionStage, null>
 export type InspectionAnswer = { questionId: string; value: unknown }
-export type ReviewEntry = { id: string; stage: string; decision: "approved" | "returned"; actorId: string; at: string; reason?: string; revision: number; cycle?: number }
+export type ReviewEntry = { id: string; stage: string; decision: "approved" | "returned"; actorId: string; at: string; reason?: string; revision: number; cycle?: number; flaggedQuestionIds?: string[]; answersAtReturn?: InspectionAnswer[] }
+export type SubmissionEvent = { id: string; at: string; cycle: number; kind: "submitted" | "resubmitted"; changedQuestionIds: string[]; path?: "resume" | "restart"; stage?: string }
 export type InspectionFinding = {
   id: string
   questionId: string
@@ -38,12 +40,16 @@ export type InspectionRecord = {
   reviewStages?: ReviewStageId[]
   /** client submission id -> payload fingerprint. The same id with the same payload returns the same record. */
   submissionKeys?: Record<string, string>
+  /** Append-only. Each resubmission records which answers changed and where review resumed (preview of the server rule). */
+  submissionHistory?: SubmissionEvent[]
 }
 export type InspectionDraftInput = Pick<InspectionRecord, "workspaceId" | "siteId" | "templateId" | "templateVersion" | "title" | "inspectorId"> & { dueAt?: string; reviewStages?: ReviewStageId[] }
 export type ReviewDecision = {
   decision: "approved" | "returned"
   actorId: string
   reason?: string
+  /** Questions the reviewer marked on a return. A marker only. It creates nothing else. */
+  flaggedQuestionIds?: string[]
   expectedRevision: number
   /** The stage the actor is allowed to act on. When provided it must match the inspection's current stage. */
   stage?: ReviewStageId
@@ -202,8 +208,13 @@ export class LocalInspectionRepository implements InspectionRepository {
       if (clientId) record.submissionKeys = { ...(record.submissionKeys ?? {}), [clientId]: fingerprint }
       record.answers = structuredClone(answers)
       record.findings = structuredClone(findings)
+      const stages = reviewStagesOf(record)
+      const lastReturn = [...record.reviewHistory].reverse().find((entry) => entry.decision === "returned")
+      const resubmission = lastReturn && (lastReturn.cycle ?? 0) === (record.cycle ?? 0) // a draft save keeps the return open
+      const decided = resubmission ? returnPath({ returnedStage: lastReturn.stage, firstStage: stages[0], flaggedQuestionIds: lastReturn.flaggedQuestionIds ?? [], returned: lastReturn.answersAtReturn ?? record.answers, resubmitted: answers }) : undefined
+      record.submissionHistory = [...(record.submissionHistory ?? []), { id: newId("sub"), at: new Date().toISOString(), cycle: (record.cycle ?? 0) + 1, kind: decided ? "resubmitted" : "submitted", changedQuestionIds: decided?.changedQuestionIds ?? [], path: decided?.path, stage: decided?.stage }]
       record.status = "submitted"
-      record.currentStage = reviewStagesOf(record)[0]
+      record.currentStage = (decided?.stage as InspectionStage | undefined) ?? stages[0]
       record.submittedAt = new Date().toISOString()
       record.cycle = (record.cycle ?? 0) + 1
     })
@@ -221,7 +232,7 @@ export class LocalInspectionRepository implements InspectionRepository {
       const approvedEarlier = record.reviewHistory.some((entry) => (entry.cycle ?? 0) === cycle && entry.decision === "approved" && entry.actorId === decision.actorId)
       if (decision.decision === "approved" && approvedEarlier) throw new InspectionError("ALREADY_REVIEWED")
 
-      record.reviewHistory.push({ id: newId("review"), stage, decision: decision.decision, actorId: decision.actorId, at: new Date().toISOString(), reason, revision: record.revision + 1, cycle })
+      record.reviewHistory.push({ id: newId("review"), stage, decision: decision.decision, actorId: decision.actorId, at: new Date().toISOString(), reason, revision: record.revision + 1, cycle, ...(decision.decision === "returned" ? { flaggedQuestionIds: [...(decision.flaggedQuestionIds ?? [])], answersAtReturn: structuredClone(record.answers) } : {}) })
 
       if (decision.decision === "returned") {
         record.status = "returned"

@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { createOutbox, wipeAllOutboxes } from "./outbox.ts"
+import { createOutbox, pendingCount, wipeAllOutboxes, wipeOtherUsers } from "./outbox.ts"
 import { LocalInspectionRepository, InspectionError } from "./repository.ts"
 
 function memoryStore() { const m = new Map<string, string>(); return { m, getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v) }, removeItem: (k: string) => { m.delete(k) }, key: (i: number) => [...m.keys()][i] ?? null, get length() { return m.size } } }
@@ -89,3 +89,26 @@ test("OF-07: sign out wipes every queue on the device, including the old shared 
   assert.equal(outbox.read().length, 0); assert.equal(store.getItem("sentriq.inspections.outbox.v1"), null); assert.equal(store.getItem("unrelated"), "keep")
 })
 test("an outbox needs a user and a company", () => { assert.throws(() => createOutbox({ userId: "", workspaceId: "w" }, memoryStore())) })
+
+test("sign out warning: pendingCount counts every queue on the device, zero when empty", () => {
+  const { store, record, outbox } = setup()
+  assert.equal(pendingCount(store), 0)
+  outbox.enqueue(input(record, "yes"))
+  assert.equal(pendingCount(store), 1)
+  wipeAllOutboxes(store); assert.equal(pendingCount(store), 0)
+})
+test("entries older than the purge age are dropped; fresh ones stay", () => {
+  const { store, record, outbox } = setup()
+  outbox.enqueue(input(record, "yes"))
+  const key = [...store.m.keys()].find((k) => k.includes("outbox.v2"))!
+  const rows = JSON.parse(store.m.get(key)!); rows[0].queuedAt = new Date(Date.now() - 15 * 86_400_000).toISOString(); store.m.set(key, JSON.stringify(rows))
+  assert.equal(outbox.read().length, 0)
+  outbox.enqueue(input(record, "no")); assert.equal(outbox.read().length, 1)
+})
+test("signing in as someone else removes the old user's queue, keeps your own", () => {
+  const { store, record, outbox } = setup()
+  outbox.enqueue(input(record, "yes"))
+  const other = createOutbox({ userId: "u_b", workspaceId: "ws_1" }, store); other.enqueue(input(record, "no"))
+  wipeOtherUsers("u_b", store)
+  assert.equal(outbox.read().length, 0); assert.equal(other.read().length, 1)
+})

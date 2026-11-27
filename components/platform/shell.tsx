@@ -1,6 +1,7 @@
 "use client"
 
-import { wipeAllOutboxes } from "@/lib/inspections/outbox"
+import { signOutWarning } from "@/lib/inspections/messages"
+import { pendingCount, wipeAllOutboxes } from "@/lib/inspections/outbox"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
@@ -154,6 +155,8 @@ function PlatformShellInner({
   useEffect(() => { setMobileOpen(false); setProfileOpen(false) }, [route])
 
   const handleSignOut = useCallback(async () => {
+    const waiting = pendingCount()
+    if (waiting > 0 && !window.confirm(signOutWarning(waiting, document.documentElement.lang === "ar" ? "ar" : "en"))) return // never lose answers by accident
     wipeAllOutboxes() // a queued submission must never stay on a shared phone for the next person
     await signOut()
     router.replace("/portal/login")

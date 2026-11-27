@@ -4,11 +4,40 @@
 /** What happens to an answer when its question becomes hidden by a rule. Default. */
 export const HIDDEN_ANSWER_RULE: "keep_on_device_exclude_from_submission" | "clear" = "keep_on_device_exclude_from_submission"
 
-/** Where a returned inspection goes after the inspector resubmits. Undecided: Frontend suggests "restart", Reviewer suggests "resume". */
-export const RETURN_RULE: "restart" | "resume_at_returning_stage" = "restart"
+/** Where a returned inspection goes after the inspector resubmits. DECIDED by Mohamed (option 3, hybrid):
+ *  resume at the returning stage only if every changed answer is on a flagged question, otherwise restart at stage 1.
+ *  The client result is a preview only. The server decides. */
+export const RETURN_RULE = "hybrid" as const
+
+export type ReturnAnswer = { questionId: string; value: unknown }
+export type ReturnPath = { path: "resume" | "restart"; stage: string; changedQuestionIds: string[]; changedFlagged: string[]; changedUnflagged: string[] }
+
+const isBlank = (v: unknown) => v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0)
+const canon = (v: unknown): string => {
+  if (isBlank(v)) return "~"
+  if (Array.isArray(v)) return JSON.stringify(v.map((x) => canon(x)).sort()) // same choices in another order = same answer
+  if (v && typeof v === "object") return JSON.stringify(Object.keys(v as object).sort().map((k) => [k, canon((v as Record<string, unknown>)[k])]))
+  return typeof v === "string" ? `s:${v.trim()}` : `${typeof v}:${String(v)}`
+}
+/** Question ids whose answer differs. Change and revert = no change. Order of multi-choice values does not matter. */
+export function changedAnswers(before: ReturnAnswer[], after: ReturnAnswer[]): string[] {
+  const a = new Map(before.map((r) => [r.questionId, canon(r.value)])), b = new Map(after.map((r) => [r.questionId, canon(r.value)]))
+  return [...new Set([...a.keys(), ...b.keys()])].filter((id) => (a.get(id) ?? "~") !== (b.get(id) ?? "~")).sort()
+}
+/** `returned` must be the LATEST submitted version (a second return compares against the first resubmission). */
+export function returnPath(input: { returnedStage: string; firstStage: string; flaggedQuestionIds: string[]; returned: ReturnAnswer[]; resubmitted: ReturnAnswer[] }): ReturnPath {
+  const changedQuestionIds = changedAnswers(input.returned, input.resubmitted)
+  const flagged = new Set(input.flaggedQuestionIds)
+  const changedFlagged = changedQuestionIds.filter((id) => flagged.has(id)), changedUnflagged = changedQuestionIds.filter((id) => !flagged.has(id))
+  const resume = changedUnflagged.length === 0 // nothing changed also resumes
+  return { path: resume ? "resume" : "restart", stage: resume ? input.returnedStage : input.firstStage, changedQuestionIds, changedFlagged, changedUnflagged }
+}
 
 /** GPS questions accept typed coordinates only when the form allows it (config.manualEntry === true). Default. */
 export const GPS_MANUAL_ENTRY_NEEDS_FORM_FLAG = true
 
 /** Shortest reason a reviewer must give when returning. */
 export const MIN_RETURN_REASON_LENGTH = 5
+
+/** A queued submission older than this is dropped from the device queue (answers stay in the draft). Covers a session that ended without a sign out. */
+export const OUTBOX_MAX_AGE_DAYS = 14

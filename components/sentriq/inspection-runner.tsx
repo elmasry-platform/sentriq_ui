@@ -17,14 +17,14 @@ import { answersToRows, isAnswered, questionLabel, type Template } from "@/compo
 
 type SaveState = "clean" | "dirty" | "saving" | "saved"
 type SyncState = "draft" | "queued" | "syncing" | "submitted" | "conflict" | "blocked"
-type Props = { userId?: string; record: InspectionRecord; template?: Template; language: Language; onChange: (record: InspectionRecord) => void; onExit: () => void }
+type Props = { userId: string; record: InspectionRecord; template?: Template; language: Language; onChange: (record: InspectionRecord) => void; onExit: () => void }
 
 export function InspectionRunner({ userId, record: initial, template, language, onChange, onExit }: Props) {
   const rtl = language === "ar"
   const t = words[language]
   const form = template?.snapshot
   // One queue per user and company. Another person on the same phone never sees or sends it.
-  const outbox = useMemo(() => createOutbox({ userId: userId ?? initial.inspectorId, workspaceId: initial.workspaceId }), [userId, initial.inspectorId, initial.workspaceId])
+  const outbox = useMemo(() => createOutbox({ userId: userId, workspaceId: initial.workspaceId }), [userId, initial.inspectorId, initial.workspaceId])
   const [record, setRecord] = useState(initial)
   const [sectionIndex, setSectionIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, unknown>>(() => Object.fromEntries(initial.answers.map((item) => [item.questionId, item.value])))
@@ -35,7 +35,7 @@ export function InspectionRunner({ userId, record: initial, template, language, 
   const [flagging, setFlagging] = useState<Question | null>(null)
   const [draftFinding, setDraftFinding] = useState({ title: "", description: "", priority: "medium" as InspectionFinding["priority"], photo: "" })
   const [showReview, setShowReview] = useState(false)
-  const [syncState, setSyncState] = useState<SyncState>(() => { if (initial.status === "submitted") return "submitted"; const entry = createOutbox({ userId: userId ?? initial.inspectorId, workspaceId: initial.workspaceId }).entry(initial.id); return entry ? (entry.state === "conflict" ? "conflict" : entry.state === "blocked" ? "blocked" : "queued") : "draft" })
+  const [syncState, setSyncState] = useState<SyncState>(() => { if (initial.status === "submitted") return "submitted"; const entry = createOutbox({ userId: userId, workspaceId: initial.workspaceId }).entry(initial.id); return entry ? (entry.state === "conflict" ? "conflict" : entry.state === "blocked" ? "blocked" : "queued") : "draft" })
   const [conflictItems, setConflictItems] = useState<ConflictItem[] | null>(null)
   const [serverRows, setServerRows] = useState<InspectionAnswer[]>([])
   const [locationNote, setLocationNote] = useState("")

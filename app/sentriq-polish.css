@@ -444,3 +444,6 @@
 .sync-conflict-choice { display: grid; gap: 2px; text-align: start; min-height: 52px; padding: 8px 12px; border: 1.5px solid var(--border); background: #fff; font: inherit; cursor: pointer; }
 .sync-conflict-choice small { color: var(--muted); font-size: 11px; }
 .sync-conflict-choice.is-chosen { border-color: var(--teal); background: #EAF0EC; }
+.ux-success .button-outline, .ux-success .ux-success-actions { margin-top: 16px; }
+.ux-success-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.ux-success-actions { align-items: stretch; } .ux-success-actions > button { min-height: 44px; margin-top: 0; }
