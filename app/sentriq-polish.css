@@ -428,3 +428,7 @@
 .runner-signature-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; color: var(--muted); font-size: 12px; }
 .runner-signature-bar button { min-height: 44px; }
 .runner-instruction { padding: 12px 14px; border-inline-start: 4px solid var(--teal); background: #EEF2EF; color: var(--text); font-size: 14px; line-height: 1.55; }
+.runner-unsupported { margin: 12px 0 0; padding: 12px; border: 1px dashed #AEB7B0; background: #F4F1EA; color: var(--muted); font-size: 13px; }
+.runner-review-signature { display: flex; flex-direction: column; gap: 4px; }
+.runner-review-signature img { width: 180px; max-width: 100%; background: #fff; border: 1px solid var(--border); }
+.runner-review-signature small { color: var(--muted); font-size: 12px; }

@@ -15,6 +15,12 @@ test("required headers are present", () => {
     assert.notEqual(header(h), "", `${h} missing`)
   }
 })
+test("camera and location work on our own pages only (photo and GPS questions need them)", () => {
+  const policy = header("Permissions-Policy")
+  assert.ok(policy.includes("camera=(self)"))
+  assert.ok(policy.includes("geolocation=(self)"))
+  for (const off of ["microphone=()", "payment=()", "usb=()"]) assert.ok(policy.includes(off), off)
+})
 test("CSP blocks framing, plugins, base tag hijack and foreign scripts", () => {
   const csp = header("Content-Security-Policy")
   for (const d of ["default-src 'self'", "frame-ancestors 'none'", "object-src 'none'", "base-uri 'self'", "form-action 'self'"]) assert.ok(csp.includes(d), d)
